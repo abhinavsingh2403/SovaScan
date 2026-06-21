@@ -1,14 +1,18 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import './Scan.css';
 
 const Scan: React.FC = () => {
-  const { startScan, scanProgress, scans } = useStore();
+  const { startScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
   const [scanType, setScanType] = useState('full');
   const [frameworks, setFrameworks] = useState<string[]>(['RBI-CSF', 'PCI-DSS']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
+
+  useEffect(() => {
+    fetchScans();
+  }, [fetchScans]);
 
   const handleFrameworkToggle = (fw: string) => {
     if (frameworks.includes(fw)) {

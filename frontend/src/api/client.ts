@@ -22,36 +22,42 @@ client.interceptors.response.use(
 );
 
 export const api = {
-  getDashboard: () => client.get('/dashboard'),
+  /** GET /api/v1/dashboard/summary — aggregated dashboard metrics */
+  getDashboard: () => client.get('/dashboard/summary'),
+
+  /** GET /api/v1/scan — list all scans with pagination */
   getScans: (params?: { skip?: number; limit?: number }) =>
-    client.get('/scans', { params }),
-  getScan: (id: string) => client.get(`/scans/${id}`),
+    client.get('/scan', { params }),
+
+  /** GET /api/v1/scan/{id} — single scan by UUID */
+  getScan: (id: string) => client.get(`/scan/${id}`),
+
+  /** POST /api/v1/scan — create and run a new scan */
   createScan: (data: {
     target: string;
     scan_type: string;
-    frameworks?: string[];
-    max_depth?: number;
-    exclude_patterns?: string[];
-    timeout?: number;
-  }) => client.post('/scans', data),
+    options?: Record<string, unknown>;
+  }) => client.post('/scan', data),
+
+  /** GET /api/v1/findings — list findings across all scans */
   getFindings: (params?: {
     scan_id?: string;
     severity?: string;
     category?: string;
-    is_fixed?: boolean;
-    skip?: number;
-    limit?: number;
+    page?: number;
+    per_page?: number;
   }) => client.get('/findings', { params }),
-  getFinding: (id: string) => client.get(`/findings/${id}`),
-  updateFinding: (id: string, data: { is_fixed: boolean }) =>
-    client.patch(`/findings/${id}`, data),
+
+  /** POST /api/v1/fix/{findingId} — generate or apply an auto-fix */
+  applyFix: (findingId: string, autoApply: boolean = true) =>
+    client.post(`/fix/${findingId}`, {
+      finding_id: findingId,
+      auto_apply: autoApply,
+    }),
+
+  /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string) =>
     client.get(`/compliance/${framework}`),
-  exportCompliance: (framework: string, format: string) =>
-    client.get(`/compliance/${framework}/export`, {
-      params: { format },
-      responseType: 'blob',
-    }),
 };
 
 export default client;

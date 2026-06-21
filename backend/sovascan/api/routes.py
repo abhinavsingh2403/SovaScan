@@ -20,6 +20,8 @@ from sovascan.api.schemas import (
     SBOMResponse,
     ScanRequest,
     ScanResponse,
+    TopVulnerability,
+    TrendDataPoint,
 )
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
@@ -115,6 +117,31 @@ def _severity_to_field(severity: Severity) -> str:
 # ---------------------------------------------------------------------------
 # Endpoints
 # ---------------------------------------------------------------------------
+
+
+@router.get("/scan", response_model=list[ScanResponse])
+def list_scans(
+    skip: int = Query(default=0, ge=0, description="Offset for pagination"),
+    limit: int = Query(default=50, ge=1, le=200, description="Limit for pagination"),
+    db: Session = Depends(get_db),
+) -> list[Scan]:
+    """Retrieve all scans ordered by creation date, newest first.
+
+    Args:
+        skip: Number of records to skip.
+        limit: Maximum number of records to return.
+        db: Database session (injected).
+
+    Returns:
+        List of Scan records.
+    """
+    return (
+        db.query(Scan)
+        .order_by(Scan.created_at.desc())
+        .offset(skip)
+        .limit(limit)
+        .all()
+    )
 
 
 @router.post("/scan", response_model=ScanResponse, status_code=201)
@@ -272,6 +299,64 @@ def list_findings(
                 status_code=400,
                 detail=f"Invalid severity value: {severity}. Must be one of: critical, high, medium, low, info",
             ) from exc
+
+    total = query.count()
+    findings = (
+        query.order_by(Finding.created_at.desc())
+        .offset((page - 1) * per_page)
+        .limit(per_page)
+        .all()
+    )
+
+    return {
+        "findings": findings,
+        "total": total,
+        "page": page,
+        "per_page": per_page,
+    }
+
+
+@router.get("/findings", response_model=FindingsListResponse)
+def list_all_findings(
+    page: int = Query(default=1, ge=1, description="Page number"),
+    per_page: int = Query(default=50, ge=1, le=100, description="Items per page"),
+    severity: str | None = Query(default=None, description="Filter by severity"),
+    category: str | None = Query(default=None, description="Filter by category"),
+    scan_id: str | None = Query(default=None, description="Filter by scan ID"),
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """List findings across all scans with pagination and optional filters.
+
+    Unlike ``GET /scan/{scan_id}/findings`` which is scoped to a single scan,
+    this endpoint queries findings globally.
+
+    Args:
+        page: 1-indexed page number.
+        per_page: Results per page.
+        severity: Optional severity filter (critical/high/medium/low/info).
+        category: Optional category filter (case-insensitive substring).
+        scan_id: Optional scan ID to restrict results.
+        db: Database session (injected).
+
+    Returns:
+        Paginated findings list.
+    """
+    query = db.query(Finding)
+
+    if scan_id:
+        query = query.filter(Finding.scan_id == scan_id)
+    if severity:
+        try:
+            sev_enum = Severity(severity.lower())
+            query = query.filter(Finding.severity == sev_enum)
+        except ValueError as exc:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Invalid severity value: {severity}. "
+                       f"Must be one of: critical, high, medium, low, info",
+            ) from exc
+    if category:
+        query = query.filter(Finding.category.ilike(f"%{category}%"))
 
     total = query.count()
     findings = (
@@ -539,7 +624,8 @@ def dashboard_summary(
     """Return aggregated dashboard statistics.
 
     Computes totals, severity distribution, recent scans,
-    top vulnerabilities, and an overall risk score.
+    top vulnerabilities (grouped by rule), trend data (daily severity
+    totals), and an overall risk score.
 
     Args:
         db: Database session (injected).
@@ -560,6 +646,9 @@ def dashboard_summary(
         sev.value if hasattr(sev, "value") else str(sev): count
         for sev, count in severity_rows
     }
+    # Ensure all five keys are always present for the frontend pie chart
+    for s in ("critical", "high", "medium", "low", "info"):
+        severity_distribution.setdefault(s, 0)
 
     # Recent scans (last 10)
     recent_scans = (
@@ -569,18 +658,59 @@ def dashboard_summary(
         .all()
     )
 
-    top_vulns = (
-        db.query(Finding)
-        .order_by(
-            # Sort by CVSS score descending as primary sort
-            Finding.cvss_score.desc().nullslast(),
-            Finding.created_at.desc(),
+    # Top vulnerabilities — grouped by rule_id so the frontend shows
+    # aggregated counts like "SQL Injection: 7 occurrences".
+    top_vulns_rows = (
+        db.query(
+            Finding.rule_id,
+            Finding.title,
+            Finding.severity,
+            Finding.category,
+            func.count(Finding.id).label("cnt"),
         )
-        .limit(10)
+        .group_by(Finding.rule_id, Finding.title, Finding.severity, Finding.category)
+        .order_by(func.count(Finding.id).desc())
+        .limit(5)
         .all()
     )
+    top_vulnerabilities = [
+        {
+            "id": row.rule_id,
+            "title": row.title,
+            "severity": row.severity.value if hasattr(row.severity, "value") else str(row.severity),
+            "category": row.category,
+            "count": row.cnt,
+        }
+        for row in top_vulns_rows
+    ]
 
-    # Risk score: weighted sum normalized to 0-100
+    # Trend data — daily aggregated severity counts from completed scans
+    trend_rows = (
+        db.query(
+            func.strftime("%Y-%m-%d", Scan.created_at).label("date"),
+            func.coalesce(func.sum(Scan.critical_count), 0).label("critical"),
+            func.coalesce(func.sum(Scan.high_count), 0).label("high"),
+            func.coalesce(func.sum(Scan.medium_count), 0).label("medium"),
+            func.coalesce(func.sum(Scan.low_count), 0).label("low"),
+        )
+        .filter(Scan.status == ScanStatus.COMPLETED)
+        .group_by(func.strftime("%Y-%m-%d", Scan.created_at))
+        .order_by(func.strftime("%Y-%m-%d", Scan.created_at).asc())
+        .limit(30)
+        .all()
+    )
+    trend_data = [
+        {
+            "date": row.date,
+            "critical": int(row.critical),
+            "high": int(row.high),
+            "medium": int(row.medium),
+            "low": int(row.low),
+        }
+        for row in trend_rows
+    ]
+
+    # Risk score: weighted sum capped at 100
     weights = {
         Severity.CRITICAL: 10.0,
         Severity.HIGH: 5.0,
@@ -592,7 +722,6 @@ def dashboard_summary(
         weights.get(Severity(sev.value if hasattr(sev, "value") else sev), 0) * count
         for sev, count in severity_rows
     )
-    # Normalize: cap at 100
     risk_score = min(round(raw_risk, 1), 100.0)
 
     return {
@@ -600,6 +729,7 @@ def dashboard_summary(
         "total_findings": total_findings,
         "severity_distribution": severity_distribution,
         "recent_scans": recent_scans,
-        "top_vulnerabilities": top_vulns,
+        "top_vulnerabilities": top_vulnerabilities,
         "risk_score": risk_score,
+        "trend_data": trend_data,
     }

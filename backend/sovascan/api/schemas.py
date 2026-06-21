@@ -128,6 +128,26 @@ class ComplianceResponse(BaseModel):
     findings: list[FindingResponse]
 
 
+class TrendDataPoint(BaseModel):
+    """Historical security trend data point (findings aggregated by day)."""
+
+    date: str
+    critical: int = 0
+    high: int = 0
+    medium: int = 0
+    low: int = 0
+
+
+class TopVulnerability(BaseModel):
+    """Aggregated vulnerability metrics grouped by rule/title."""
+
+    id: str
+    title: str
+    severity: str
+    count: int
+    category: str
+
+
 class DashboardSummary(BaseModel):
     """Aggregated statistics for the dashboard."""
 
@@ -135,8 +155,9 @@ class DashboardSummary(BaseModel):
     total_findings: int = 0
     severity_distribution: dict[str, int] = Field(default_factory=dict)
     recent_scans: list[ScanResponse] = Field(default_factory=list)
-    top_vulnerabilities: list[FindingResponse] = Field(default_factory=list)
+    top_vulnerabilities: list[TopVulnerability] = Field(default_factory=list)
     risk_score: float = 0.0
+    trend_data: list[TrendDataPoint] = Field(default_factory=list)
 
 
 class FixResponse(BaseModel):
