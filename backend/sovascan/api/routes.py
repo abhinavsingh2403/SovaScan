@@ -573,6 +573,14 @@ def compliance_report(
             "total_controls": 93,
             "control_categories": ["organizational", "people", "physical", "technological"],
         },
+        "iso-27001": {
+            "total_controls": 93,
+            "control_categories": ["organizational", "people", "physical", "technological"],
+        },
+        "rbi-csf": {
+            "total_controls": 42,
+            "control_categories": ["governance", "identify", "protect", "detect", "respond", "recover"],
+        },
     }
 
     fw_key = framework.lower()

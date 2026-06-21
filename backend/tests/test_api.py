@@ -85,13 +85,14 @@ def test_get_sbom(client: TestClient) -> None:
 
 def test_compliance_report(client: TestClient) -> None:
     """Test generating a compliance framework report."""
-    resp = client.get("/api/v1/compliance/pci-dss")
-    assert resp.status_code == 200
-    data = resp.json()
-    assert data["framework"] == "pci-dss"
-    assert "score" in data
-    assert "passed" in data
-    assert "failed" in data
+    for fw in ("pci-dss", "rbi-csf", "iso-27001"):
+        resp = client.get(f"/api/v1/compliance/{fw}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["framework"] == fw
+        assert "score" in data
+        assert "passed" in data
+        assert "failed" in data
 
 
 def test_dashboard_summary(client: TestClient) -> None:
