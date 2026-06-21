@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
+import { api } from '../api/client';
 import { Finding } from '../types';
-import axios from 'axios';
 import './Findings.css';
 
 const Findings: React.FC = () => {
@@ -25,24 +25,18 @@ const Findings: React.FC = () => {
     e.stopPropagation();
     setApplyingFixId(finding.id);
     try {
-      // In a real env this hits the backend POST /fix/{finding_id}
-      await axios.post(`/api/v1/fix/${finding.id}`, { auto_apply: true });
+      const res = await api.applyFix(finding.id, true);
+      const desc = res.data?.description || 'Fix applied successfully!';
       setFixSuccessMsg((prev) => ({
         ...prev,
-        [finding.id]: 'Fix applied successfully! Code patch deployed.',
+        [finding.id]: desc,
       }));
-      finding.isFixed = true; // updates locally
-    } catch (err) {
-      // Fallback/Simulated apply
-      setTimeout(() => {
-        setFixSuccessMsg((prev) => ({
-          ...prev,
-          [finding.id]: 'Fix simulated: environment variables configured.',
-        }));
-        finding.isFixed = true;
-        setApplyingFixId(null);
-      }, 800);
-      return;
+      finding.isFixed = true;
+    } catch {
+      setFixSuccessMsg((prev) => ({
+        ...prev,
+        [finding.id]: 'Fix request failed. Please try again.',
+      }));
     }
     setApplyingFixId(null);
   };

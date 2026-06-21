@@ -1,17 +1,22 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useStore } from '../store';
 import './Compliance.css';
 
 const Compliance: React.FC = () => {
-  const { getComplianceReport, findings } = useStore();
+  const { getComplianceReport, fetchComplianceReport, findings } = useStore();
   const [selectedFramework, setSelectedFramework] = useState('RBI-CSF');
+
+  useEffect(() => {
+    fetchComplianceReport(selectedFramework);
+  }, [selectedFramework, fetchComplianceReport]);
 
   const report = getComplianceReport(selectedFramework);
 
   if (!report) {
     return (
       <div className="compliance-loading">
-        <p>Generating compliance data...</p>
+        <div className="spinner"></div>
+        <p>Loading compliance alignment mapping...</p>
       </div>
     );
   }
