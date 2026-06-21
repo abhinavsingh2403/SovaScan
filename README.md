@@ -34,30 +34,30 @@ SovaScan is an enterprise-grade security scanner designed to find, score, and re
 
 ```mermaid
 graph TD
-    subgraph Frontend (React + TypeScript)
-        UI[Dashboard & Pages]
-        Store[Zustand Store]
-        Client[Axios API Client]
+    subgraph "Frontend (React + TypeScript)"
+        UI["Dashboard & Pages"]
+        Store["Zustand Store"]
+        Client["Axios API Client"]
         UI --> Store
         Store --> Client
     end
 
-    subgraph Backend (FastAPI + Python)
-        API[FastAPI Endpoints]
-        Orch[Scan Orchestrator]
-        DB[(SQLite / PostgreSQL)]
+    subgraph "Backend (FastAPI + Python)"
+        API["FastAPI Endpoints"]
+        Orch["Scan Orchestrator"]
+        DB[("SQLite / PostgreSQL")]
         
         Client -->|HTTP Requests| API
         API -->|Starts Scan| Orch
         API -->|Read/Write| DB
         
-        subgraph Scanning Engine
-            Dep[Dependency Resolver]
-            CVE[CVE Scanner]
-            Sec[Secret Scanner]
-            Mis[Misconfig Detector]
-            Drift[Config Drift Analyzer]
-            Scorer[Severity Scorer]
+        subgraph "Scanning Engine"
+            Dep["Dependency Resolver"]
+            CVE["CVE Scanner"]
+            Sec["Secret Scanner"]
+            Mis["Misconfig Detector"]
+            Drift["Config Drift Analyzer"]
+            Scorer["Severity Scorer"]
             
             Orch --> Dep
             Orch --> CVE
@@ -68,8 +68,8 @@ graph TD
         end
     end
 
-    subgraph External
-        OSV[OSV.dev API]
+    subgraph "External"
+        OSV["OSV.dev API"]
         CVE -->|Queries Package CVEs| OSV
     end
 ```
