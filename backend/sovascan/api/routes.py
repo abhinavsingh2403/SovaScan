@@ -20,8 +20,6 @@ from sovascan.api.schemas import (
     SBOMResponse,
     ScanRequest,
     ScanResponse,
-    TopVulnerability,
-    TrendDataPoint,
 )
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
