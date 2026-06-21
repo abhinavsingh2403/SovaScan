@@ -85,7 +85,7 @@ class MisconfigDetector:
 
         for rule_file in sorted(yaml_files):
             try:
-                with open(rule_file, "r", encoding="utf-8") as fh:
+                with open(rule_file, encoding="utf-8") as fh:
                     data = yaml.safe_load(fh)
 
                 if data is None:

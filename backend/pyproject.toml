@@ -78,6 +78,10 @@ ignore = [
     "E501",  # line too long (handled by formatter)
     "S101",  # assert usage (needed in tests)
     "S105",  # hardcoded password (false positives in config defaults)
+    "B008",  # Depends in FastAPI argument defaults
+    "S104",  # binding to 0.0.0.0 for development/docker
+    "S314",  # xml element tree parsing for local pom.xml files
+    "UP042", # str+Enum subclassing for Python 3.10 compatibility
 ]
 
 [tool.ruff.lint.per-file-ignores]

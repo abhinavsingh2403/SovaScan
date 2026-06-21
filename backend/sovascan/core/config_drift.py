@@ -256,7 +256,7 @@ class ConfigDriftAnalyzer:
 
         for yaml_file in self.baselines_dir.glob("*.yaml"):
             try:
-                with open(yaml_file, "r", encoding="utf-8") as fh:
+                with open(yaml_file, encoding="utf-8") as fh:
                     data = yaml.safe_load(fh)
                 if not data or not isinstance(data, dict):
                     continue
@@ -401,7 +401,6 @@ class ConfigDriftAnalyzer:
     def _detect_config_type(file_path: Path) -> str | None:
         """Detect the configuration type from the file path and name."""
         name = file_path.name.lower()
-        stem = file_path.stem.lower()
 
         if name == "dockerfile" or name.startswith("dockerfile."):
             return "Dockerfile"

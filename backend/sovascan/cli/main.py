@@ -13,7 +13,7 @@ from typing import Any
 import click
 from rich.console import Console
 from rich.panel import Panel
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from rich.progress import BarColumn, Progress, SpinnerColumn, TextColumn
 from rich.table import Table
 
 from sovascan.core.orchestrator import ScanOrchestrator
@@ -80,7 +80,7 @@ def scan(
 ) -> None:
     """Scan a target path for vulnerabilities, secrets, and misconfigurations."""
     fmt = fmt.lower()
-    
+
     if fmt == "table":
         console.print(Panel(BANNER, border_style="#6366f1"))
 
@@ -129,7 +129,7 @@ def scan(
             **result.metadata
         }
         report = generator.generate(findings, scan_metadata, fmt)
-        
+
         # Output to file or stdout
         if output:
             try:
@@ -143,9 +143,9 @@ def scan(
                 sys.exit(1)
         else:
             if isinstance(report, dict):
-                print(json.dumps(report, indent=2))
+                click.echo(json.dumps(report, indent=2))
             else:
-                print(report)
+                click.echo(report)
 
     # Exit code based on critical/high findings
     critical_high_count = sum(
@@ -186,7 +186,7 @@ def _print_table_report(result: Any, findings: list[Any]) -> None:
     for f in findings:
         sev = f.severity.value
         sev_color = severity_colors.get(sev, "white")
-        
+
         location = f.file_path
         if f.line_number:
             location += f":{f.line_number}"

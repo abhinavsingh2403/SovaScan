@@ -10,7 +10,7 @@ import html
 import json
 import logging
 from dataclasses import asdict
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 logger = logging.getLogger(__name__)
@@ -78,7 +78,7 @@ class ReportGenerator:
                 "description": "Security Vulnerability and Configuration Scanner",
             },
             "metadata": {
-                "timestamp": datetime.now(timezone.utc).isoformat(),
+                "timestamp": datetime.now(UTC).isoformat(),
                 "target": metadata.get("target_path", ""),
                 "scan_type": metadata.get("scan_type", "full"),
                 "duration_seconds": metadata.get("duration", 0),
@@ -215,11 +215,11 @@ class ReportGenerator:
                             "executionSuccessful": True,
                             "startTimeUtc": metadata.get(
                                 "start_time",
-                                datetime.now(timezone.utc).isoformat(),
+                                datetime.now(UTC).isoformat(),
                             ),
                             "endTimeUtc": metadata.get(
                                 "end_time",
-                                datetime.now(timezone.utc).isoformat(),
+                                datetime.now(UTC).isoformat(),
                             ),
                         }
                     ],
@@ -243,7 +243,7 @@ class ReportGenerator:
             Complete HTML document as string.
         """
         summary = self._compute_summary(findings)
-        timestamp = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S UTC")
+        timestamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S UTC")
         target = html.escape(str(metadata.get("target_path", "")))
         duration = metadata.get("duration", 0)
 

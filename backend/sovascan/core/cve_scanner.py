@@ -12,7 +12,7 @@ import logging
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -51,7 +51,7 @@ class CVEScanner:
     RATE_LIMIT_DELAY = 0.25  # seconds between requests
     MAX_BATCH_SIZE = 100
 
-    def __init__(self, cache_dir: Optional[str | Path] = None) -> None:
+    def __init__(self, cache_dir: str | Path | None = None) -> None:
         """Initialize the CVE scanner.
 
         Args:
@@ -241,7 +241,7 @@ class CVEScanner:
             "aliases": aliases,
         }
 
-    def _build_finding(self, vuln: dict, dep: Any) -> Optional[Finding]:
+    def _build_finding(self, vuln: dict, dep: Any) -> Finding | None:
         """Build a Finding object from parsed vulnerability and dependency data.
 
         Args:
@@ -342,7 +342,7 @@ class CVEScanner:
         cache_file = self._cache_dir / "osv_cache.json"
         if cache_file.exists():
             try:
-                with open(cache_file, "r", encoding="utf-8") as fh:
+                with open(cache_file, encoding="utf-8") as fh:
                     self._cache = json.load(fh)
                 logger.info("Loaded %d cached OSV results", len(self._cache))
             except (json.JSONDecodeError, OSError) as exc:

@@ -12,7 +12,6 @@ import re
 import xml.etree.ElementTree as ET
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -27,7 +26,7 @@ class Dependency:
     is_dev: bool = False
     is_transitive: bool = False
     source_file: str = ""
-    parent: Optional[str] = None
+    parent: str | None = None
     extras: dict = field(default_factory=dict)
 
     @property
@@ -95,7 +94,7 @@ class DependencyResolver:
 
     def _parse_package_json(self, path: Path) -> list[Dependency]:
         """Parse package.json for dependencies and devDependencies."""
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
 
         deps: list[Dependency] = []
@@ -130,7 +129,7 @@ class DependencyResolver:
 
     def _parse_package_lock(self, path: Path) -> list[Dependency]:
         """Parse package-lock.json for locked dependency versions."""
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
 
         deps: list[Dependency] = []
@@ -213,7 +212,7 @@ class DependencyResolver:
             logger.warning("Requirements file not found: %s", path)
             return
 
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             for raw_line in fh:
                 line = raw_line.strip()
 
@@ -277,7 +276,7 @@ class DependencyResolver:
 
     def _parse_pipfile_lock(self, path: Path) -> list[Dependency]:
         """Parse Pipfile.lock JSON for locked dependency versions."""
-        with open(path, "r", encoding="utf-8") as fh:
+        with open(path, encoding="utf-8") as fh:
             data = json.load(fh)
 
         deps: list[Dependency] = []
@@ -350,7 +349,7 @@ class DependencyResolver:
         return deps
 
     @staticmethod
-    def _parse_maven_dep(dep_elem, tag, properties: dict, source: str) -> Optional[Dependency]:
+    def _parse_maven_dep(dep_elem, tag, properties: dict, source: str) -> Dependency | None:
         """Parse a single Maven <dependency> element."""
         group_elem = dep_elem.find(tag("groupId"))
         artifact_elem = dep_elem.find(tag("artifactId"))

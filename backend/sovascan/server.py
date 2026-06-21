@@ -2,8 +2,8 @@
 
 import logging
 import time
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
-from typing import AsyncGenerator
 
 import uvicorn
 from fastapi import FastAPI
@@ -50,8 +50,6 @@ def create_app() -> FastAPI:
     Returns:
         FastAPI: The configured application instance.
     """
-    settings = get_settings()
-
     application = FastAPI(
         title="SovaScan API",
         version=__version__,
@@ -92,9 +90,10 @@ def create_app() -> FastAPI:
         }
 
     # Mount static frontend React dashboard if built
-    from fastapi.staticfiles import StaticFiles
-    from fastapi.responses import FileResponse
     import os
+
+    from fastapi.responses import FileResponse
+    from fastapi.staticfiles import StaticFiles
 
     dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
     if os.path.exists(dist_dir):

@@ -67,7 +67,7 @@ class RuleEngine:
         yaml_files = list(self.rules_dir.rglob("*.yaml")) + list(self.rules_dir.rglob("*.yml"))
         for rule_file in yaml_files:
             try:
-                with open(rule_file, "r", encoding="utf-8") as fh:
+                with open(rule_file, encoding="utf-8") as fh:
                     data = yaml.safe_load(fh)
 
                 if not data:

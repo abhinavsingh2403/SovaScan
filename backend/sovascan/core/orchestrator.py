@@ -8,16 +8,17 @@ from __future__ import annotations
 
 import logging
 import time
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Callable
+from typing import Any
 
-from sovascan.core.dependency_resolver import DependencyResolver, Dependency
+from sovascan.core.config_drift import ConfigDriftAnalyzer
 from sovascan.core.cve_scanner import CVEScanner, Finding
+from sovascan.core.dependency_resolver import Dependency, DependencyResolver
 from sovascan.core.misconfig_detector import MisconfigDetector
 from sovascan.core.secret_scanner import SecretScanner
-from sovascan.core.config_drift import ConfigDriftAnalyzer
-from sovascan.core.severity_scorer import SeverityScorer, ScoredFinding, Severity
+from sovascan.core.severity_scorer import ScoredFinding, Severity, SeverityScorer
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ class ScanOrchestrator:
         """
         self.target_path = Path(target_path).resolve()
         self.scan_type = scan_type.lower().strip()
-        
+
         # Resolve rules directory relative to backend/sovascan root if not provided
         if rules_dir:
             self.rules_dir = Path(rules_dir)
@@ -189,7 +190,7 @@ class ScanOrchestrator:
                 "license": getattr(d, "license", None) or "MIT",
                 "purl": f"pkg:{d.ecosystem}/{d.name}@{d.version}"
             })
-        
+
         sbom = {
             "format": "cyclonedx",
             "packages": packages,
@@ -208,8 +209,8 @@ class ScanOrchestrator:
         if self.scan_type in ("full", "misconfig"):
             try:
                 rules_loaded_count = len(MisconfigDetector(self.rules_dir).rules)
-            except Exception:
-                pass
+            except Exception as exc:
+                logger.debug("Failed to get rules count: %s", exc)
 
         result = ScanResult(
             target_path=str(self.target_path),

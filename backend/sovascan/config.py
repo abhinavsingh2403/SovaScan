@@ -1,6 +1,5 @@
 """SovaScan configuration management using Pydantic Settings."""
 
-import os
 import pathlib
 from functools import lru_cache
 

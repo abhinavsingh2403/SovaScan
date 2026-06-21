@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-from sovascan.models import Base, Scan, Finding
+from sovascan.models import Base
 from sovascan.models.base import get_db
 from sovascan.server import app
 

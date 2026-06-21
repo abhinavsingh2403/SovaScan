@@ -2,7 +2,7 @@
 
 import enum
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import Column, DateTime, Enum, Integer, String, Text
 from sqlalchemy.orm import relationship
@@ -59,7 +59,7 @@ class Scan(Base):
     created_at = Column(
         DateTime,
         nullable=False,
-        default=lambda: datetime.now(timezone.utc),
+        default=lambda: datetime.now(UTC),
     )
     metadata_json = Column(Text, nullable=True)
 

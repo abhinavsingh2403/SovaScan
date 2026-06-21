@@ -3,7 +3,7 @@
 import json
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -13,11 +13,9 @@ from sqlalchemy.orm import Session
 from sovascan.api.schemas import (
     ComplianceResponse,
     DashboardSummary,
-    FindingResponse,
     FindingsListResponse,
     FixRequest,
     FixResponse,
-    PackageInfo,
     SBOMResponse,
     ScanRequest,
     ScanResponse,
@@ -161,7 +159,7 @@ def create_scan(
 
     # Transition to running
     scan.status = ScanStatus.RUNNING
-    scan.started_at = datetime.now(timezone.utc)
+    scan.started_at = datetime.now(UTC)
     db.flush()
 
     try:
@@ -200,19 +198,19 @@ def create_scan(
         scan.medium_count = severity_counts["medium_count"]
         scan.low_count = severity_counts["low_count"]
         scan.status = ScanStatus.COMPLETED
-        scan.completed_at = datetime.now(timezone.utc)
+        scan.completed_at = datetime.now(UTC)
         db.commit()
         db.refresh(scan)
 
         logger.info("Scan %s completed — %d findings", scan.id, scan.total_findings)
 
-    except Exception:
+    except Exception as exc:
         scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(timezone.utc)
+        scan.completed_at = datetime.now(UTC)
         db.commit()
         db.refresh(scan)
         logger.exception("Scan %s failed", scan.id)
-        raise HTTPException(status_code=500, detail="Scan execution failed")
+        raise HTTPException(status_code=500, detail="Scan execution failed") from exc
 
     return scan
 
@@ -272,11 +270,11 @@ def list_findings(
         try:
             sev_enum = Severity(severity.lower())
             query = query.filter(Finding.severity == sev_enum)
-        except ValueError:
+        except ValueError as exc:
             raise HTTPException(
                 status_code=400,
                 detail=f"Invalid severity value: {severity}. Must be one of: critical, high, medium, low, info",
-            )
+            ) from exc
 
     total = query.count()
     findings = (
@@ -365,7 +363,7 @@ def generate_sbom(
     return {
         "format": "cyclonedx",
         "packages": packages,
-        "generated_at": datetime.now(timezone.utc),
+        "generated_at": datetime.now(UTC),
     }
 
 
@@ -574,8 +572,6 @@ def dashboard_summary(
         .all()
     )
 
-    # Top vulnerabilities (highest severity first, limit 10)
-    severity_order = [Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM, Severity.LOW, Severity.INFO]
     top_vulns = (
         db.query(Finding)
         .order_by(
