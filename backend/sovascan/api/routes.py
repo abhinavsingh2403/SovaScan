@@ -4,6 +4,7 @@ import json
 import logging
 import uuid
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -20,6 +21,7 @@ from sovascan.api.schemas import (
     ScanRequest,
     ScanResponse,
 )
+from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
@@ -37,76 +39,61 @@ router = APIRouter(tags=["sovascan"])
 def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Execute the core scan logic and return raw findings.
 
-    In production this would delegate to the scan-engine / rule-runner.
-    For now it performs a lightweight heuristic check so the endpoint
-    is fully functional and returns real data.
+    Delegates to the real ScanOrchestrator (discovery -> dependency
+    resolution -> CVE/misconfig/secret detection -> severity scoring),
+    then converts each ScoredFinding into the plain dict shape the
+    caller already inserts into the database.
 
     Args:
-        target: Path or URL to scan.
+        target: Path to scan. (Remote URLs are not yet supported by the
+            orchestrator; see the 404 raised below.)
         scan_type: Kind of scan (full, dependencies, secrets, misconfig).
-        options: Extra options forwarded to the engine.
+        options: Extra options forwarded to the engine (currently unused
+            by the orchestrator, but accepted for forward compatibility).
 
     Returns:
         A list of finding dicts ready for DB insertion.
+
+    Raises:
+        HTTPException: 400 if the target path does not exist, or the
+            scan otherwise fails to run.
     """
+    if target.startswith("http://") or target.startswith("https://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
+        )
+
+    target_path = Path(target)
+    if not target_path.exists():
+        raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
+
+    orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
+
+    try:
+        result = orchestrator.run_scan()
+    except Exception as exc:
+        logger.exception("Orchestrator failed for target %s", target)
+        raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+
     findings: list[dict[str, Any]] = []
-
-    if scan_type in ("full", "secrets"):
+    for sf in result.findings:
         findings.append(
             {
-                "rule_id": "SOVA-SECRET-001",
-                "title": "Potential hardcoded secret detected",
-                "description": (
-                    "A string resembling an API key or password was found in the scanned target. "
-                    "Hardcoded secrets can be extracted from source code and used to compromise systems."
-                ),
-                "severity": Severity.HIGH,
-                "category": "secret",
-                "file_path": f"{target}/.env" if not target.startswith("http") else target,
-                "line_number": 12,
-                "evidence": "API_KEY=AKIA... (redacted)",
-                "remediation": (
-                    "Remove the hardcoded secret and use environment variables or a secrets manager instead. "
-                    "Rotate the exposed credential immediately."
-                ),
-            }
-        )
-
-    if scan_type in ("full", "dependencies"):
-        findings.append(
-            {
-                "rule_id": "SOVA-DEP-001",
-                "title": "Vulnerable dependency: requests < 2.31.0",
-                "description": (
-                    "The dependency 'requests' is pinned to a version affected by CVE-2023-32681 "
-                    "(SSRF via crafted URL). Upgrade to >= 2.31.0."
-                ),
-                "severity": Severity.MEDIUM,
-                "category": "cve",
-                "file_path": f"{target}/requirements.txt" if not target.startswith("http") else target,
-                "line_number": 3,
-                "evidence": "requests==2.28.0",
-                "remediation": "Upgrade requests to >= 2.31.0 in your requirements file.",
-                "cve_id": "CVE-2023-32681",
-                "cvss_score": 6.1,
-            }
-        )
-
-    if scan_type in ("full", "misconfig"):
-        findings.append(
-            {
-                "rule_id": "SOVA-MISC-001",
-                "title": "Debug mode enabled in production configuration",
-                "description": (
-                    "The application configuration has DEBUG=True. Running with debug mode "
-                    "in production exposes detailed error pages and may leak sensitive data."
-                ),
-                "severity": Severity.CRITICAL,
-                "category": "misconfiguration",
-                "file_path": f"{target}/settings.py" if not target.startswith("http") else target,
-                "line_number": 7,
-                "evidence": "DEBUG = True",
-                "remediation": "Set DEBUG=False in the production configuration file.",
+                # ScoredFinding.id is a rule-style identifier (e.g.
+                # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
+                # it maps directly onto Finding.rule_id.
+                "rule_id": sf.id,
+                "title": sf.title,
+                "description": sf.description,
+                "severity": Severity(sf.severity.value),
+                "category": sf.category,
+                "file_path": sf.file_path,
+                "line_number": sf.line_number,
+                "evidence": sf.evidence,
+                "remediation": sf.remediation,
+                "cve_id": sf.id if sf.category == "cve" else None,
+                "cvss_score": sf.cvss_score or None,
             }
         )
 
@@ -204,6 +191,16 @@ def create_scan(
 
         logger.info("Scan %s completed — %d findings", scan.id, scan.total_findings)
 
+    except HTTPException:
+        # Validation-style failures (bad/missing target path, unsupported
+        # scan target, etc.) already carry the correct status code and
+        # message — mark the scan failed in the DB, but don't mask them as 500s.
+        scan.status = ScanStatus.FAILED
+        scan.completed_at = datetime.now(UTC)
+        db.commit()
+        db.refresh(scan)
+        logger.warning("Scan %s rejected before execution", scan.id)
+        raise
     except Exception as exc:
         scan.status = ScanStatus.FAILED
         scan.completed_at = datetime.now(UTC)
