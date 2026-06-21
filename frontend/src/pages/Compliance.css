@@ -1,0 +1,313 @@
+.compliance-container {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.framework-selector {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.fw-tab {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 16px 20px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(255, 255, 255, 0.02);
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.fw-tab:hover {
+  background: var(--bg-card-hover);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.fw-tab.active {
+  background: rgba(99, 102, 241, 0.05);
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
+}
+
+.fw-icon {
+  font-size: 28px;
+}
+
+.fw-tab-info h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0 0 4px 0;
+}
+
+.fw-score-mini {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin: 0;
+}
+
+/* Compliance Layout grid */
+.compliance-layout {
+  display: grid;
+  grid-template-columns: 0.8fr 1.2fr;
+  gap: 20px;
+}
+
+@media (max-width: 1024px) {
+  .compliance-layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.compliance-score-card, .controls-list-card {
+  padding: 24px;
+  border-radius: 16px;
+  display: flex;
+  flex-direction: column;
+}
+
+.compliance-score-card h2, .controls-list-card h2 {
+  font-size: 16px;
+  font-weight: 600;
+  margin: 0 0 6px 0;
+  color: var(--text-primary);
+}
+
+.last-assessed-date {
+  font-size: 11px;
+  color: var(--text-secondary);
+  margin-bottom: 24px;
+}
+
+/* Circular Gauge styling */
+.gauge-outer-wrap {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 24px;
+}
+
+.compliance-gauge {
+  position: relative;
+  width: 140px;
+  height: 140px;
+}
+
+.circular-gauge {
+  width: 100%;
+  height: 100%;
+}
+
+.gauge-bg {
+  fill: none;
+  stroke: rgba(255, 255, 255, 0.04);
+  stroke-width: 3;
+}
+
+.gauge-fill {
+  fill: none;
+  stroke-width: 3;
+  stroke-linecap: round;
+  transition: stroke-dasharray 1s ease;
+}
+
+.gauge-inner-value {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+}
+
+.gauge-score {
+  font-size: 26px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.gauge-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+/* Controls breakdown list */
+.controls-summary-breakdown {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.breakdown-stat {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  padding: 10px 14px;
+  border-radius: 10px;
+}
+
+.breakdown-stat.passed .stat-bullet { color: var(--success); }
+.breakdown-stat.failed .stat-bullet { color: var(--danger); }
+.breakdown-stat.na .stat-bullet { color: var(--text-secondary); }
+
+.stat-desc {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-desc strong {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.stat-desc span {
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+/* Controls List section */
+.controls-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.control-item-row {
+  background: rgba(255, 255, 255, 0.01);
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  border-radius: 12px;
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.control-header-line {
+  display: flex;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.control-status-dot {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.control-status-dot.passed { background: rgba(16, 185, 129, 0.1); color: var(--success); }
+.control-status-dot.failed { background: rgba(239, 68, 68, 0.1); color: var(--danger); }
+.control-status-dot.not-applicable { background: rgba(255, 255, 255, 0.05); color: var(--text-secondary); }
+
+.control-meta-info {
+  flex: 1;
+}
+
+.control-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 4px;
+}
+
+.control-title-row h3 {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text-primary);
+  margin: 0;
+}
+
+.control-cat-tag {
+  font-size: 9px;
+  font-weight: 600;
+  text-transform: uppercase;
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--text-secondary);
+  padding: 1px 5px;
+  border-radius: 3px;
+}
+
+.control-desc {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin: 0;
+  line-height: 1.4;
+}
+
+.control-id {
+  font-size: 11px;
+  font-weight: 700;
+  font-family: monospace;
+  color: var(--text-secondary);
+}
+
+/* Violation details box */
+.control-violations-box {
+  background: rgba(239, 68, 68, 0.04);
+  border: 1px dashed rgba(239, 68, 68, 0.15);
+  border-radius: 8px;
+  padding: 12px;
+  margin-left: 40px;
+}
+
+.violations-title {
+  font-size: 11px;
+  font-weight: 700;
+  color: #ef4444;
+  margin: 0 0 8px 0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.violating-vuln-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 12px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.violating-vuln-item:last-child {
+  margin-bottom: 0;
+}
+
+.severity-bullet {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.severity-bullet.critical { background: var(--critical); }
+.severity-bullet.high { background: var(--warning); }
+.severity-bullet.medium { background: var(--warning); }
+
+.vuln-title-ref {
+  font-weight: 600;
+}
+
+.vuln-path-ref {
+  font-family: monospace;
+  color: var(--text-secondary);
+  margin-left: auto;
+  font-size: 10.5px;
+}

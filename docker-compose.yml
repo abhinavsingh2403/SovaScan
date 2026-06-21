@@ -1,0 +1,48 @@
+version: "3.9"
+
+services:
+  sovascan-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: sovascan-api
+    ports:
+      - "8000:8000"
+    environment:
+      - DATABASE_URL=sqlite:///./sovascan.db
+      - SECRET_KEY=change-me-in-production
+      - DEBUG=true
+      - API_HOST=0.0.0.0
+      - API_PORT=8000
+    volumes:
+      - ./backend:/app/backend
+    restart: unless-stopped
+    # depends_on:
+    #   - redis
+    #   - postgres
+
+  # redis:
+  #   image: redis:7-alpine
+  #   container_name: sovascan-redis
+  #   ports:
+  #     - "6379:6379"
+  #   volumes:
+  #     - redis_data:/data
+  #   restart: unless-stopped
+
+  # postgres:
+  #   image: postgres:15-alpine
+  #   container_name: sovascan-postgres
+  #   ports:
+  #     - "5432:5432"
+  #   environment:
+  #     - POSTGRES_USER=sovascan
+  #     - POSTGRES_PASSWORD=sovascan_secret
+  #     - POSTGRES_DB=sovascan
+  #   volumes:
+  #     - postgres_data:/var/lib/postgresql/data
+  #   restart: unless-stopped
+
+# volumes:
+#   redis_data:
+#   postgres_data:

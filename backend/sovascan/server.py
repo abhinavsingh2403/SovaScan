@@ -1,0 +1,140 @@
+"""FastAPI application entry point for SovaScan API."""
+
+import logging
+import time
+from contextlib import asynccontextmanager
+from typing import AsyncGenerator
+
+import uvicorn
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+
+from sovascan import __version__
+from sovascan.api.routes import router
+from sovascan.config import get_settings
+from sovascan.models.base import init_db
+
+logger = logging.getLogger("sovascan")
+
+_start_time: float = 0.0
+
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
+    """Application lifespan context manager.
+
+    Handles startup and shutdown events:
+    - Startup: initializes the database tables and logs readiness.
+    - Shutdown: performs any cleanup needed.
+    """
+    global _start_time
+    _start_time = time.time()
+
+    settings = get_settings()
+    logger.info("Starting SovaScan API v%s", __version__)
+    logger.info("Database URL: %s", settings.DATABASE_URL)
+    logger.info("Debug mode: %s", settings.DEBUG)
+
+    # Initialize database tables
+    init_db()
+    logger.info("Database initialized successfully")
+
+    yield
+
+    logger.info("Shutting down SovaScan API")
+
+
+def create_app() -> FastAPI:
+    """Create and configure the FastAPI application.
+
+    Returns:
+        FastAPI: The configured application instance.
+    """
+    settings = get_settings()
+
+    application = FastAPI(
+        title="SovaScan API",
+        version=__version__,
+        description=(
+            "SovaScan is a security vulnerability scanner and compliance checker. "
+            "It provides endpoints for scanning projects, generating SBOMs, "
+            "checking compliance against frameworks, and auto-fixing findings."
+        ),
+        docs_url="/docs",
+        redoc_url="/redoc",
+        lifespan=lifespan,
+    )
+
+    # CORS middleware — allow all origins for development
+    application.add_middleware(
+        CORSMiddleware,
+        allow_origins=["*"],
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+
+    # Include API v1 router
+    application.include_router(router, prefix="/api/v1")
+
+    @application.get("/health", tags=["system"])
+    async def health_check() -> dict:
+        """Health check endpoint.
+
+        Returns:
+            dict: Health status including version and uptime.
+        """
+        uptime = time.time() - _start_time if _start_time > 0 else 0.0
+        return {
+            "status": "healthy",
+            "version": __version__,
+            "uptime": round(uptime, 2),
+        }
+
+    # Mount static frontend React dashboard if built
+    from fastapi.staticfiles import StaticFiles
+    from fastapi.responses import FileResponse
+    import os
+
+    dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
+    if os.path.exists(dist_dir):
+        assets_dir = os.path.join(dist_dir, "assets")
+        if os.path.exists(assets_dir):
+            application.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
+
+        @application.get("/{catchall:path}", tags=["frontend"])
+        async def serve_spa(catchall: str):
+            if catchall.startswith("api/") or catchall.startswith("docs") or catchall.startswith("redoc") or catchall.startswith("health"):
+                from fastapi.responses import JSONResponse
+                return JSONResponse(status_code=404, content={"detail": "Not Found"})
+            return FileResponse(os.path.join(dist_dir, "index.html"))
+
+    return application
+
+
+# Module-level app instance for uvicorn
+app = create_app()
+
+
+def main() -> None:
+    """Run the SovaScan API server via uvicorn.
+
+    Reads host and port from application settings.
+    """
+    logging.basicConfig(
+        level=logging.DEBUG if get_settings().DEBUG else logging.INFO,
+        format="%(asctime)s | %(levelname)-8s | %(name)s | %(message)s",
+    )
+
+    settings = get_settings()
+    uvicorn.run(
+        "sovascan.server:app",
+        host=settings.API_HOST,
+        port=settings.API_PORT,
+        reload=settings.DEBUG,
+        log_level="debug" if settings.DEBUG else "info",
+    )
+
+
+if __name__ == "__main__":
+    main()

@@ -1,0 +1,7 @@
+"""SovaScan models package — re-exports for convenience."""
+
+from sovascan.models.base import Base
+from sovascan.models.finding import Finding
+from sovascan.models.scan import Scan
+
+__all__ = ["Base", "Finding", "Scan"]

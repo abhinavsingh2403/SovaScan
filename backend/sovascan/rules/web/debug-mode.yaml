@@ -1,0 +1,12 @@
+id: SOVA-WEB-001
+name: Debug Mode Enabled in Web Configuration
+description: Running web frameworks in debug/development mode leaks stack traces, environment variables, and system details
+severity: critical
+category: web
+pattern: "(?i)(debug|dev_mode)\\s*[:=]\\s*(true|1|on|yes)\\b"
+file_types: ["*.py", "*.properties", "*.yml", "*.yaml", "*.ini", "*.json", "*.env", "*.conf"]
+remediation: "Set DEBUG=False or equivalent in production environments."
+references:
+  - "https://cwe.mitre.org/data/definitions/489.html"
+tags: [web, debug, disclosure]
+enabled: true
