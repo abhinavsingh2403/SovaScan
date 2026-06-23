@@ -398,7 +398,7 @@ export const useStore = create<SovaState>((set, get) => ({
           running: true,
           phase: phases[phaseIdx],
           percent: Math.round(currentPercent),
-          findingsCount: Math.floor(currentPercent * 0.15),
+          findingsCount: 0,
         },
       });
     }, 400);
