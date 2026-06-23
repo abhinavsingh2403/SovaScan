@@ -690,18 +690,18 @@ def dashboard_summary(
         for row in top_vulns_rows
     ]
 
-    # Trend data — daily aggregated severity counts from completed scans
+    # Trend data — hourly aggregated severity counts from completed scans
     trend_rows = (
         db.query(
-            func.strftime("%Y-%m-%d", Scan.created_at).label("date"),
+            func.strftime("%Y-%m-%d %H:00", Scan.created_at, "localtime").label("date"),
             func.coalesce(func.sum(Scan.critical_count), 0).label("critical"),
             func.coalesce(func.sum(Scan.high_count), 0).label("high"),
             func.coalesce(func.sum(Scan.medium_count), 0).label("medium"),
             func.coalesce(func.sum(Scan.low_count), 0).label("low"),
         )
         .filter(Scan.status == ScanStatus.COMPLETED)
-        .group_by(func.strftime("%Y-%m-%d", Scan.created_at))
-        .order_by(func.strftime("%Y-%m-%d", Scan.created_at).asc())
+        .group_by(func.strftime("%Y-%m-%d %H:00", Scan.created_at, "localtime"))
+        .order_by(func.strftime("%Y-%m-%d %H:00", Scan.created_at, "localtime").asc())
         .limit(30)
         .all()
     )

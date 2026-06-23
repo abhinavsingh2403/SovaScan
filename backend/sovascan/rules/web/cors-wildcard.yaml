@@ -3,7 +3,7 @@ name: CORS Wildcard Origin Allowed
 description: Wildcard Access-Control-Allow-Origin header allows any site to access client API responses
 severity: high
 category: web
-pattern: "(?i)Access-Control-Allow-Origin\\s*[:=]\\s*[\"']?\\*[\"']?"
+pattern: "Access-Control-Allow-Origin\\s*[:=]\\s*[\"']?\\*[\"']?"
 file_types: ["*.py", "*.properties", "*.yml", "*.yaml", "*.json", "*.conf", "*.xml"]
 remediation: "Specify exact allowed domains in the Access-Control-Allow-Origin configuration instead of using wildcard '*'."
 references:

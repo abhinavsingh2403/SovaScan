@@ -157,7 +157,12 @@ const Dashboard: React.FC = () => {
                     <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
                   </linearGradient>
                 </defs>
-                <XAxis dataKey="date" stroke="#64748b" tickLine={false} />
+                <XAxis
+                  dataKey="date"
+                  stroke="#64748b"
+                  tickLine={false}
+                  tickFormatter={(value) => (typeof value === 'string' && value.includes(' ') ? value.split(' ')[1] : value)}
+                />
                 <YAxis stroke="#64748b" tickLine={false} />
                 <Tooltip
                   contentStyle={{
