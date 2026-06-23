@@ -103,7 +103,7 @@ The quickest way to run the entire SovaScan stack is using **Docker Compose**.
    ```
 
 3. **Access the application**:
-   * **Frontend Dashboard**: `http://localhost:5173`
+   * **Frontend Dashboard**: `http://localhost:8000/`
    * **Backend API Docs (Swagger)**: `http://localhost:8000/docs`
 
 ---
@@ -147,10 +147,11 @@ If you prefer to run the components locally for development, follow the guides b
    npm install
    ```
 
-3. **Launch the development server**:
+3. **Launch the development server** (Optional — only if developing with hot-reloading):
    ```bash
    npm run dev
    ```
+   *Otherwise, build the frontend once using `npm run build`. The FastAPI server will serve the compiled React dashboard directly on `http://localhost:8000/`.*
 
 ---
 
