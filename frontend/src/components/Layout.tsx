@@ -18,6 +18,7 @@ const pageTitles: Record<string, string> = {
   '/findings': 'Security Findings',
   '/scan': 'New Scan',
   '/compliance': 'Compliance Reports',
+  '/settings': 'Settings',
 };
 
 export default function Layout({ children }: LayoutProps) {
@@ -54,9 +55,15 @@ export default function Layout({ children }: LayoutProps) {
 
         <div className="sidebar__footer">
           <div className="sidebar__version">v0.1.0</div>
-          <button className="sidebar__settings" title="Settings">
+          <NavLink
+            to="/settings"
+            className={({ isActive }) =>
+              `sidebar__settings ${isActive ? 'sidebar__link--active' : ''}`
+            }
+            title="Settings"
+          >
             ⚙️ <span className="sidebar__link-label">Settings</span>
-          </button>
+          </NavLink>
         </div>
       </aside>
 
