@@ -485,9 +485,9 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
                         lines[line_idx] = new_line
                         applied = True
                     else:
-                        for idx, l in enumerate(lines):
-                            if pkg_name in l:
-                                if l.endswith("\n"):
+                        for idx, line in enumerate(lines):
+                            if pkg_name in line:
+                                if line.endswith("\n"):
                                     new_line += "\n"
                                 lines[idx] = new_line
                                 applied = True
@@ -620,7 +620,7 @@ def fix_all_findings(
 
     findings = (
         db.query(Finding)
-        .filter(Finding.is_fixed == False)
+        .filter(Finding.is_fixed.is_(False))
         .all()
     )
 
@@ -670,7 +670,7 @@ def fix_all_scan_findings(
 
     findings = (
         db.query(Finding)
-        .filter(Finding.scan_id == scan_id, Finding.is_fixed == False)
+        .filter(Finding.scan_id == scan_id, Finding.is_fixed.is_(False))
         .all()
     )
 
