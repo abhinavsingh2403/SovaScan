@@ -3,7 +3,7 @@ name: Database Wildcard Network Binding
 description: Binding database services to 0.0.0.0 exposes them to the entire network interface, increasing threat exposure
 severity: medium
 category: database
-pattern: "(?i)(bind|bind_address|listen|listen_addresses)\\s*[:=]\\s*[\"']?(\\*|0\\.0\\.0\\.0)[\"']?"
+pattern: "(bind|bind_address|listen|listen_addresses)\\s*[:=]\\s*[\"']?(\\*|0\\.0\\.0\\.0)[\"']?"
 file_types: ["*.conf", "*.ini", "*.properties", "*.json", "*.yml", "*.yaml"]
 remediation: "Bind the database listener strictly to localhost (127.0.0.1) or specified internal subnet interfaces."
 references:

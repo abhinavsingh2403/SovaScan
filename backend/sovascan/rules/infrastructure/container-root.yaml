@@ -3,7 +3,7 @@ name: Container Running as Root User
 description: Docker containers running as root pose container-breakout risks. A USER directive should specify a non-privileged user.
 severity: high
 category: infrastructure
-pattern: "^(?i)FROM\\s+.*(?!\\n*USER\\s+\\w+)"
+pattern: "^FROM\\s+.*(?!\\n*USER\\s+\\w+)"
 file_types: ["Dockerfile", "Dockerfile.*"]
 remediation: "Add 'USER <non-root-user-name>' in the Dockerfile after creating the application user."
 references:

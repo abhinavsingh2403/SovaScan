@@ -3,7 +3,7 @@ name: RBI Cybersecurity Framework / PCI-DSS Violation
 description: Storage of sensitive payment data (like CVV, clear-text PAN) or weak encryption in banking/financial context
 severity: critical
 category: banking-specific
-pattern: "(?i)(cvv2?|card_security_code|pan_number|credit_card_number)\\s*[:=]\\s*[\"']?([0-9]{3,4}|[0-9]{13,19})[\"']?"
+pattern: "(cvv2?|card_security_code|pan_number|credit_card_number)\\s*[:=]\\s*[\"']?([0-9]{3,4}|[0-9]{13,19})[\"']?"
 file_types: ["*.py", "*.java", "*.properties", "*.yml", "*.yaml", "*.json", "*.env", "*.conf"]
 remediation: "Never store CVV/CSC values. Mask and encrypt Primary Account Numbers (PAN) in transit and at rest per RBI and PCI-DSS mandates."
 references:

@@ -3,7 +3,7 @@ name: Weak Hashing Algorithm Detected
 description: Use of MD5 or SHA-1 for cryptographic purposes is insecure
 severity: high
 category: cryptographic
-pattern: "(?i)(md5|sha1|sha-1)\\s*[\\(=:]"
+pattern: "(md5|sha1|sha-1)\\s*[\\(=:]"
 file_types: ["*.py", "*.java", "*.js", "*.ts", "*.xml", "*.properties", "*.json"]
 remediation: "Replace with SHA-256 or stronger hashing algorithm (SHA-384, SHA-512, bcrypt for passwords)"
 references:

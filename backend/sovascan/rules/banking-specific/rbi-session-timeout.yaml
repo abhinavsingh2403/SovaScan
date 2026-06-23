@@ -3,7 +3,7 @@ name: Missing Financial Session Timeout Config
 description: Banking web sessions must expire after inactivity to prevent session hijacking
 severity: high
 category: banking-specific
-pattern: "(?i)(session_timeout|session_expiry|max_inactive_interval)\\s*[:=]\\s*[0-9]{4,}"
+pattern: "(session_timeout|session_expiry|max_inactive_interval)\\s*[:=]\\s*[0-9]{4,}"
 file_types: ["*.properties", "*.yml", "*.yaml", "*.json", "*.conf", "*.xml"]
 remediation: "Set session timeout limits to a maximum of 900 seconds (15 minutes) or less per RBI security norms."
 references:
