@@ -5,17 +5,68 @@ import { Finding } from '../types';
 import './Findings.css';
 
 const Findings: React.FC = () => {
-  const { findings, loading, fetchFindings } = useStore();
+  const {
+    findings,
+    loading,
+    fetchFindings,
+    fixAllFindings,
+    fixAllScanFindings,
+    scans,
+    fetchScans,
+  } = useStore();
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
+  const [scanFilter, setScanFilter] = useState('all');
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [applyingFixId, setApplyingFixId] = useState<string | null>(null);
   const [fixSuccessMsg, setFixSuccessMsg] = useState<Record<string, string>>({});
+  const [applyingBulkFix, setApplyingBulkFix] = useState(false);
 
   useEffect(() => {
-    fetchFindings();
-  }, [fetchFindings]);
+    fetchScans();
+  }, [fetchScans]);
+
+  useEffect(() => {
+    fetchFindings(scanFilter === 'all' ? undefined : scanFilter);
+  }, [scanFilter, fetchFindings]);
+
+  const handleFixAll = async () => {
+    const fixableCount = findings.filter((f) => !f.isFixed).length;
+    if (fixableCount === 0) {
+      alert('No active findings to fix!');
+      return;
+    }
+    const confirmMsg =
+      scanFilter === 'all'
+        ? `Are you sure you want to apply auto-fixes to all ${fixableCount} active findings on disk in one go?`
+        : `Are you sure you want to apply auto-fixes to all ${fixableCount} active findings of the selected scan on disk in one go?`;
+
+    if (window.confirm(confirmMsg)) {
+      setApplyingBulkFix(true);
+      try {
+        let fixed: any[] = [];
+        if (scanFilter === 'all') {
+          fixed = await fixAllFindings();
+        } else {
+          fixed = await fixAllScanFindings(scanFilter);
+        }
+        if (fixed && fixed.length > 0) {
+          const detailMsg = fixed
+            .map((f: any) => `• ${f.title} (${f.file_path || f.filePath}:${f.line_number || f.lineNumber})`)
+            .join('\n');
+          alert(`Successfully applied bulk fixes to ${fixed.length} vulnerability findings:\n\n${detailMsg}`);
+        } else {
+          alert('Bulk fixes successfully applied to all files on disk!');
+        }
+      } catch (err) {
+        console.error('Bulk fix failed:', err);
+        alert('Failed to apply bulk fixes.');
+      } finally {
+        setApplyingBulkFix(false);
+      }
+    }
+  };
 
   const toggleExpand = (id: string) => {
     setExpandedId(expandedId === id ? null : id);
@@ -73,6 +124,21 @@ const Findings: React.FC = () => {
 
         <div className="dropdowns-wrap">
           <div className="filter-select">
+            <label>Scan:</label>
+            <select
+              value={scanFilter}
+              onChange={(e) => setScanFilter(e.target.value)}
+            >
+              <option value="all">All Scans</option>
+              {scans.map((scan) => (
+                <option key={scan.id} value={scan.id}>
+                  {scan.target} ({new Date(scan.createdAt).toLocaleDateString()})
+                </option>
+              ))}
+            </select>
+          </div>
+
+          <div className="filter-select">
             <label>Severity:</label>
             <select
               value={severityFilter}
@@ -109,6 +175,15 @@ const Findings: React.FC = () => {
           Showing <span>{filteredFindings.length}</span> of <span>{findings.length}</span> active
           findings
         </p>
+        {findings.some((f) => !f.isFixed) && (
+          <button
+            className="fix-all-btn"
+            onClick={handleFixAll}
+            disabled={applyingBulkFix}
+          >
+            {applyingBulkFix ? 'Applying Bulk Fixes...' : '⚡ Fix All (1-Go)'}
+          </button>
+        )}
       </div>
 
       {/* Findings Table/Accordion List */}

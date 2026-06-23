@@ -257,6 +257,8 @@ interface SovaState {
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
+  fixAllFindings: () => Promise<any[]>;
+  fixAllScanFindings: (scanId: string) => Promise<any[]>;
 }
 
 /* ============================================================
@@ -442,5 +444,45 @@ export const useStore = create<SovaState>((set, get) => ({
      ------------------------------------------------------- */
   getComplianceReport: (framework: string) => {
     return get().complianceReports[framework] || null;
+  },
+
+  /* -------------------------------------------------------
+     fixAllFindings — bulk fixes all active findings globally
+     ------------------------------------------------------- */
+  fixAllFindings: async () => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAll();
+      // Re-fetch findings, dashboard and scans to sync state
+      await get().fetchFindings();
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply all fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
+  },
+
+  /* -------------------------------------------------------
+     fixAllScanFindings — bulk fixes all findings for a scan
+     ------------------------------------------------------- */
+  fixAllScanFindings: async (scanId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAllScan(scanId);
+      // Re-fetch scan-specific findings, dashboard and scans
+      await get().fetchFindings(scanId);
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply scan fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
   },
 }));

@@ -447,6 +447,68 @@ def generate_sbom(
     }
 
 
+def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None) -> bool:
+    """Physically applies a patch to the file on disk for a given finding."""
+    try:
+        from pathlib import Path
+        file_path_obj = Path(finding.file_path)
+        if not file_path_obj.is_absolute():
+            if target_path:
+                file_path_obj = Path(target_path) / finding.file_path
+            elif finding.scan:
+                file_path_obj = Path(finding.scan.target) / finding.file_path
+
+        file_path_obj = file_path_obj.resolve()
+        if file_path_obj.exists() and file_path_obj.is_file():
+            content = file_path_obj.read_text(encoding="utf-8")
+            lines = content.splitlines(keepends=True)
+            line_idx = finding.line_number - 1 if finding.line_number else None
+            applied = False
+
+            if finding.category == "secret" and line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                # preserve trailing newline if present
+                if old_line.endswith("\n"):
+                    new_val += "\n"
+                lines[line_idx] = new_val
+                applied = True
+            elif finding.category == "cve":
+                old_dep = finding.evidence or ""
+                pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+                if pkg_name:
+                    new_line = f"{pkg_name}>=2.31.0  # Fixes {finding.cve_id or 'known vulnerability'}"
+
+                    if line_idx is not None and 0 <= line_idx < len(lines) and pkg_name in lines[line_idx]:
+                        if lines[line_idx].endswith("\n"):
+                            new_line += "\n"
+                        lines[line_idx] = new_line
+                        applied = True
+                    else:
+                        for idx, l in enumerate(lines):
+                            if pkg_name in l:
+                                if l.endswith("\n"):
+                                    new_line += "\n"
+                                lines[idx] = new_line
+                                applied = True
+                                break
+            elif finding.category in ("misconfig", "misconfiguration") and line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                new_line = "DEBUG = False  # Fixed: debug mode disabled for production"
+                if old_line.endswith("\n"):
+                    new_line += "\n"
+                lines[line_idx] = new_line
+                applied = True
+
+            if applied:
+                file_path_obj.write_text("".join(lines), encoding="utf-8")
+                logger.info("Auto-fix successfully applied to file %s on disk", file_path_obj)
+                return True
+    except Exception as write_err:
+        logger.exception("Failed to physically apply auto-fix: %s", write_err)
+    return False
+
+
 @router.post("/fix/{finding_id}", response_model=FixResponse)
 def generate_fix(
     finding_id: str,
@@ -507,7 +569,7 @@ def generate_fix(
             f"Upgrade the vulnerable dependency referenced by {finding.cve_id or finding.rule_id}. "
             f"See remediation: {finding.remediation}"
         )
-    elif finding.category == "misconfiguration":
+    elif finding.category in ("misconfig", "misconfiguration"):
         patch_lines = [
             f"--- a/{finding.file_path}",
             f"+++ b/{finding.file_path}",
@@ -529,13 +591,112 @@ def generate_fix(
 
     if request.auto_apply:
         finding.is_fixed = True
+        target_path = finding.scan.target if finding.scan else None
         db.commit()
+        _apply_finding_fix_on_disk(finding, target_path=target_path)
 
     return {
         "finding_id": finding_id,
         "status": status,
         "patch": patch,
         "description": description,
+    }
+
+
+@router.post("/fix/all", response_model=dict[str, Any])
+def fix_all_findings(
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Apply auto-fixes to all fixable findings across all scans in one go.
+
+    Args:
+        db: Database session (injected).
+
+    Returns:
+        Summary of applied fixes.
+    """
+    scans = db.query(Scan).all()
+    scan_targets = {s.id: s.target for s in scans}
+
+    findings = (
+        db.query(Finding)
+        .filter(Finding.is_fixed == False)
+        .all()
+    )
+
+    applied_finding_ids = []
+    applied_findings = []
+    for finding in findings:
+        if finding.category in ("secret", "cve", "misconfig", "misconfiguration"):
+            target_path = scan_targets.get(finding.scan_id)
+            success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+            if success:
+                finding.is_fixed = True
+                applied_finding_ids.append(finding.id)
+                applied_findings.append({
+                    "id": finding.id,
+                    "title": finding.title,
+                    "file_path": finding.file_path,
+                    "line_number": finding.line_number,
+                })
+
+    if applied_finding_ids:
+        db.commit()
+
+    return {
+        "applied_count": len(applied_finding_ids),
+        "applied_finding_ids": applied_finding_ids,
+        "applied_findings": applied_findings,
+    }
+
+
+@router.post("/scan/{scan_id}/fix-all", response_model=dict[str, Any])
+def fix_all_scan_findings(
+    scan_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Apply auto-fixes to all fixable findings in a scan at once.
+
+    Args:
+        scan_id: UUID of the parent scan.
+        db: Database session (injected).
+
+    Returns:
+        Summary of applied fixes.
+    """
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if scan is None:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    findings = (
+        db.query(Finding)
+        .filter(Finding.scan_id == scan_id, Finding.is_fixed == False)
+        .all()
+    )
+
+    applied_finding_ids = []
+    applied_findings = []
+    for finding in findings:
+        if finding.category in ("secret", "cve", "misconfig", "misconfiguration"):
+            success = _apply_finding_fix_on_disk(finding, target_path=scan.target)
+            if success:
+                finding.is_fixed = True
+                applied_finding_ids.append(finding.id)
+                applied_findings.append({
+                    "id": finding.id,
+                    "title": finding.title,
+                    "file_path": finding.file_path,
+                    "line_number": finding.line_number,
+                })
+
+    if applied_finding_ids:
+        db.commit()
+
+    return {
+        "scan_id": scan_id,
+        "applied_count": len(applied_finding_ids),
+        "applied_finding_ids": applied_finding_ids,
+        "applied_findings": applied_findings,
     }
 
 

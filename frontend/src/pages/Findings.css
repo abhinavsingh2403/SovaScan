@@ -85,6 +85,9 @@
 }
 
 .results-summary {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   font-size: 13px;
   color: var(--text-secondary);
   margin: -5px 4px;
@@ -93,6 +96,31 @@
 .results-summary span {
   font-weight: 700;
   color: var(--text-primary);
+}
+
+.fix-all-btn {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: var(--text-primary);
+  border: none;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  transition: opacity 0.2s ease, transform 0.1s ease;
+  box-shadow: 0 4px 12px rgba(16, 185, 129, 0.2);
+}
+
+.fix-all-btn:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.fix-all-btn:disabled {
+  background: var(--text-secondary);
+  cursor: not-allowed;
+  opacity: 0.5;
+  box-shadow: none;
 }
 
 /* Findings List Cards */

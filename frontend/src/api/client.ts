@@ -55,6 +55,12 @@ export const api = {
       auto_apply: autoApply,
     }),
 
+  /** POST /api/v1/fix/all — bulk fix all findings */
+  fixAll: () => client.post('/fix/all'),
+
+  /** POST /api/v1/scan/{scanId}/fix-all — bulk fix all findings in a scan */
+  fixAllScan: (scanId: string) => client.post(`/scan/${scanId}/fix-all`),
+
   /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string) =>
     client.get(`/compliance/${framework}`),
