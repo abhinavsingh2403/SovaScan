@@ -181,6 +181,27 @@ See [ROADMAP.md](ROADMAP.md) for full implementation tasks. Outstanding high-pri
 
 ---
 
+## 📝 Recent Integration Updates (Abhinav-v2)
+
+All hardcoded mock data in the React frontend has been successfully removed and aligned with the FastAPI backend. Key improvements implemented in this release include:
+
+* **Backend-Frontend API Integration**:
+  * Connected frontend state actions directly to backend endpoints (`GET /scan`, `GET /findings`, `GET /dashboard/summary`, `GET /compliance/{framework}`, `POST /scan`, and `POST /fix/{id}`).
+  * Created data adapters to recursively translate backend `snake_case` models to frontend `camelCase` interfaces.
+  * Replaced simulated mock states with actual database queries.
+* **Hourly Trend & Timezone Calibration**:
+  * Configured security trend aggregation to group findings on an hourly basis.
+  * **Timezone Offset Fix**: Utilized SQLite's `"localtime"` modifier inside the query `strftime` function so that data-point timestamps correctly reflect the user's local timezone (IST) instead of defaulting to naive UTC.
+  * Formatted chart labels in `Dashboard.tsx` to display in a clean, short `HH:00` format.
+* **Regex Engine & Rules Audit**:
+  * Fixed a syntax error in the `SOVA-INFRA-001` Dockerfile rule (`container-root.yaml`) where the leading `^(?i)` flag mismatch crashed the Python regex engine.
+  * Removed redundant `(?i)` modifiers across all 11 YAML rules since the engines already enforce `re.IGNORECASE` globally.
+* **Scan Progress Bar & UI Polish**:
+  * Removed the fake interpolated findings count during the folder scan animation, displaying `0` until the actual scanner returns.
+  * Formatted chart structures and added loading spin states to the Compliance page.
+
+---
+
 ## 📄 License
 
 Distributed under the **MIT License**. See [LICENSE](LICENSE) for details.
