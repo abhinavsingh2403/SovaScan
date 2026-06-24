@@ -6,7 +6,9 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import subprocess
 
+from sovascan.models.finding import Severity
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -35,8 +37,115 @@ router = APIRouter(tags=["sovascan"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _map_semgrep_severity(sev: str) -> Severity:
+    return {
+        "ERROR": Severity.HIGH,
+        "WARNING": Severity.MEDIUM,
+        "INFO": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
 
-def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> list[dict[str, Any]]:
+def _map_bandit_severity(sev: str) -> Severity:
+    return {
+        "HIGH": Severity.HIGH,
+        "MEDIUM": Severity.MEDIUM,
+        "LOW": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
+
+def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
+    """Run semgrep with the auto ruleset and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("semgrep binary not found: %s", exc)
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("semgrep timed out for target %s", target_path)
+        return []
+
+    if not proc.stdout:
+        logger.warning("semgrep produced no output (stderr: %s)", proc.stderr)
+        return []
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse semgrep JSON output")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in payload.get("results", []):
+        extra = result.get("extra", {})
+        findings.append(
+            {
+                "rule_id": result.get("check_id", "SEMGREP-UNKNOWN"),
+                "title": extra.get("message", "Semgrep finding")[:200],
+                "description": extra.get("message", ""),
+                "severity": _map_semgrep_severity(extra.get("severity", "INFO")),
+                "category": "sast",
+                "file_path": result.get("path", ""),
+                "line_number": result.get("start", {}).get("line"),
+                "evidence": extra.get("lines", ""),
+                "remediation": extra.get("metadata", {}).get("fix", "") or "Review and remediate per rule guidance.",
+                "cve_id": None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
+    """Run bandit against a Python target and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["bandit", "-r", str(target_path), "-f", "json"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("bandit binary not found: %s", exc)
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("bandit timed out for target %s", target_path)
+        return []
+
+    # bandit exits non-zero when it finds issues, so don't gate on returncode
+    if not proc.stdout:
+        logger.warning("bandit produced no output (stderr: %s)", proc.stderr)
+        return []
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse bandit JSON output")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in payload.get("results", []):
+        findings.append(
+            {
+                "rule_id": result.get("test_id", "BANDIT-UNKNOWN"),
+                "title": result.get("test_name", "Bandit finding"),
+                "description": result.get("issue_text", ""),
+                "severity": _map_bandit_severity(result.get("issue_severity", "LOW")),
+                "category": "sast",
+                "file_path": result.get("filename", ""),
+                "line_number": result.get("line_number"),
+                "evidence": result.get("code", ""),
+                "remediation": f"See Bandit docs for {result.get('test_id', '')}: "
+                f"{result.get('more_info', '')}",
+                "cve_id": result.get("issue_cwe", {}).get("id") if result.get("issue_cwe") else None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+
+def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -> None:
     """Execute the core scan logic and return raw findings.
 
     Delegates to the real ScanOrchestrator (discovery -> dependency
@@ -97,6 +206,11 @@ def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None)
             }
         )
 
+    # Run SAST tools along side the orchestrator for full scan types
+    if scan_type in ("full", "sast"):
+        findings.extend(_run_semgrep(target_path))
+        findings.extend(_run_bandit(target_path))
+    
     return findings
 
 
