@@ -603,7 +603,7 @@ def generate_fix(
                 f"+++ b/{finding.file_path}",
                 f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
                 f"-{finding.evidence}",
-                f'+Access-Control-Allow-Origin = "https://yourdomain.com"',
+                '+Access-Control-Allow-Origin = "https://yourdomain.com"',
             ]
             description = (
                 f"Specify exact allowed domains in {finding.file_path} "
