@@ -590,10 +590,15 @@ def generate_fix(
     status = "applied" if request.auto_apply else "suggested"
 
     if request.auto_apply:
-        finding.is_fixed = True
         target_path = finding.scan.target if finding.scan else None
+        success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to physically apply auto-fix suggestion to file on disk."
+            )
+        finding.is_fixed = True
         db.commit()
-        _apply_finding_fix_on_disk(finding, target_path=target_path)
 
     return {
         "finding_id": finding_id,
@@ -718,31 +723,50 @@ def compliance_report(
         Compliance scoring and mapped findings.
     """
     supported_frameworks: dict[str, dict[str, Any]] = {
+        "nist-csf": {
+            "total_controls": 10,
+            "control_categories": ["identify", "protect", "detect", "respond", "recover"],
+        },
         "soc2": {
-            "total_controls": 64,
+            "total_controls": 10,
             "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
         },
-        "pci-dss": {
-            "total_controls": 78,
-            "control_categories": ["network_security", "data_protection", "vulnerability_management", "access_control"],
+        "soc-2": {
+            "total_controls": 10,
+            "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
         },
-        "hipaa": {
-            "total_controls": 54,
-            "control_categories": ["administrative", "physical", "technical"],
+        "owasp-10": {
+            "total_controls": 10,
+            "control_categories": [
+                "broken_access_control",
+                "cryptographic_failures",
+                "injection",
+                "insecure_design",
+                "security_misconfiguration",
+                "vulnerable_components",
+                "auth_failures",
+                "integrity_failures",
+                "logging_failures",
+                "ssrf",
+            ],
         },
-        "iso27001": {
-            "total_controls": 93,
-            "control_categories": ["organizational", "people", "physical", "technological"],
-        },
-        "iso-27001": {
-            "total_controls": 93,
-            "control_categories": ["organizational", "people", "physical", "technological"],
-        },
-        "rbi-csf": {
-            "total_controls": 42,
-            "control_categories": ["governance", "identify", "protect", "detect", "respond", "recover"],
+        "owasp10": {
+            "total_controls": 10,
+            "control_categories": [
+                "broken_access_control",
+                "cryptographic_failures",
+                "injection",
+                "insecure_design",
+                "security_misconfiguration",
+                "vulnerable_components",
+                "auth_failures",
+                "integrity_failures",
+                "logging_failures",
+                "ssrf",
+            ],
         },
     }
+
 
     fw_key = framework.lower()
     if fw_key not in supported_frameworks:

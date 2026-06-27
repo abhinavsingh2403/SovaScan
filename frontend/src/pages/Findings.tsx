@@ -22,6 +22,8 @@ const Findings: React.FC = () => {
   const [applyingFixId, setApplyingFixId] = useState<string | null>(null);
   const [fixSuccessMsg, setFixSuccessMsg] = useState<Record<string, string>>({});
   const [applyingBulkFix, setApplyingBulkFix] = useState(false);
+  const [pendingFix, setPendingFix] = useState<Record<string, { patch: string; description: string }>>({});
+  const [loadingFixId, setLoadingFixId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchScans();
@@ -72,8 +74,25 @@ const Findings: React.FC = () => {
     setExpandedId(expandedId === id ? null : id);
   };
 
-  const applyFix = async (finding: Finding, e: React.MouseEvent) => {
+  const requestFixSuggestion = async (finding: Finding, e: React.MouseEvent) => {
     e.stopPropagation();
+    setLoadingFixId(finding.id);
+    try {
+      const res = await api.applyFix(finding.id, false);
+      const patch = res.data?.patch || '';
+      const description = res.data?.description || 'No suggestion description available.';
+      setPendingFix((prev) => ({
+        ...prev,
+        [finding.id]: { patch, description },
+      }));
+    } catch (err: any) {
+      alert(`Failed to load fix suggestion: ${err.message || err}`);
+    } finally {
+      setLoadingFixId(null);
+    }
+  };
+
+  const confirmApplyFix = async (finding: Finding) => {
     setApplyingFixId(finding.id);
     try {
       const res = await api.applyFix(finding.id, true);
@@ -83,13 +102,122 @@ const Findings: React.FC = () => {
         [finding.id]: desc,
       }));
       finding.isFixed = true;
+      setPendingFix((prev) => {
+        const next = { ...prev };
+        delete next[finding.id];
+        return next;
+      });
     } catch {
       setFixSuccessMsg((prev) => ({
         ...prev,
         [finding.id]: 'Fix request failed. Please try again.',
       }));
+    } finally {
+      setApplyingFixId(null);
     }
-    setApplyingFixId(null);
+  };
+
+  const cancelFixSuggestion = (findingId: string) => {
+    setPendingFix((prev) => {
+      const next = { ...prev };
+      delete next[findingId];
+      return next;
+    });
+  };
+
+  const renderDiff = (patch: string) => {
+    if (!patch) return <div className="no-diff">No diff content generated.</div>;
+    const lines = patch.split('\n');
+    return (
+      <div className="diff-viewer">
+        {lines.map((line, idx) => {
+          let lineClass = 'diff-line';
+          if (line.startsWith('+') && !line.startsWith('+++')) {
+            lineClass += ' insertion';
+          } else if (line.startsWith('-') && !line.startsWith('---')) {
+            lineClass += ' deletion';
+          } else if (line.startsWith('@@') || line.startsWith('---') || line.startsWith('+++')) {
+            lineClass += ' meta';
+          }
+          return (
+            <div key={idx} className={lineClass}>
+              {line}
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
+
+  const getVulnerabilityImpact = (finding: Finding) => {
+    const category = (finding.category || '').toLowerCase();
+    const ruleId = (finding.ruleId || '').toUpperCase();
+    const title = (finding.title || '').toLowerCase();
+
+    if (category === 'secret') {
+      return (
+        "An attacker can steal this hardcoded credential and gain direct access to your databases, " +
+        "cloud services, external APIs, or communication channels. This can lead to massive data theft, " +
+        "service abuse, or severe financial losses."
+      );
+    }
+    
+    if (category === 'cve') {
+      const cveName = finding.cveId || 'a third-party library';
+      return (
+        `Using ${cveName} with known public vulnerabilities means attackers can exploit well-documented bugs. ` +
+        "Depending on the specific bug, they could crash your server, steal data, or run malicious code on your systems."
+      );
+    }
+
+    if (ruleId === 'SOVA-INFRA-001' || title.includes('root user')) {
+      return (
+        "Running your application containers as 'root' (admin) means if an attacker compromises the app, " +
+        "they instantly gain admin control over the container. This makes it significantly easier to break out " +
+        "and compromise the host server."
+      );
+    }
+
+    if (ruleId === 'SOVA-MISCONFIG-001' || title.includes('debug mode') || title.includes('debug')) {
+      return (
+        "Enabling debug mode in production exposes internal code stack traces, server path details, and environment variables " +
+        "to the public whenever an error occurs. Attackers use this blueprint to locate further entry points."
+      );
+    }
+
+    if (ruleId === 'SOVA-INFRA-002' || title.includes('base image')) {
+      return (
+        "Using unpinned, outdated, or generic base images introduces pre-existing vulnerabilities into your container environment " +
+        "and makes your builds unpredictable, increasing the risk of code breaking unexpectedly."
+      );
+    }
+
+    if (ruleId.startsWith('SOVA-WEB-') || title.includes('headers') || title.includes('ssl') || title.includes('tls')) {
+      return (
+        "Missing HTTP security headers or weak SSL/TLS settings leave your users vulnerable to browser-based attacks " +
+        "such as clickjacking, cross-site scripting (XSS), or having their traffic intercepted (man-in-the-middle)."
+      );
+    }
+
+    if (ruleId.startsWith('SOVA-DB-') || title.includes('database') || title.includes('sql')) {
+      return (
+        "Weak database configurations (such as empty passwords or allowing connections from any IP) let attackers " +
+        "brute-force or connect directly to your database, exposing all stored sensitive data to theft or deletion."
+      );
+    }
+
+    if (category === 'config_drift') {
+      return (
+        "Unauthorized settings changes or drift from your approved security baseline mean that security controls " +
+        "might have been disabled or altered, leaving unknown configuration gaps or causing system instability."
+      );
+    }
+
+    // Default fallback
+    return (
+      "This misconfiguration weakens the defensive layers of your application. It could allow unauthorized users " +
+      "to bypass security controls, view internal system data, or trigger service disruptions."
+    );
   };
 
   // Extract unique categories for filter
@@ -231,10 +359,10 @@ const Findings: React.FC = () => {
                     ) : (
                       <button
                         className="auto-fix-btn"
-                        onClick={(e) => applyFix(finding, e)}
-                        disabled={applyingFixId === finding.id}
+                        onClick={(e) => requestFixSuggestion(finding, e)}
+                        disabled={loadingFixId === finding.id || applyingFixId === finding.id}
                       >
-                        {applyingFixId === finding.id ? 'Fixing...' : '⚡ Auto Fix'}
+                        {loadingFixId === finding.id ? 'Loading...' : '⚡ Auto Fix'}
                       </button>
                     )}
                     <span className={`chevron ${isExpanded ? 'up' : 'down'}`}>▼</span>
@@ -247,6 +375,11 @@ const Findings: React.FC = () => {
                     <div className="details-section">
                       <h5>Description</h5>
                       <p className="desc-text">{finding.description}</p>
+                    </div>
+
+                    <div className="details-section">
+                      <h5>Potential Impact (Plain English)</h5>
+                      <p className="impact-text">{getVulnerabilityImpact(finding)}</p>
                     </div>
 
                     <div className="details-section">
@@ -273,6 +406,40 @@ const Findings: React.FC = () => {
                             {finding.cveId} (NVD details)
                           </a>
                         </p>
+                      </div>
+                    )}
+
+                    {pendingFix[finding.id] && (
+                      <div className="fix-preview-box glassmorphism" onClick={(e) => e.stopPropagation()}>
+                        <h5>Suggested Fix Preview</h5>
+                        <p className="fix-desc">{pendingFix[finding.id].description}</p>
+                        
+                        {renderDiff(pendingFix[finding.id].patch)}
+
+                        <div className="fix-actions">
+                          <a
+                            className="editor-link-btn"
+                            href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            🖥️ Open in Editor (VS Code / Antigravity)
+                          </a>
+                          
+                          <button
+                            className="confirm-fix-btn"
+                            onClick={() => confirmApplyFix(finding)}
+                            disabled={applyingFixId === finding.id}
+                          >
+                            {applyingFixId === finding.id ? 'Applying...' : '✓ Confirm & Apply Fix'}
+                          </button>
+                          
+                          <button
+                            className="cancel-fix-btn"
+                            onClick={() => cancelFixSuggestion(finding.id)}
+                          >
+                            Cancel
+                          </button>
+                        </div>
                       </div>
                     )}
 

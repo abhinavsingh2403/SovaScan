@@ -4,7 +4,7 @@ import './Compliance.css';
 
 const Compliance: React.FC = () => {
   const { getComplianceReport, fetchComplianceReport, findings } = useStore();
-  const [selectedFramework, setSelectedFramework] = useState('RBI-CSF');
+  const [selectedFramework, setSelectedFramework] = useState('NIST-CSF');
 
   useEffect(() => {
     fetchComplianceReport(selectedFramework);
@@ -30,7 +30,7 @@ const Compliance: React.FC = () => {
     <div className="compliance-container">
       {/* Framework Selector Tabs */}
       <div className="framework-selector animate-fade-in">
-        {['RBI-CSF', 'PCI-DSS', 'ISO-27001'].map((fw) => {
+        {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => {
           const isActive = selectedFramework === fw;
           const fwReport = getComplianceReport(fw);
           return (

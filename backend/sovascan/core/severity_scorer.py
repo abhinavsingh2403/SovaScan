@@ -63,7 +63,7 @@ BANKING_KEYWORDS: set[str] = {
     "wallet", "fintech", "ledger", "settlement", "merchant",
     "pci", "pci-dss", "cardholder", "cvv", "card_number",
     "routing_number", "wire_transfer", "escrow", "forex",
-    "mutual_fund", "insurance", "loan", "emi", "rbi",
+    "mutual_fund", "insurance", "loan", "emi",
 }
 
 # ── Severity score mapping ─────────────────────────────────────────
