@@ -807,7 +807,6 @@ def compliance_report(
         },
     }
 
-
     fw_key = framework.lower()
     if fw_key not in supported_frameworks:
         raise HTTPException(
