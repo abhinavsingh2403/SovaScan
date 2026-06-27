@@ -494,11 +494,25 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
                                 break
             elif finding.category in ("misconfig", "misconfiguration") and line_idx is not None and 0 <= line_idx < len(lines):
                 old_line = lines[line_idx]
-                new_line = "DEBUG = False  # Fixed: debug mode disabled for production"
-                if old_line.endswith("\n"):
-                    new_line += "\n"
-                lines[line_idx] = new_line
-                applied = True
+                if finding.rule_id == "SOVA-INFRA-001":
+                    base_line = old_line
+                    if not base_line.endswith("\n"):
+                        base_line += "\n"
+                    new_line = base_line + "USER appuser\n"
+                    lines[line_idx] = new_line
+                    applied = True
+                elif finding.rule_id == "SOVA-WEB-003":
+                    new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
+                    if old_line.endswith("\n"):
+                        new_line += "\n"
+                    lines[line_idx] = new_line
+                    applied = True
+                else:
+                    new_line = "DEBUG = False  # Fixed: debug mode disabled for production"
+                    if old_line.endswith("\n"):
+                        new_line += "\n"
+                    lines[line_idx] = new_line
+                    applied = True
 
             if applied:
                 file_path_obj.write_text("".join(lines), encoding="utf-8")
@@ -570,17 +584,43 @@ def generate_fix(
             f"See remediation: {finding.remediation}"
         )
     elif finding.category in ("misconfig", "misconfiguration"):
-        patch_lines = [
-            f"--- a/{finding.file_path}",
-            f"+++ b/{finding.file_path}",
-            f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            "+DEBUG = False  # Fixed: debug mode disabled for production",
-        ]
-        description = (
-            f"Disable debug mode in {finding.file_path}. "
-            "Running with DEBUG=True in production exposes sensitive data."
-        )
+        if finding.rule_id == "SOVA-INFRA-001":
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},2 @@",
+                f"-{finding.evidence}",
+                f"+{finding.evidence}",
+                "+USER appuser",
+            ]
+            description = (
+                f"Avoid running the container as root by adding a USER directive "
+                f"in {finding.file_path} after the base image is defined."
+            )
+        elif finding.rule_id == "SOVA-WEB-003":
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                f"-{finding.evidence}",
+                f'+Access-Control-Allow-Origin = "https://yourdomain.com"',
+            ]
+            description = (
+                f"Specify exact allowed domains in {finding.file_path} "
+                "instead of using the wildcard '*'."
+            )
+        else:
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                f"-{finding.evidence}",
+                "+DEBUG = False  # Fixed: debug mode disabled for production",
+            ]
+            description = (
+                f"Disable debug mode in {finding.file_path}. "
+                "Running with DEBUG=True in production exposes sensitive data."
+            )
     else:
         patch_lines = [f"# Manual review required for {finding.rule_id}"]
         description = f"No automated fix available for rule {finding.rule_id}. Please review manually."
