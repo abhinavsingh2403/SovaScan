@@ -600,3 +600,17 @@
   border-radius: 50%;
   display: inline-block;
 }
+
+/* Interactive Top Findings Cards */
+.interactive-vuln-card {
+  cursor: pointer;
+  border: 1px solid rgba(255, 255, 255, 0.03) !important;
+  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), background-color 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.interactive-vuln-card:hover {
+  transform: translateY(-2px);
+  background-color: rgba(255, 255, 255, 0.04) !important;
+  border-color: rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}

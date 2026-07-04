@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useLocation } from 'react-router-dom';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import { Finding } from '../types';
@@ -14,6 +15,7 @@ const Findings: React.FC = () => {
     scans,
     fetchScans,
   } = useStore();
+  const location = useLocation();
   const [searchTerm, setSearchTerm] = useState('');
   const [severityFilter, setSeverityFilter] = useState('all');
   const [categoryFilter, setCategoryFilter] = useState('all');
@@ -24,6 +26,19 @@ const Findings: React.FC = () => {
   const [applyingBulkFix, setApplyingBulkFix] = useState(false);
   const [pendingFix, setPendingFix] = useState<Record<string, { patch: string; description: string }>>({});
   const [loadingFixId, setLoadingFixId] = useState<string | null>(null);
+
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const searchParam = params.get('search');
+    const severityParam = params.get('severity');
+    const categoryParam = params.get('category');
+    const scanParam = params.get('scan');
+
+    if (searchParam) setSearchTerm(searchParam);
+    if (severityParam) setSeverityFilter(severityParam);
+    if (categoryParam) setCategoryFilter(categoryParam);
+    if (scanParam) setScanFilter(scanParam);
+  }, [location.search]);
 
   useEffect(() => {
     fetchScans();

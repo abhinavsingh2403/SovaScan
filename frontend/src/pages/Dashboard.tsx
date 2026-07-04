@@ -15,6 +15,8 @@ import {
 } from 'recharts';
 import './Dashboard.css';
 
+import { useNavigate } from 'react-router-dom';
+
 const SEVERITY_COLORS = {
   critical: '#dc2626',
   high: '#ea580c',
@@ -59,6 +61,7 @@ const PieTooltip = ({ active, payload }: any) => {
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
   const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboard();
@@ -417,7 +420,11 @@ const Dashboard: React.FC = () => {
           <h2>Top Security Findings</h2>
           <div className="vulns-list">
             {dashboardSummary.topVulnerabilities.map((vuln) => (
-              <div key={vuln.id} className="vuln-item">
+              <div
+                key={vuln.id}
+                className="vuln-item interactive-vuln-card"
+                onClick={() => navigate(`/findings?search=${encodeURIComponent(vuln.title)}`)}
+              >
                 <div className="vuln-details">
                   <span className={`severity-indicator ${vuln.severity}`}></span>
                   <div className="vuln-title-wrap">
