@@ -561,6 +561,218 @@ def generate_sbom(
     }
 
 
+def _generate_fixed_line(finding: Finding, old_line: str, file_path_obj: Path) -> tuple[str, bool]:
+    """Generates the fixed version of a line based on the finding and file type.
+
+    Returns:
+        tuple[str, bool]: The new line and whether the fix was successfully generated.
+    """
+    import re
+    applied = False
+    new_line = old_line
+
+    if finding.category == "secret":
+        # Try to import patterns to find the matching regex pattern
+        from sovascan.core.secret_scanner import COMPILED_PATTERNS
+
+        pattern = None
+        if finding.title == "High-Entropy Secret Detected":
+            pattern = re.compile(r"""(?i)(?:secret|token|key|password|credential|auth)\s*[=:]\s*['"]?([a-zA-Z0-9+/=_-]{20,})['"]?""")
+        else:
+            for p in COMPILED_PATTERNS:
+                if p.name == finding.title:
+                    pattern = p.pattern
+                    break
+
+        if pattern:
+            match = pattern.search(old_line)
+            if match:
+                g_idx = 0
+                if pattern.groups >= 1:
+                    for i in range(1, pattern.groups + 1):
+                        if match.group(i) is not None:
+                            g_idx = i
+                            break
+                start, end = match.span(g_idx)
+
+                # Preserve trailing brackets/delimiters that the regex greedily consumed.
+                # Patterns like [^\s'"]{4,} can swallow ), ], } etc. at the end of
+                # type annotations or function calls, breaking the surrounding code.
+                matched_text = old_line[start:end]
+                while matched_text and matched_text[-1] in "()[]{}:;,":
+                    end -= 1
+                    matched_text = matched_text[:-1]
+
+                placeholder = f'${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                new_line = old_line[:start] + placeholder + old_line[end:]
+                applied = True
+
+        # Fallback if pattern matching failed
+        if not applied:
+            placeholder = f'${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+            new_val = f'{finding.rule_id}_VALUE={placeholder}'
+            if old_line.endswith("\n"):
+                new_val += "\n"
+            new_line = new_val
+            applied = True
+
+    elif finding.category == "cve":
+        old_dep = finding.evidence or ""
+        pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+        if pkg_name.startswith("Vulnerable dependency:"):
+            pkg_name = pkg_name.replace("Vulnerable dependency:", "").strip()
+        
+        if "@" in pkg_name:
+            pkg_name = pkg_name.split("@")[0].strip()
+
+        if pkg_name:
+            fixed_ver = "2.31.0"
+            if finding.remediation:
+                match = re.search(r"to\s+([0-9a-zA-Z.-]+)", finding.remediation)
+                if match:
+                    fixed_ver = match.group(1)
+
+            if file_path_obj.name == "package.json":
+                # JSON package replacement preserving quotes, version prefix, and trailing comma
+                pattern = re.compile(rf"(\"\s*{re.escape(pkg_name)}\s*\"\s*:\s*\"\s*)([~^>=]?)(\d+[0-9a-zA-Z.-]*)([^\"\n]*\")")
+                match = pattern.search(old_line)
+                if match:
+                    new_line = old_line[:match.start(3)] + fixed_ver + old_line[match.end(3):]
+                    applied = True
+            elif file_path_obj.name == "pom.xml":
+                # XML version tag replacement
+                pattern = re.compile(r"(<version\s*>)([^<]+)(</version\s*>)")
+                match = pattern.search(old_line)
+                if match:
+                    new_line = old_line[:match.start(2)] + fixed_ver + old_line[match.end(2):]
+                    applied = True
+            else:
+                # Default / requirements.txt format
+                # Check if package name is in the line to avoid writing mismatched lines
+                if pkg_name in old_line:
+                    new_val = f"{pkg_name}>={fixed_ver}  # Fixes {finding.cve_id or 'known vulnerability'}"
+                    if old_line.endswith("\n"):
+                        new_val += "\n"
+                    new_line = new_val
+                    applied = True
+
+    elif finding.category in ("misconfig", "misconfiguration"):
+        if finding.rule_id == "SOVA-INFRA-001":
+            base_line = old_line
+            if not base_line.endswith("\n"):
+                base_line += "\n"
+            new_line = base_line + "USER appuser\n"
+            applied = True
+        elif finding.rule_id == "SOVA-WEB-003":
+            # CORS Wildcard Origin Allowed
+            pattern = re.compile(r"([\"']?Access-Control-Allow-Origin[\"']?\s*[:=]\s*)([\"']?)\*([\"']?)")
+            match = pattern.search(old_line)
+            if match:
+                prefix = match.group(1)
+                q1 = match.group(2)
+                q2 = match.group(3)
+                if not q1 and not q2:
+                    new_val = f'{prefix}"https://yourdomain.com"'
+                else:
+                    new_val = f'{prefix}{q1}https://yourdomain.com{q2}'
+                new_line = old_line[:match.start()] + new_val + old_line[match.end():]
+                applied = True
+            else:
+                new_val = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
+                if old_line.endswith("\n"):
+                    new_val += "\n"
+                new_line = new_val
+                applied = True
+        elif finding.rule_id == "SOVA-WEB-001":
+            # Debug Mode Enabled in Web Configuration
+            pattern = re.compile(r"([\"']?\b(?:debug|dev_mode)\b[\"']?\s*[:=]\s*)(true|1|on|yes)\b", re.IGNORECASE)
+            match = pattern.search(old_line)
+            if match:
+                prefix = match.group(1)
+                val = match.group(2)
+                if val.lower() == "true":
+                    disabled_val = "False" if val == "True" else "false"
+                elif val.lower() == "yes":
+                    disabled_val = "No" if val == "Yes" else "no"
+                elif val.lower() == "on":
+                    disabled_val = "Off" if val == "On" else "off"
+                else:
+                    disabled_val = "0"
+
+                new_line = old_line[:match.start(2)] + disabled_val + old_line[match.end(2):]
+                applied = True
+            else:
+                new_val = "DEBUG = False  # Fixed: debug mode disabled for production"
+                if old_line.endswith("\n"):
+                    new_val += "\n"
+                new_line = new_val
+                applied = True
+        else:
+            # General fallback for other misconfigs
+            new_val = "DEBUG = False  # Fixed: debug mode disabled for production"
+            if old_line.endswith("\n"):
+                new_val += "\n"
+            new_line = new_val
+            applied = True
+
+    return new_line, applied
+
+
+def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None) -> bool:
+    """Physically applies a patch to the file on disk for a given finding."""
+    try:
+        from pathlib import Path
+        file_path_obj = Path(finding.file_path)
+        if not file_path_obj.is_absolute():
+            if target_path:
+                file_path_obj = Path(target_path) / finding.file_path
+            elif finding.scan:
+                file_path_obj = Path(finding.scan.target) / finding.file_path
+
+        file_path_obj = file_path_obj.resolve()
+        
+        # Safeguard: Do not apply auto-fixes to the security scanner's own source code files
+        if "sovascan" in file_path_obj.parts and ("core" in file_path_obj.parts or "api" in file_path_obj.parts or "rules" in file_path_obj.parts or "models" in file_path_obj.parts):
+            logger.warning("Skipping auto-fix on scanner's own code file: %s", file_path_obj)
+            return False
+
+        if file_path_obj.exists() and file_path_obj.is_file():
+            content = file_path_obj.read_text(encoding="utf-8")
+            lines = content.splitlines(keepends=True)
+            line_idx = finding.line_number - 1 if finding.line_number else None
+            applied = False
+
+            if line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                new_line, applied = _generate_fixed_line(finding, old_line, file_path_obj)
+                if applied:
+                    lines[line_idx] = new_line
+            else:
+                # If line_idx is not set or out of bounds (e.g. for cve dependencies)
+                # we search all lines for the package/rule
+                if finding.category == "cve":
+                    old_dep = finding.evidence or ""
+                    pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+                    if pkg_name.startswith("Vulnerable dependency:"):
+                        pkg_name = pkg_name.replace("Vulnerable dependency:", "").strip()
+                    if "@" in pkg_name:
+                        pkg_name = pkg_name.split("@")[0].strip()
+                    if pkg_name:
+                        for idx, line in enumerate(lines):
+                            new_line, applied = _generate_fixed_line(finding, line, file_path_obj)
+                            if applied:
+                                lines[idx] = new_line
+                                break
+
+            if applied:
+                file_path_obj.write_text("".join(lines), encoding="utf-8")
+                logger.info("Auto-fix successfully applied to file %s on disk", file_path_obj)
+                return True
+    except Exception as write_err:
+        logger.exception("Failed to physically apply auto-fix: %s", write_err)
+    return False
+
+
 @router.post("/fix/{finding_id}", response_model=FixResponse)
 def generate_fix(
     finding_id: str,
@@ -588,60 +800,162 @@ def generate_fix(
     if finding is None:
         raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
 
-    # Generate a context-aware patch based on category
-    patch_lines: list[str] = []
-    description = ""
+    # Load the file content to generate the actual diff
+    from pathlib import Path
+    target_path = finding.scan.target if finding.scan else None
+    file_path_obj = Path(finding.file_path)
+    if not file_path_obj.is_absolute():
+        if target_path:
+            file_path_obj = Path(target_path) / finding.file_path
+        elif finding.scan:
+            file_path_obj = Path(finding.scan.target) / finding.file_path
+    
+    file_path_obj = file_path_obj.resolve()
+    old_line = None
+    new_line = None
+    applied = False
+    
+    if file_path_obj.exists() and file_path_obj.is_file():
+        try:
+            content = file_path_obj.read_text(encoding="utf-8")
+            lines = content.splitlines(keepends=True)
+            line_idx = finding.line_number - 1 if finding.line_number else None
+            
+            if line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                new_line, applied = _generate_fixed_line(finding, old_line, file_path_obj)
+            else:
+                # If line_idx not set or invalid, search
+                if finding.category == "cve":
+                    old_dep = finding.evidence or ""
+                    pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+                    if pkg_name.startswith("Vulnerable dependency:"):
+                        pkg_name = pkg_name.replace("Vulnerable dependency:", "").strip()
+                    if "@" in pkg_name:
+                        pkg_name = pkg_name.split("@")[0].strip()
+                    if pkg_name:
+                        for idx, line in enumerate(lines):
+                            new_line, applied = _generate_fixed_line(finding, line, file_path_obj)
+                            if applied:
+                                old_line = line
+                                break
+        except Exception as e:
+            logger.warning("Failed to read file for generating fix patch: %s", e)
 
-    if finding.category == "secret":
+    # Generate patch lines
+    patch_lines: list[str] = []
+    
+    if old_line and new_line and applied:
+        # Strip trailing newlines for the diff display
+        old_stripped = old_line.rstrip("\r\n")
+        new_stripped = new_line.rstrip("\r\n")
         patch_lines = [
             f"--- a/{finding.file_path}",
             f"+++ b/{finding.file_path}",
             f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            f'+{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}',
+            f"-{old_stripped}",
+            f"+{new_stripped}",
         ]
-        description = (
-            f"Replace the hardcoded secret at {finding.file_path}:{finding.line_number} "
-            "with an environment variable reference. Remember to rotate the exposed credential."
-        )
-    elif finding.category == "cve":
-        old_dep = finding.evidence or ""
-        if "==" in old_dep:
-            pkg_name = old_dep.split("==")[0].strip()
+    else:
+        # Fallback to general suggestion diff shape if file cannot be read/matched
+        placeholder = f'${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+        if finding.category == "secret":
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                f"-{finding.evidence}",
+                f"+{placeholder}",
+            ]
+        elif finding.category == "cve":
+            old_dep = finding.evidence or ""
+            pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+            if pkg_name.startswith("Vulnerable dependency:"):
+                pkg_name = pkg_name.replace("Vulnerable dependency:", "").strip()
+            if "@" in pkg_name:
+                pkg_name = pkg_name.split("@")[0].strip()
+            fixed_ver = "2.31.0"
+            if finding.remediation:
+                import re
+                match = re.search(r"to\s+([0-9a-zA-Z.-]+)", finding.remediation)
+                if match:
+                    fixed_ver = match.group(1)
             patch_lines = [
                 f"--- a/{finding.file_path}",
                 f"+++ b/{finding.file_path}",
                 f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
                 f"-{old_dep}",
-                f"+{pkg_name}>=2.31.0  # Fixes {finding.cve_id or 'known vulnerability'}",
+                f"+{pkg_name}>={fixed_ver}  # Fixes {finding.cve_id or 'known vulnerability'}",
             ]
+        elif finding.category in ("misconfig", "misconfiguration"):
+            if finding.rule_id == "SOVA-INFRA-001":
+                patch_lines = [
+                    f"--- a/{finding.file_path}",
+                    f"+++ b/{finding.file_path}",
+                    f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},2 @@",
+                    f"-{finding.evidence}",
+                    f"+{finding.evidence}",
+                    "+USER appuser",
+                ]
+            elif finding.rule_id == "SOVA-WEB-003":
+                patch_lines = [
+                    f"--- a/{finding.file_path}",
+                    f"+++ b/{finding.file_path}",
+                    f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                    f"-{finding.evidence}",
+                    '+Access-Control-Allow-Origin = "https://yourdomain.com"',
+                ]
+            else:
+                patch_lines = [
+                    f"--- a/{finding.file_path}",
+                    f"+++ b/{finding.file_path}",
+                    f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                    f"-{finding.evidence}",
+                    "+DEBUG = False  # Fixed: debug mode disabled for production",
+                ]
         else:
-            patch_lines = [f"# Upgrade dependency to fix {finding.cve_id or 'vulnerability'}"]
+            patch_lines = [f"# Manual review required for {finding.rule_id}"]
+
+    description = ""
+    if finding.category == "secret":
+        description = (
+            f"Replace the hardcoded secret at {finding.file_path}:{finding.line_number} "
+            "with an environment variable/secrets reference. Remember to rotate the exposed credential."
+        )
+    elif finding.category == "cve":
         description = (
             f"Upgrade the vulnerable dependency referenced by {finding.cve_id or finding.rule_id}. "
             f"See remediation: {finding.remediation}"
         )
-    elif finding.category == "misconfiguration":
-        patch_lines = [
-            f"--- a/{finding.file_path}",
-            f"+++ b/{finding.file_path}",
-            f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            "+DEBUG = False  # Fixed: debug mode disabled for production",
-        ]
-        description = (
-            f"Disable debug mode in {finding.file_path}. "
-            "Running with DEBUG=True in production exposes sensitive data."
-        )
+    elif finding.category in ("misconfig", "misconfiguration"):
+        if finding.rule_id == "SOVA-INFRA-001":
+            description = (
+                f"Avoid running the container as root by adding a USER directive "
+                f"in {finding.file_path} after the base image is defined."
+            )
+        elif finding.rule_id == "SOVA-WEB-003":
+            description = (
+                f"Specify exact allowed domains in {finding.file_path} "
+                "instead of using the wildcard '*'."
+            )
+        else:
+            description = (
+                f"Disable debug mode in {finding.file_path}. "
+                "Running with DEBUG=True in production exposes sensitive data."
+            )
     else:
-        patch_lines = [f"# Manual review required for {finding.rule_id}"]
         description = f"No automated fix available for rule {finding.rule_id}. Please review manually."
 
     patch = "\n".join(patch_lines)
-
     status = "applied" if request.auto_apply else "suggested"
 
     if request.auto_apply:
+        success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to physically apply auto-fix suggestion to file on disk."
+            )
         finding.is_fixed = True
         db.commit()
 
