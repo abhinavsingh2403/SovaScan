@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import {
   AreaChart,
@@ -18,8 +18,8 @@ import './Dashboard.css';
 const SEVERITY_COLORS = {
   critical: '#dc2626',
   high: '#ea580c',
-  medium: '#eab308',
-  low: '#2563eb',
+  medium: '#2563eb',
+  low: '#8b5cf6',
   info: '#64748b',
 };
 
@@ -58,6 +58,7 @@ const PieTooltip = ({ active, payload }: any) => {
 
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
+  const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
 
   useEffect(() => {
     fetchDashboard();
@@ -174,8 +175,8 @@ const Dashboard: React.FC = () => {
         {/* Severity Distribution */}
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
-          <div className="chart-wrapper">
-            <div className="donut-chart-container">
+          <div className="chart-wrapper side-by-side-chart">
+            <div className="donut-chart-container-left">
               <ResponsiveContainer width="100%" height={220}>
                 <PieChart>
                   <defs>
@@ -188,12 +189,12 @@ const Dashboard: React.FC = () => {
                       <stop offset="100%" stopColor="#f97316" />
                     </linearGradient>
                     <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#eab308" />
-                      <stop offset="100%" stopColor="#facc15" />
-                    </linearGradient>
-                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stopColor="#2563eb" />
                       <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#a78bfa" />
                     </linearGradient>
                     <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
                       <stop offset="0%" stopColor="#64748b" />
@@ -209,28 +210,108 @@ const Dashboard: React.FC = () => {
                     paddingAngle={3}
                     dataKey="value"
                   >
-                    {pieData.map((entry, index) => (
-                      <Cell key={`cell-${index}`} fill={entry.color} />
-                    ))}
+                    {pieData.map((entry, index) => {
+                      const isHovered = hoveredSeverity
+                        ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
+                        : true;
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color}
+                          opacity={isHovered ? 1 : 0.15}
+                          style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredSeverity(entry.name.toLowerCase())}
+                          onMouseLeave={() => setHoveredSeverity(null)}
+                        />
+                      );
+                    })}
                   </Pie>
                   <Tooltip content={<PieTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="donut-center-text">
-                <span className="donut-center-num">{dashboardSummary.totalFindings}</span>
-                <span className="donut-center-label">Findings</span>
+                <div className="donut-center-card">
+                  <span className="donut-center-num">
+                    {hoveredSeverity
+                      ? (dashboardSummary.severityDistribution[hoveredSeverity as keyof typeof SEVERITY_COLORS] || 0)
+                      : dashboardSummary.totalFindings}
+                  </span>
+                  <span className="donut-center-label">
+                    {hoveredSeverity ? hoveredSeverity : 'Findings'}
+                  </span>
+                </div>
               </div>
             </div>
-            
-            {/* Custom Symmetrical and Interactive Legend */}
-            <div className="custom-pie-legend">
-              {Object.entries(SEVERITY_COLORS).map(([severity, color]) => {
-                const count = dashboardSummary.severityDistribution[severity as keyof typeof SEVERITY_COLORS] || 0;
+
+            {/* Premium Vertical Progress List */}
+            <div className="severity-progress-list">
+              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey) => {
+                const count = dashboardSummary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
+                const total = dashboardSummary.totalFindings || 1;
+                const percentage = Math.round((count / total) * 100);
+                const color = SEVERITY_COLORS[sevKey as keyof typeof SEVERITY_COLORS];
+                const label = sevKey.charAt(0).toUpperCase() + sevKey.slice(1);
+
+                // Define icon based on severity (crisp 16x16 pixel-aligned SVGs)
+                let icon = null;
+                if (sevKey === 'critical') {
+                  icon = (
+                    <svg className="sev-icon red-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 2l6 10H2L8 2z" />
+                      <line x1="8" y1="6" x2="8" y2="9" />
+                      <line x1="8" y1="12" x2="8.01" y2="12" />
+                    </svg>
+                  );
+                } else if (sevKey === 'high') {
+                  icon = (
+                    <svg className="sev-icon orange-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="8" cy="8" r="6" />
+                      <line x1="8" y1="5" x2="8" y2="8" />
+                      <line x1="8" y1="11" x2="8.01" y2="11" />
+                    </svg>
+                  );
+                } else if (sevKey === 'medium') {
+                  icon = (
+                    <svg className="sev-icon blue-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#2563eb" />
+                    </svg>
+                  );
+                } else if (sevKey === 'low') {
+                  icon = (
+                    <svg className="sev-icon purple-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#8b5cf6" />
+                    </svg>
+                  );
+                } else {
+                  icon = (
+                    <svg className="sev-icon grey-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="8" cy="8" r="6" />
+                      <line x1="8" y1="11" x2="8" y2="8" />
+                      <line x1="8" y1="5" x2="8.01" y2="5" />
+                    </svg>
+                  );
+                }
+
                 return (
-                  <div key={severity} className={`legend-item ${count === 0 ? 'inactive' : ''}`}>
-                    <span className="legend-dot" style={{ backgroundColor: color }}></span>
-                    <span className="legend-name">{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
-                    {count > 0 && <span className="legend-count">({count})</span>}
+                  <div
+                    key={sevKey}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${hoveredSeverity === sevKey ? 'hovered' : ''}`}
+                    onMouseEnter={() => count > 0 && setHoveredSeverity(sevKey)}
+                    onMouseLeave={() => setHoveredSeverity(null)}
+                  >
+                    <div className="sev-info-section">
+                      <div className="sev-label-row">
+                        <span className="sev-icon-wrap">{icon}</span>
+                        <span className="sev-label-name">{label}</span>
+                      </div>
+                      <div className="sev-bar-track">
+                        <div className="sev-bar-fill" style={{ width: `${count > 0 ? percentage : 0}%`, backgroundColor: color }}></div>
+                      </div>
+                    </div>
+                    <div className="sev-values-section">
+                      <span className="sev-count-val">{count}</span>
+                      <span className="sev-percent-val">{count > 0 ? `${percentage}%` : '0%'}</span>
+                    </div>
                   </div>
                 );
               })}
