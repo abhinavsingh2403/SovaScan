@@ -361,13 +361,20 @@ export const useStore = create<SovaState>((set, get) => ({
       const failedCount = controls.filter((c) => c.status === 'failed').length;
       const naCount = controls.filter((c) => c.status === 'not-applicable').length;
 
+      // Calculate the compliance score dynamically to align perfectly with the checklist stats.
+      // We exclude N/A (Not Applicable) controls from the baseline, which is standard compliance practice.
+      const totalApplicable = controls.length - naCount;
+      const calculatedScore = totalApplicable > 0 
+        ? Math.round((passedCount / totalApplicable) * 100) 
+        : 100;
+
       const report: ComplianceReport = {
         framework,
         frameworkFullName:
           FRAMEWORK_FULL_NAMES[framework] ??
           FRAMEWORK_FULL_NAMES[backendKey] ??
           framework,
-        score: (data.score as number) ?? 100,
+        score: calculatedScore,
         totalControls: controls.length,
         passed: passedCount,
         failed: failedCount,

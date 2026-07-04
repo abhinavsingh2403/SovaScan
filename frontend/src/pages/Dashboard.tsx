@@ -43,20 +43,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-const PieTooltip = ({ active, payload }: any) => {
-  if (active && payload && payload.length) {
-    const data = payload[0];
-    return (
-      <div className="custom-chart-tooltip glassmorphism">
-        <p className="tooltip-value" style={{ color: data.payload.color }}>
-          <span className="tooltip-dot" style={{ backgroundColor: data.payload.color }}></span>
-          {data.name}: <strong>{data.value}</strong>
-        </p>
-      </div>
-    );
-  }
-  return null;
-};
 
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
@@ -229,7 +215,6 @@ const Dashboard: React.FC = () => {
                       );
                     })}
                   </Pie>
-                  <Tooltip content={<PieTooltip />} />
                 </PieChart>
               </ResponsiveContainer>
               <div className="donut-center-text">
