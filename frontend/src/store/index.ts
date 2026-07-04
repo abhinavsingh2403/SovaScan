@@ -102,55 +102,54 @@ const mapDashboardSummary = (d: Record<string, unknown>): DashboardSummary => {
    ============================================================ */
 
 const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
-  'RBI-CSF': [
-    'Governance', 'Governance', 'Identify', 'Identify',
-    'Protect', 'Protect', 'Protect', 'Detect',
-    'Detect', 'Respond', 'Respond', 'Recover',
+  'NIST-CSF': [
+    'Identify', 'Identify', 'Protect', 'Protect', 'Protect',
+    'Detect', 'Detect', 'Respond', 'Respond', 'Recover',
   ],
-  'PCI-DSS': [
-    'Network Security', 'Network Security', 'Data Protection', 'Data Protection',
-    'Vulnerability Management', 'Vulnerability Management', 'Access Control',
-    'Access Control', 'Monitoring', 'Monitoring', 'Security Policy', 'Security Policy',
+  'SOC-2': [
+    'Security', 'Security', 'Security', 'Confidentiality', 'Confidentiality',
+    'Confidentiality', 'Availability', 'Availability', 'Processing Integrity', 'Privacy',
   ],
-  'ISO-27001': [
-    'Information Security Policies', 'Organization of InfoSec',
-    'Human Resource Security', 'Asset Management', 'Access Control',
-    'Cryptography', 'Physical Security', 'Operations Security',
-    'Communications Security', 'System Acquisition',
-    'Supplier Relationships', 'Incident Management',
+  'OWASP-10': [
+    'Broken Access Control', 'Cryptographic Failures', 'Injection', 'Insecure Design',
+    'Security Misconfiguration', 'Vulnerable Components', 'Auth Failures',
+    'Integrity Failures', 'Logging Failures', 'SSRF',
   ],
 };
 
 const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
-  'RBI-CSF': [
-    'Cyber Security Policy', 'Board Oversight', 'Asset Inventory',
-    'Risk Assessment', 'Access Control Management', 'Data Protection',
-    'Network Security', 'SOC Monitoring', 'Anomaly Detection',
-    'Incident Response Plan', 'Communication Protocol', 'Recovery Planning',
+  'NIST-CSF': [
+    'Asset Management (ID.AM)', 'Risk Assessment (ID.RA)',
+    'Identity Management & Access Control (PR.AC)', 'Data Security & Encryption (PR.DS)',
+    'Protective Technology (PR.PT)', 'Security Continuous Monitoring (DE.CM)',
+    'Detection Processes (DE.DP)', 'Response Planning (RS.RP)',
+    'Mitigation (RS.MI)', 'Recovery Planning (RC.RP)',
   ],
-  'PCI-DSS': [
-    'Firewall Configuration', 'Default Password Policy',
-    'Cardholder Data Encryption', 'Data Retention Policy',
-    'Anti-Virus Deployment', 'Secure Development', 'Role-Based Access',
-    'Unique User IDs', 'Audit Trail Logging', 'Security Monitoring',
-    'InfoSec Policy', 'Risk Assessment Process',
+  'SOC-2': [
+    'Logical Access Control (CC6.1)', 'System Boundary Defense (CC6.3)',
+    'Vulnerability Patching (CC7.3)', 'Data Transmission Encryption (CC6.6)',
+    'Data Storage Protection (CC6.7)', 'Risk Mitigation (CC9.1)',
+    'System Operations & Monitoring (CC7.1)', 'Business Continuity & Backups (A1.2)',
+    'Change Management (CC8.1)', 'Privacy Policy & Consent (P1.1)',
   ],
-  'ISO-27001': [
-    'Security Policy Document', 'InfoSec Roles', 'Employee Screening',
-    'Asset Classification', 'User Access Management', 'Key Management',
-    'Secure Areas', 'Change Management', 'Network Controls',
-    'Security in Development', 'Supplier Policy', 'Incident Procedures',
+  'OWASP-10': [
+    'A01:2021-Broken Access Control', 'A02:2021-Cryptographic Failures',
+    'A03:2021-Injection', 'A04:2021-Insecure Design',
+    'A05:2021-Security Misconfiguration', 'A06:2021-Vulnerable and Outdated Components',
+    'A07:2021-Identification and Authentication Failures', 'A08:2021-Software and Data Integrity Failures',
+    'A09:2021-Security Logging and Monitoring Failures', 'A10:2021-Server-Side Request Forgery (SSRF)',
   ],
 };
 
 const FRAMEWORK_FULL_NAMES: Record<string, string> = {
-  'RBI-CSF': 'RBI Cyber Security Framework',
-  'PCI-DSS': 'Payment Card Industry Data Security Standard',
-  'ISO-27001': 'ISO/IEC 27001 Information Security',
-  'soc2': 'SOC 2 Type II',
-  'pci-dss': 'Payment Card Industry Data Security Standard',
-  'hipaa': 'HIPAA Security Rule',
-  'iso27001': 'ISO/IEC 27001 Information Security',
+  'NIST-CSF': 'NIST Cybersecurity Framework',
+  'SOC-2': 'SOC 2 Type II Compliance Standard',
+  'OWASP-10': 'OWASP Top 10 Security Risks',
+  'nist-csf': 'NIST Cybersecurity Framework',
+  'soc-2': 'SOC 2 Type II Compliance Standard',
+  'soc2': 'SOC 2 Type II Compliance Standard',
+  'owasp-10': 'OWASP Top 10 Security Risks',
+  'owasp10': 'OWASP Top 10 Security Risks',
 };
 
 /**
@@ -162,33 +161,45 @@ function isViolation(controlName: string, finding: Finding): boolean {
   const title = finding.title.toLowerCase();
   const cat = finding.category.toLowerCase();
 
-  // Access / Auth / Password controls
-  if (n.includes('password') || n.includes('access') || n.includes('user id') || n.includes('role-based')) {
-    if (cat.includes('secret') || title.includes('password') || cat.includes('auth') || title.includes('credential')) {
+  // Access / Auth / Password / Identity controls
+  if (n.includes('password') || n.includes('access') || n.includes('user id') || n.includes('role-based') || n.includes('auth') || n.includes('identity')) {
+    if (cat.includes('secret') || title.includes('password') || cat.includes('auth') || title.includes('credential') || title.includes('access')) {
       return true;
     }
   }
-  // Encryption / Crypto controls
-  if (n.includes('encryption') || n.includes('data protection') || n.includes('cryptography') || n.includes('key management')) {
-    if (cat.includes('crypto') || cat.includes('secret') || title.includes('hashing') || title.includes('tls') || title.includes('ssl') || title.includes('encrypt')) {
+  // Encryption / Crypto / Data Protection controls
+  if (n.includes('encryption') || n.includes('data protection') || n.includes('cryptography') || n.includes('key management') || n.includes('data security') || n.includes('data storage')) {
+    if (cat.includes('crypto') || cat.includes('secret') || title.includes('hashing') || title.includes('tls') || title.includes('ssl') || title.includes('encrypt') || title.includes('key')) {
       return true;
     }
   }
-  // Vulnerability / Dependency controls
-  if (n.includes('vulnerability') || n.includes('development') || n.includes('anti-virus') || n.includes('asset')) {
+  // Vulnerability / Dependency / Component controls
+  if (n.includes('vulnerability') || n.includes('development') || n.includes('anti-virus') || n.includes('asset') || n.includes('component') || n.includes('patching') || n.includes('integrity')) {
     if (cat.includes('dep') || cat.includes('cve') || title.includes('vulnerable') || title.includes('outdated')) {
       return true;
     }
   }
-  // Network / Config / Monitoring controls
-  if (n.includes('firewall') || n.includes('network') || n.includes('config') || n.includes('monitoring') || n.includes('audit')) {
-    if (cat.includes('misconfig') || title.includes('cors') || title.includes('port') || title.includes('bind') || title.includes('debug')) {
+  // Network / Config / Monitoring / Boundary / Operations controls
+  if (n.includes('firewall') || n.includes('network') || n.includes('config') || n.includes('monitoring') || n.includes('audit') || n.includes('boundary') || n.includes('operations') || n.includes('protective technology') || n.includes('logging')) {
+    if (cat.includes('misconfig') || title.includes('cors') || title.includes('port') || title.includes('bind') || title.includes('debug') || title.includes('log')) {
       return true;
     }
   }
-  // Incident / Response controls
-  if (n.includes('incident') || n.includes('response') || n.includes('communication')) {
-    if (title.includes('log') || title.includes('error') || title.includes('disclosure')) {
+  // Incident / Response / Recovery / Mitigation controls
+  if (n.includes('incident') || n.includes('response') || n.includes('communication') || n.includes('recovery') || n.includes('mitigation')) {
+    if (title.includes('log') || title.includes('error') || title.includes('disclosure') || title.includes('fix') || finding.remediation) {
+      return true;
+    }
+  }
+  // Injection controls
+  if (n.includes('injection')) {
+    if (title.includes('injection') || title.includes('sql') || title.includes('xss') || cat.includes('cve')) {
+      return true;
+    }
+  }
+  // SSRF controls
+  if (n.includes('ssrf') || n.includes('request forgery')) {
+    if (title.includes('ssrf') || title.includes('redirect') || title.includes('forgery')) {
       return true;
     }
   }
@@ -200,7 +211,7 @@ function isViolation(controlName: string, finding: Finding): boolean {
  * Generates compliance controls for a framework using actual findings from the backend.
  */
 function generateComplianceControls(framework: string, violatingFindings: Finding[]): ComplianceControl[] {
-  const fwKey = FRAMEWORK_CATEGORIES[framework] ? framework : 'RBI-CSF';
+  const fwKey = FRAMEWORK_CATEGORIES[framework] ? framework : 'NIST-CSF';
   const categories = FRAMEWORK_CATEGORIES[fwKey];
   const names = FRAMEWORK_CONTROL_NAMES[fwKey];
 
@@ -257,6 +268,8 @@ interface SovaState {
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
+  fixAllFindings: () => Promise<any[]>;
+  fixAllScanFindings: (scanId: string) => Promise<any[]>;
 }
 
 /* ============================================================
@@ -442,5 +455,45 @@ export const useStore = create<SovaState>((set, get) => ({
      ------------------------------------------------------- */
   getComplianceReport: (framework: string) => {
     return get().complianceReports[framework] || null;
+  },
+
+  /* -------------------------------------------------------
+     fixAllFindings — bulk fixes all active findings globally
+     ------------------------------------------------------- */
+  fixAllFindings: async () => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAll();
+      // Re-fetch findings, dashboard and scans to sync state
+      await get().fetchFindings();
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply all fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
+  },
+
+  /* -------------------------------------------------------
+     fixAllScanFindings — bulk fixes all findings for a scan
+     ------------------------------------------------------- */
+  fixAllScanFindings: async (scanId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAllScan(scanId);
+      // Re-fetch scan-specific findings, dashboard and scans
+      await get().fetchFindings(scanId);
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply scan fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
   },
 }));

@@ -85,7 +85,7 @@ def test_get_sbom(client: TestClient) -> None:
 
 def test_compliance_report(client: TestClient) -> None:
     """Test generating a compliance framework report."""
-    for fw in ("pci-dss", "rbi-csf", "iso-27001"):
+    for fw in ("nist-csf", "soc-2", "owasp-10"):
         resp = client.get(f"/api/v1/compliance/{fw}")
         assert resp.status_code == 200
         data = resp.json()
@@ -131,3 +131,71 @@ def test_create_scan_rejects_remote_url(client: TestClient) -> None:
     }
     resp = client.post("/api/v1/scan", json=payload)
     assert resp.status_code == 400
+
+
+def test_apply_fix_updates_file(client: TestClient, tmp_path: Path) -> None:
+    """Test that applying an auto-fix physically modifies the file on disk."""
+    # 1. Create a dummy settings file with a misconfiguration
+    config_file = tmp_path / "settings.conf"
+    config_file.write_text("DEBUG = True\n", encoding="utf-8")
+
+    # 2. Trigger a scan of the temp path containing this file
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_resp = client.post("/api/v1/scan", json=payload)
+    assert scan_resp.status_code == 201
+    scan_id = scan_resp.json()["id"]
+
+    # 3. Retrieve findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+    assert len(findings) > 0
+
+    # Find the misconfig finding
+    misconfig_finding = findings[0]
+    finding_id = misconfig_finding["id"]
+
+    # 4. Trigger auto-fix
+    fix_payload = {
+        "finding_id": finding_id,
+        "auto_apply": True
+    }
+    fix_resp = client.post(f"/api/v1/fix/{finding_id}", json=fix_payload)
+    assert fix_resp.status_code == 200
+    assert fix_resp.json()["status"] == "applied"
+
+    # 5. Verify the file contents changed on disk
+    updated_content = config_file.read_text(encoding="utf-8")
+    assert "DEBUG = False" in updated_content
+
+
+def test_bulk_fix_endpoints(client: TestClient, tmp_path: Path) -> None:
+    """Test bulk auto-fixing all findings in a scan and globally."""
+    # 1. Create a dummy settings file with multiple misconfigurations
+    config_file = tmp_path / "settings.conf"
+    config_file.write_text("DEBUG = True\ndev_mode = 1\n", encoding="utf-8")
+
+    # 2. Trigger a scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_resp = client.post("/api/v1/scan", json=payload)
+    assert scan_resp.status_code == 201
+    scan_id = scan_resp.json()["id"]
+
+    # 3. Trigger bulk scan-specific fix-all
+    fix_all_resp = client.post(f"/api/v1/scan/{scan_id}/fix-all")
+    assert fix_all_resp.status_code == 200
+    data = fix_all_resp.json()
+    assert data["scan_id"] == scan_id
+    assert data["applied_count"] > 0
+
+    # 4. Verify file was patched
+    updated_content = config_file.read_text(encoding="utf-8")
+    assert "DEBUG = False" in updated_content
+
+

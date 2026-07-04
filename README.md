@@ -8,7 +8,7 @@
 [![Python 3.11](https://img.shields.io/badge/Python-3.11-3776AB?style=flat&logo=python)](https://www.python.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-SovaScan is an enterprise-grade security scanner designed to find, score, and remediate vulnerabilities in modern application codebases. Built with a focus on compliance-driven security, SovaScan automatically maps scanned vulnerabilities directly onto key regulatory frameworks like the **RBI Cyber Security Framework (RBI-CSF)**, **PCI-DSS**, and **ISO-27001**.
+SovaScan is an enterprise-grade security scanner designed to find, score, and remediate vulnerabilities in modern application codebases. Built with a focus on compliance-driven security, SovaScan automatically maps scanned vulnerabilities directly onto key regulatory frameworks like the **NIST Cybersecurity Framework (NIST-CSF)**, **SOC-2 Type II**, and **OWASP Top 10**.
 
 ---
 
@@ -22,7 +22,7 @@ SovaScan is an enterprise-grade security scanner designed to find, score, and re
 * ⚖️ **Context-Aware Severity Scoring**:
   * Automatically calculates risk using modifiers (e.g. elevates score if found in production configurations, decreases score for test directories).
 * 📋 **Compliance Regulatory Mapping**:
-  * Seamlessly maps repository findings onto control categories for **RBI-CSF**, **PCI-DSS**, and **ISO-27001**, outputting interactive, auditable checklists.
+  * Seamlessly maps repository findings onto control categories for **NIST-CSF**, **SOC-2**, and **OWASP-10**, outputting interactive, auditable checklists.
 * 💻 **Interactive Developer Dashboard**:
   * Clean, dark-themed React + TS frontend dashboard with charts, paginated findings explorer, live scan executor, and compliance health trackers.
 * 🛠️ **Command-Line Interface (CLI)**:
