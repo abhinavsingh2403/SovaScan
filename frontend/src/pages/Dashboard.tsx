@@ -11,6 +11,7 @@ import {
   Pie,
   Cell,
   Legend,
+  CartesianGrid,
 } from 'recharts';
 import './Dashboard.css';
 
@@ -20,6 +21,39 @@ const SEVERITY_COLORS = {
   medium: '#eab308',
   low: '#2563eb',
   info: '#64748b',
+};
+
+// Custom Chart Tooltips for premium aesthetic
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="custom-chart-tooltip glassmorphism">
+        <p className="tooltip-date">{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} className="tooltip-value" style={{ color: p.color || p.payload?.color }}>
+            <span className="tooltip-dot" style={{ backgroundColor: p.color || p.payload?.color }}></span>
+            {p.name}: <strong>{p.value}</strong>
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+const PieTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const data = payload[0];
+    return (
+      <div className="custom-chart-tooltip glassmorphism">
+        <p className="tooltip-value" style={{ color: data.payload.color }}>
+          <span className="tooltip-dot" style={{ backgroundColor: data.payload.color }}></span>
+          {data.name}: <strong>{data.value}</strong>
+        </p>
+      </div>
+    );
+  }
+  return null;
 };
 
 const Dashboard: React.FC = () => {
@@ -43,9 +77,38 @@ const Dashboard: React.FC = () => {
     ([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),
       value,
-      color: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
+      color: `url(#grad-${name})`,
+      rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
     })
   );
+
+  // Preprocess trend data to display slope/area line properly even with a single point
+  let trendData = [...dashboardSummary.trendData];
+  if (trendData.length === 1) {
+    const singlePoint = trendData[0];
+    let prevHourStr = 'Start';
+    try {
+      const dateParts = singlePoint.date.split(' ');
+      if (dateParts.length === 2) {
+        const timeParts = dateParts[1].split(':');
+        const hour = parseInt(timeParts[0]);
+        const prevHour = (hour - 1 + 24) % 24;
+        prevHourStr = `${dateParts[0]} ${String(prevHour).padStart(2, '0')}:00`;
+      }
+    } catch (e) {
+      // fallback
+    }
+    trendData = [
+      {
+        date: prevHourStr,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+      },
+      singlePoint,
+    ];
+  }
 
   return (
     <div className="dashboard-container">
@@ -112,32 +175,66 @@ const Dashboard: React.FC = () => {
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
           <div className="chart-wrapper">
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
-                  }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ color: '#94a3b8' }} />
-              </PieChart>
-            </ResponsiveContainer>
+            <div className="donut-chart-container">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <defs>
+                    <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#dc2626" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </linearGradient>
+                    <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#ea580c" />
+                      <stop offset="100%" stopColor="#f97316" />
+                    </linearGradient>
+                    <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#eab308" />
+                      <stop offset="100%" stopColor="#facc15" />
+                    </linearGradient>
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                    <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#64748b" />
+                      <stop offset="100%" stopColor="#94a3b8" />
+                    </linearGradient>
+                  </defs>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={85}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => (
+                      <Cell key={`cell-${index}`} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <Tooltip content={<PieTooltip />} />
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="donut-center-text">
+                <span className="donut-center-num">{dashboardSummary.totalFindings}</span>
+                <span className="donut-center-label">Findings</span>
+              </div>
+            </div>
+            
+            {/* Custom Symmetrical and Interactive Legend */}
+            <div className="custom-pie-legend">
+              {Object.entries(SEVERITY_COLORS).map(([severity, color]) => {
+                const count = dashboardSummary.severityDistribution[severity as keyof typeof SEVERITY_COLORS] || 0;
+                return (
+                  <div key={severity} className={`legend-item ${count === 0 ? 'inactive' : ''}`}>
+                    <span className="legend-dot" style={{ backgroundColor: color }}></span>
+                    <span className="legend-name">{severity.charAt(0).toUpperCase() + severity.slice(1)}</span>
+                    {count > 0 && <span className="legend-count">({count})</span>}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -146,7 +243,7 @@ const Dashboard: React.FC = () => {
           <h2>Security Trend Over Time</h2>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={dashboardSummary.trendData}>
+              <AreaChart data={trendData}>
                 <defs>
                   <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#dc2626" stopOpacity={0.4} />
@@ -157,36 +254,39 @@ const Dashboard: React.FC = () => {
                     <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
                   </linearGradient>
                 </defs>
+                <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
                   stroke="#64748b"
+                  fontSize={11}
                   tickLine={false}
+                  axisLine={false}
+                  dy={10}
                   tickFormatter={(value) => (typeof value === 'string' && value.includes(' ') ? value.split(' ')[1] : value)}
                 />
-                <YAxis stroke="#64748b" tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
-                  }}
-                />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-10} />
+                <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="critical"
                   stroke="#dc2626"
+                  strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorCritical)"
                   name="Critical"
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#dc2626' }}
                 />
                 <Area
                   type="monotone"
                   dataKey="high"
                   stroke="#ea580c"
+                  strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorHigh)"
                   name="High"
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#ea580c' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
