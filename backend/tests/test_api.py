@@ -141,14 +141,14 @@ def test_create_scan_rejects_missing_path(client: TestClient) -> None:
     assert resp.status_code == 400
 
 
-def test_create_scan_rejects_remote_url(client: TestClient) -> None:
-    """Remote URL targets aren't supported yet by the orchestrator and should 400, not fake success."""
+def test_create_scan_accepts_remote_url(client: TestClient) -> None:
+    """Remote URL targets are supported by the orchestrator and should return 202."""
     payload = {
         "target": "https://github.com/example/repo",
         "scan_type": "full",
     }
     resp = client.post("/api/v1/scan", json=payload)
-    assert resp.status_code == 400
+    assert resp.status_code == 202
 
 
 def test_apply_fix_updates_file(client: TestClient, tmp_path: Path) -> None:

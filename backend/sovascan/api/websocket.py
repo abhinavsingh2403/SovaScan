@@ -32,6 +32,22 @@ logger = logging.getLogger("sovascan.ws")
 SessionMaker = SessionLocal
 
 
+def _clean_path(path_str: str, base_path: Path) -> str:
+    """Strip base_path prefix from path_str to keep paths relative and clean."""
+    if not path_str:
+        return ""
+    try:
+        p = Path(path_str)
+        if p.is_absolute():
+            return str(p.relative_to(base_path))
+    except Exception:
+        pass
+    base_str = str(base_path)
+    if path_str.startswith(base_str):
+        return path_str[len(base_str):].lstrip("\\/")
+    return path_str
+
+
 # ---------------------------------------------------------------------------
 # Event schema
 # ---------------------------------------------------------------------------
@@ -161,6 +177,7 @@ class ScanManager:
         """
         db = SessionMaker()
         findings_count = 0
+        temp_dir = None
 
         try:
             # -- Mark RUNNING ------------------------------------------------
@@ -178,13 +195,36 @@ class ScanManager:
                 self._make_event(scan_id, type="status_change", status="running", percent=0.0),
             )
 
-            # -- Validate target ---------------------------------------------
+            # -- Validate and Resolve Target ---------------------------------
             if target.startswith("http://") or target.startswith("https://"):
-                raise ValueError("Remote URL scanning is not yet supported.")
-
-            target_path = Path(target)
-            if not target_path.exists():
-                raise FileNotFoundError(f"Target path does not exist: {target}")
+                import tempfile
+                import shutil
+                import subprocess
+                temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
+                target_path = Path(temp_dir.name)
+                
+                self._broadcast(
+                    scan_id,
+                    self._make_event(
+                        scan_id,
+                        type="progress",
+                        phase="Cloning remote git repository...",
+                        percent=10.0,
+                        findings_count=findings_count,
+                    ),
+                )
+                proc = subprocess.run(
+                    ["git", "clone", "--depth", "1", target, str(target_path)],
+                    capture_output=True,
+                    text=True,
+                    timeout=180
+                )
+                if proc.returncode != 0:
+                    raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
+            else:
+                target_path = Path(target)
+                if not target_path.exists():
+                    raise FileNotFoundError(f"Target path does not exist: {target}")
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
@@ -226,7 +266,7 @@ class ScanManager:
                     description=sf.description,
                     severity=sev,
                     category=sf.category,
-                    file_path=sf.file_path,
+                    file_path=_clean_path(sf.file_path, target_path),
                     line_number=sf.line_number,
                     evidence=sf.evidence,
                     remediation=sf.remediation,
@@ -281,7 +321,7 @@ class ScanManager:
                         description=sast_finding_dict["description"],
                         severity=sev,
                         category=sast_finding_dict.get("category", "sast"),
-                        file_path=sast_finding_dict.get("file_path", ""),
+                        file_path=_clean_path(sast_finding_dict.get("file_path", ""), target_path),
                         line_number=sast_finding_dict.get("line_number"),
                         evidence=sast_finding_dict.get("evidence", ""),
                         remediation=sast_finding_dict.get("remediation", ""),
@@ -292,7 +332,7 @@ class ScanManager:
                     findings_count += 1
                     field = _severity_to_field(sev)
                     severity_counts[field] += 1
-
+ 
                     self._broadcast(
                         scan_id,
                         self._make_event(
@@ -301,7 +341,7 @@ class ScanManager:
                             finding={"id": f.id, "rule_id": f.rule_id, "title": f.title, "severity": sev.value, "category": f.category, "file_path": f.file_path},
                         ),
                     )
-
+ 
             # -- Phase 6: Git history (only for full/git-history) ------------
             if scan_type in ("full", "git-history"):
                 max_commits = 500
@@ -325,7 +365,7 @@ class ScanManager:
                         description=gf.description,
                         severity=sev,
                         category=gf.category,
-                        file_path=gf.file_path,
+                        file_path=_clean_path(gf.file_path, target_path),
                         line_number=gf.line_number,
                         evidence=gf.evidence,
                         remediation=gf.remediation,
@@ -389,6 +429,11 @@ class ScanManager:
                 ),
             )
         finally:
+            if temp_dir is not None:
+                try:
+                    temp_dir.cleanup()
+                except Exception as cleanup_err:
+                    logger.warning("Failed to clean up temporary directory: %s", cleanup_err)
             db.close()
 
     # -- SAST helper -------------------------------------------------------

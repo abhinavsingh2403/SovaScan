@@ -38,6 +38,22 @@ router = APIRouter(tags=["sovascan"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _clean_path(path_str: str, base_path: Path) -> str:
+    """Strip base_path prefix from path_str to keep paths relative and clean."""
+    if not path_str:
+        return ""
+    try:
+        p = Path(path_str)
+        if p.is_absolute():
+            return str(p.relative_to(base_path))
+    except Exception:
+        pass
+    base_str = str(base_path)
+    if path_str.startswith(base_str):
+        return path_str[len(base_str):].lstrip("\\/")
+    return path_str
+
+
 def _map_semgrep_severity(sev: str) -> Severity:
     return {
         "ERROR": Severity.HIGH,
@@ -168,51 +184,76 @@ def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -
         HTTPException: 400 if the target path does not exist, or the
             scan otherwise fails to run.
     """
-    if target.startswith("http://") or target.startswith("https://"):
-        raise HTTPException(
-            status_code=400,
-            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
-        )
-
-    target_path = Path(target)
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
-
-    orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
-
+    temp_dir = None
     try:
-        result = orchestrator.run_scan()
-    except Exception as exc:
-        logger.exception("Orchestrator failed for target %s", target)
-        raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+        if target.startswith("http://") or target.startswith("https://"):
+            import tempfile
+            import shutil
+            temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
+            target_path = Path(temp_dir.name)
+            
+            proc = subprocess.run(
+                ["git", "clone", "--depth", "1", target, str(target_path)],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            if proc.returncode != 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Git clone failed: {proc.stderr or proc.stdout}",
+                )
+        else:
+            target_path = Path(target)
+            if not target_path.exists():
+                raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
 
-    findings: list[dict[str, Any]] = []
-    for sf in result.findings:
-        findings.append(
-            {
-                # ScoredFinding.id is a rule-style identifier (e.g.
-                # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
-                # it maps directly onto Finding.rule_id.
-                "rule_id": sf.id,
-                "title": sf.title,
-                "description": sf.description,
-                "severity": Severity(sf.severity.value),
-                "category": sf.category,
-                "file_path": sf.file_path,
-                "line_number": sf.line_number,
-                "evidence": sf.evidence,
-                "remediation": sf.remediation,
-                "cve_id": sf.id if sf.category == "cve" else None,
-                "cvss_score": sf.cvss_score or None,
-            }
-        )
+        orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
 
-    # Run SAST tools along side the orchestrator for full scan types
-    if scan_type in ("full", "sast"):
-        findings.extend(_run_semgrep(target_path))
-        findings.extend(_run_bandit(target_path))
-    
-    return findings
+        try:
+            result = orchestrator.run_scan()
+        except Exception as exc:
+            logger.exception("Orchestrator failed for target %s", target)
+            raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+
+        findings: list[dict[str, Any]] = []
+        for sf in result.findings:
+            findings.append(
+                {
+                    # ScoredFinding.id is a rule-style identifier (e.g.
+                    # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
+                    # it maps directly onto Finding.rule_id.
+                    "rule_id": sf.id,
+                    "title": sf.title,
+                    "description": sf.description,
+                    "severity": Severity(sf.severity.value),
+                    "category": sf.category,
+                    "file_path": _clean_path(sf.file_path, target_path),
+                    "line_number": sf.line_number,
+                    "evidence": sf.evidence,
+                    "remediation": sf.remediation,
+                    "cve_id": sf.id if sf.category == "cve" else None,
+                    "cvss_score": sf.cvss_score or None,
+                }
+            )
+
+        # Run SAST tools along side the orchestrator for full scan types
+        if scan_type in ("full", "sast"):
+            findings.extend(_run_semgrep(target_path))
+            findings.extend(_run_bandit(target_path))
+            
+            # Clean paths of SAST findings too
+            for f in findings:
+                if "file_path" in f:
+                    f["file_path"] = _clean_path(f["file_path"], target_path)
+        
+        return findings
+    finally:
+        if temp_dir is not None:
+            try:
+                temp_dir.cleanup()
+            except Exception as cleanup_err:
+                logger.warning("Failed to clean up temporary directory: %s", cleanup_err)
 
 
 def _severity_to_field(severity: Severity) -> str:
@@ -269,15 +310,11 @@ async def create_scan(
     progress updates.
     """
     # Validate target before creating DB record
-    if request.target.startswith("http://") or request.target.startswith("https://"):
-        raise HTTPException(
-            status_code=400,
-            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
-        )
-
-    target_path = Path(request.target)
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
+    target_is_url = request.target.startswith("http://") or request.target.startswith("https://")
+    if not target_is_url:
+        target_path = Path(request.target)
+        if not target_path.exists():
+            raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
 
     scan = Scan(
         id=str(uuid.uuid4()),

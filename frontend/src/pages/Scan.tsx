@@ -36,20 +36,22 @@ const Scan: React.FC = () => {
           <h2>Start New Security Scan</h2>
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
-              <label htmlFor="targetPath">Target Directory Path:</label>
+              <label htmlFor="targetPath">Target Path or Repository URL:</label>
               <div className="input-with-icon">
-                <span className="input-icon">📁</span>
+                <span className="input-icon">
+                  {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? '🔗' : '📁'}
+                </span>
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g., C:/projects/banking-app"
+                  placeholder="e.g., C:/projects/my-app OR https://github.com/user/repo"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              <p className="field-help">Specify the absolute path of the directory to analyze.</p>
+              <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
             </div>
 
             <div className="form-group">
