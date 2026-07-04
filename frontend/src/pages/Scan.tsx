@@ -108,6 +108,42 @@ const Scan: React.FC = () => {
                     </div>
                   </div>
                 </label>
+
+                <label className={`scan-type-card ${scanType === 'sast' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="sast"
+                    checked={scanType === 'sast'}
+                    onChange={() => setScanType('sast')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">🔬</span>
+                    <div className="radio-text">
+                      <strong>SAST Only</strong>
+                      <span>Static Application Security Testing</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`scan-type-card ${scanType === 'git-history' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="git-history"
+                    checked={scanType === 'git-history'}
+                    onChange={() => setScanType('git-history')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">📜</span>
+                    <div className="radio-text">
+                      <strong>Git History</strong>
+                      <span>Scan Commit History for Secrets</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 

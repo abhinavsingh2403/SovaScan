@@ -13,6 +13,7 @@ from sovascan import __version__
 from sovascan.api.routes import router
 from sovascan.config import get_settings
 from sovascan.models.base import init_db
+from sovascan.api.websocket import scan_websocket
 
 logger = logging.getLogger("sovascan")
 
@@ -74,6 +75,9 @@ def create_app() -> FastAPI:
 
     # Include API v1 router
     application.include_router(router, prefix="/api/v1")
+
+    # WebSocket endpoint for real-time scan progress streaming
+    application.add_api_websocket_route("/api/v1/scan/{scan_id}/ws", scan_websocket)
 
     @application.get("/health", tags=["system"])
     async def health_check() -> dict:

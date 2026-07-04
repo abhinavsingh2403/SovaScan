@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../api/client';
+import { api, createScanWebSocket } from '../api/client';
 import type {
   Scan,
   ScanType,
@@ -8,6 +8,7 @@ import type {
   DashboardSummary,
   ComplianceReport,
   ComplianceControl,
+  ScanProgressEvent,
 } from '../types';
 
 /* ============================================================
@@ -387,60 +388,185 @@ export const useStore = create<SovaState>((set, get) => ({
   },
 
   /* -------------------------------------------------------
-     startScan — POST /api/v1/scan
-     Shows a smooth animated progress bar in the UI while
-     the synchronous backend request is running.
+     startScan — POST /api/v1/scan (202 Accepted)
+     Connects to WebSocket for real-time progress streaming
+     with automatic polling fallback.
      ------------------------------------------------------- */
   startScan: async (target: string, scanType: string, _frameworks: string[]) => {
     set({
-      scanProgress: { running: true, phase: 'Discovering', percent: 0, findingsCount: 0 },
+      loading: true,
       error: null,
+      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0 },
     });
 
-    const phases = ['Discovering', 'Resolving', 'Scanning', 'Scoring', 'Reporting'];
-    let currentPercent = 0;
-
-    // Animate the progress bar smoothly while the API call is pending
-    const interval = setInterval(() => {
-      currentPercent += Math.random() * 5 + 2;
-      if (currentPercent >= 95) currentPercent = 95; // Cap at 95% until backend responds
-
-      const phaseIdx = Math.min(Math.floor(currentPercent / 20), phases.length - 1);
-      set({
-        scanProgress: {
-          running: true,
-          phase: phases[phaseIdx],
-          percent: Math.round(currentPercent),
-          findingsCount: 0,
-        },
-      });
-    }, 400);
-
     try {
-      const res = await api.createScan({ target, scan_type: scanType });
-      clearInterval(interval);
+      // POST /scan now returns 202 Accepted with the scan in pending/running state
+      const response = await api.createScan({ target, scan_type: scanType });
+      const scanData = response.data;
+      const scanId: string = scanData.id || scanData.scan_id;
 
-      const completedScan = mapScan(res.data as Record<string, unknown>);
+      if (!scanId) {
+        throw new Error('No scan ID returned from server');
+      }
 
-      set((state) => ({
-        scans: [completedScan, ...state.scans],
-        scanProgress: {
-          running: false,
-          phase: 'Completed',
-          percent: 100,
-          findingsCount: completedScan.totalFindings,
-        },
-      }));
+      // Connect to WebSocket for real-time progress
+      const ws = createScanWebSocket(scanId);
+      let wsConnected = false;
 
-      // Refresh dashboard and scans list with fresh data
-      get().fetchScans();
-      get().fetchDashboard();
-    } catch (err: unknown) {
-      clearInterval(interval);
-      const message = err instanceof Error ? err.message : 'Scan failed';
+      ws.onopen = () => {
+        wsConnected = true;
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        try {
+          const msg: ScanProgressEvent = JSON.parse(event.data);
+
+          switch (msg.type) {
+            case 'progress':
+            case 'status_change':
+              set({
+                scanProgress: {
+                  running: true,
+                  phase: msg.phase || msg.status || 'Scanning...',
+                  percent: msg.percent,
+                  findingsCount: msg.findings_count,
+                },
+              });
+              break;
+
+            case 'finding_discovered':
+              set({
+                scanProgress: {
+                  running: true,
+                  phase: msg.phase || 'Analyzing...',
+                  percent: msg.percent,
+                  findingsCount: msg.findings_count,
+                },
+              });
+              break;
+
+            case 'scan_complete': {
+              set({
+                scanProgress: {
+                  running: false,
+                  phase: 'Scan complete',
+                  percent: 100,
+                  findingsCount: msg.findings_count,
+                },
+                loading: false,
+              });
+              ws.close();
+              // Refresh all data views
+              const store = useStore.getState();
+              store.fetchDashboard();
+              store.fetchScans();
+              store.fetchFindings();
+              break;
+            }
+
+            case 'scan_failed':
+              set({
+                scanProgress: {
+                  running: false,
+                  phase: 'Scan failed',
+                  percent: 0,
+                  findingsCount: msg.findings_count,
+                },
+                loading: false,
+                error: msg.error || 'Scan execution failed',
+              });
+              ws.close();
+              break;
+
+            case 'keepalive':
+              // No-op, just keeps the connection alive
+              break;
+
+            default:
+              break;
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse WS message:', parseErr);
+        }
+      };
+
+      ws.onerror = () => {
+        if (!wsConnected) {
+          // WebSocket failed to connect — fall back to polling
+          console.warn('WebSocket connection failed, falling back to polling');
+          ws.close();
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollRes = await api.getScan(scanId);
+              const pollScan = pollRes.data;
+              const status = pollScan.status;
+
+              if (status === 'completed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  loading: false,
+                });
+                const store = useStore.getState();
+                store.fetchDashboard();
+                store.fetchScans();
+                store.fetchFindings();
+              } else if (status === 'failed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  loading: false,
+                  error: 'Scan execution failed',
+                });
+              }
+            } catch (pollErr) {
+              console.error('Polling error:', pollErr);
+            }
+          }, 3000);
+        }
+      };
+
+      ws.onclose = () => {
+        // Ensure loading state is cleared if WS closes unexpectedly
+        const { scanProgress } = useStore.getState();
+        if (scanProgress.running) {
+          // WS closed while scan was still running — start polling fallback
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollRes = await api.getScan(scanId);
+              const pollScan = pollRes.data;
+              const status = pollScan.status;
+
+              if (status === 'completed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  loading: false,
+                });
+                const store = useStore.getState();
+                store.fetchDashboard();
+                store.fetchScans();
+                store.fetchFindings();
+              } else if (status === 'failed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  loading: false,
+                  error: 'Scan execution failed',
+                });
+              }
+            } catch (pollErr) {
+              console.error('Polling error:', pollErr);
+            }
+          }, 3000);
+        }
+      };
+
+    } catch (err: any) {
       set({
-        scanProgress: { running: false, phase: 'Failed', percent: 0, findingsCount: 0 },
-        error: message,
+        loading: false,
+        error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0 },
       });
     }
   },

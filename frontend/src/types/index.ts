@@ -1,6 +1,6 @@
 export type SeverityType = 'critical' | 'high' | 'medium' | 'low' | 'info';
 export type ScanStatus = 'pending' | 'running' | 'completed' | 'failed';
-export type ScanType = 'full' | 'dependencies' | 'secrets' | 'misconfig';
+export type ScanType = 'full' | 'dependencies' | 'secrets' | 'misconfig' | 'sast' | 'git-history';
 
 export interface Scan {
   id: string;
@@ -88,4 +88,23 @@ export interface ComplianceReport {
   notApplicable: number;
   controls: ComplianceControl[];
   lastAssessed: string;
+}
+
+export interface ScanProgressEvent {
+  type: 'status_change' | 'progress' | 'finding_discovered' | 'scan_complete' | 'scan_failed' | 'keepalive';
+  scan_id: string;
+  phase: string;
+  percent: number;
+  findings_count: number;
+  finding: {
+    id: string;
+    rule_id: string;
+    title: string;
+    severity: SeverityType;
+    category: string;
+    file_path: string;
+  } | null;
+  status: string;
+  error: string;
+  timestamp: string;
 }

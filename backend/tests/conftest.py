@@ -12,30 +12,34 @@ from sovascan.server import app
 # Use file-based SQLite for testing to avoid connection-sharing table loss
 SQLALCHEMY_DATABASE_URL = "sqlite:///./test_temp.db"
 
+test_engine = create_engine(
+    SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
+)
+TestingSessionLocal = sessionmaker(
+    autocommit=False, autoflush=False, bind=test_engine
+)
+
 
 @pytest.fixture(name="db_session")
 def fixture_db_session():
     """Create in-memory SQLite database session."""
-    engine = create_engine(
-        SQLALCHEMY_DATABASE_URL, connect_args={"check_same_thread": False}
-    )
-    TestingSessionLocal = sessionmaker(
-        autocommit=False, autoflush=False, bind=engine
-    )
-
-    Base.metadata.create_all(bind=engine)
+    Base.metadata.create_all(bind=test_engine)
 
     db = TestingSessionLocal()
     try:
         yield db
     finally:
         db.close()
-        Base.metadata.drop_all(bind=engine)
+        Base.metadata.drop_all(bind=test_engine)
 
 
 @pytest.fixture(name="client")
 def fixture_client(db_session):
     """FastAPI test client with database dependency override."""
+    from sovascan.api import websocket
+    original_session_maker = websocket.SessionMaker
+    # Override SessionMaker to use test database for background threads
+    websocket.SessionMaker = TestingSessionLocal
 
     def override_get_db():
         try:
@@ -47,3 +51,4 @@ def fixture_client(db_session):
     with TestClient(app) as test_client:
         yield test_client
     app.dependency_overrides.clear()
+    websocket.SessionMaker = original_session_maker

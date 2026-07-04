@@ -27,6 +27,7 @@ from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
+from sovascan.api.websocket import scan_manager
 
 logger = logging.getLogger("sovascan.api")
 
@@ -256,23 +257,28 @@ def list_scans(
     )
 
 
-@router.post("/scan", response_model=ScanResponse, status_code=201)
-def create_scan(
+@router.post("/scan", response_model=ScanResponse, status_code=202)
+async def create_scan(
     request: ScanRequest,
     db: Session = Depends(get_db),
 ) -> Scan:
-    """Create and execute a new security scan.
+    """Create a new security scan and begin async execution.
 
-    The scan runs synchronously, stores all findings in the database,
-    and returns the completed scan record.
-
-    Args:
-        request: Scan parameters (target, type, options).
-        db: Database session (injected).
-
-    Returns:
-        The completed Scan record.
+    Returns 202 Accepted immediately. Connect to the WebSocket
+    endpoint ``/api/v1/scan/{scan_id}/ws`` to receive real-time
+    progress updates.
     """
+    # Validate target before creating DB record
+    if request.target.startswith("http://") or request.target.startswith("https://"):
+        raise HTTPException(
+            status_code=400,
+            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
+        )
+
+    target_path = Path(request.target)
+    if not target_path.exists():
+        raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
+
     scan = Scan(
         id=str(uuid.uuid4()),
         target=request.target,
@@ -281,73 +287,18 @@ def create_scan(
         metadata_json=json.dumps(request.options) if request.options else None,
     )
     db.add(scan)
-    db.flush()
+    db.commit()
+    db.refresh(scan)
 
-    # Transition to running
-    scan.status = ScanStatus.RUNNING
-    scan.started_at = datetime.now(UTC)
-    db.flush()
+    # Fire-and-forget background scan execution
+    await scan_manager.start_scan(
+        scan_id=scan.id,
+        target=request.target,
+        scan_type=request.scan_type,
+        options=request.options,
+    )
 
-    try:
-        raw_findings = _run_scan_logic(request.target, request.scan_type, request.options)
-
-        severity_counts: dict[str, int] = {
-            "critical_count": 0,
-            "high_count": 0,
-            "medium_count": 0,
-            "low_count": 0,
-        }
-
-        for raw in raw_findings:
-            finding = Finding(
-                id=str(uuid.uuid4()),
-                scan_id=scan.id,
-                rule_id=raw["rule_id"],
-                title=raw["title"],
-                description=raw["description"],
-                severity=raw["severity"],
-                category=raw.get("category", "misconfiguration"),
-                file_path=raw.get("file_path", ""),
-                line_number=raw.get("line_number"),
-                evidence=raw.get("evidence", ""),
-                remediation=raw.get("remediation", ""),
-                cve_id=raw.get("cve_id"),
-                cvss_score=raw.get("cvss_score"),
-            )
-            db.add(finding)
-            field = _severity_to_field(raw["severity"])
-            severity_counts[field] += 1
-
-        scan.total_findings = len(raw_findings)
-        scan.critical_count = severity_counts["critical_count"]
-        scan.high_count = severity_counts["high_count"]
-        scan.medium_count = severity_counts["medium_count"]
-        scan.low_count = severity_counts["low_count"]
-        scan.status = ScanStatus.COMPLETED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-
-        logger.info("Scan %s completed — %d findings", scan.id, scan.total_findings)
-
-    except HTTPException:
-        # Validation-style failures (bad/missing target path, unsupported
-        # scan target, etc.) already carry the correct status code and
-        # message — mark the scan failed in the DB, but don't mask them as 500s.
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.warning("Scan %s rejected before execution", scan.id)
-        raise
-    except Exception as exc:
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.exception("Scan %s failed", scan.id)
-        raise HTTPException(status_code=500, detail="Scan execution failed") from exc
-
+    logger.info("Scan %s queued for async execution", scan.id)
     return scan
 
 

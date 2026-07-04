@@ -175,3 +175,16 @@ class HealthResponse(BaseModel):
     status: str
     version: str
     uptime: float
+
+
+class ScanProgressEvent(BaseModel):
+    """WebSocket event schema for real-time scan progress streaming."""
+    type: str = Field(..., description="Event type: status_change, progress, finding_discovered, scan_complete, scan_failed")
+    scan_id: str
+    phase: str = ""
+    percent: float = 0.0
+    findings_count: int = 0
+    finding: FindingResponse | None = None
+    status: str = ""
+    error: str = ""
+    timestamp: datetime | None = None
