@@ -467,7 +467,48 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
 
             if finding.category == "secret" and line_idx is not None and 0 <= line_idx < len(lines):
                 old_line = lines[line_idx]
-                new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                suffix = file_path_obj.suffix.lower()
+                env_var = finding.rule_id.replace("-", "_").upper()
+                
+                if suffix == ".py":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= __import__('os').environ.get('{env_var}')"
+                    else:
+                        new_val = f"__import__('os').environ.get('{env_var}')"
+                elif suffix == ".env":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}=your_{lhs.strip().lower()}_here"
+                    else:
+                        new_val = f"{finding.rule_id}=your_secret_here"
+                elif suffix in (".json", ".yml", ".yaml", ".conf", ".ini", ".properties"):
+                    if ":" in old_line:
+                        lhs, rhs = old_line.split(":", 1)
+                        new_val = f'{lhs}: "PLACEHOLDER_{env_var}"'
+                    elif "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f'{lhs}=PLACEHOLDER_{env_var}'
+                    else:
+                        new_val = f"PLACEHOLDER_{env_var}"
+                elif suffix in (".js", ".ts", ".jsx", ".tsx"):
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= process.env.{env_var}"
+                    elif ":" in old_line:
+                        lhs, rhs = old_line.split(":", 1)
+                        new_val = f"{lhs}: process.env.{env_var}"
+                    else:
+                        new_val = f"process.env.{env_var}"
+                elif suffix == ".java":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= System.getenv(\"{env_var}\")"
+                    else:
+                        new_val = f"System.getenv(\"{env_var}\")"
+                else:
+                    new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                
                 # preserve trailing newline if present
                 if old_line.endswith("\n"):
                     new_val += "\n"
@@ -502,8 +543,22 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
                     lines[line_idx] = new_line
                     applied = True
                 elif finding.rule_id == "SOVA-WEB-003":
-                    new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
-                    if old_line.endswith("\n"):
+                    suffix = file_path_obj.suffix.lower()
+                    if suffix in (".conf", ".nginx") or "add_header" in old_line:
+                        if "add_header" in old_line:
+                            new_line = old_line.replace("'*'", "'https://yourdomain.com'").replace('"*"', "'https://yourdomain.com'")
+                        else:
+                            new_line = "    add_header 'Access-Control-Allow-Origin' 'https://yourdomain.com';"
+                    else:
+                        if ":" in old_line:
+                            lhs, rhs = old_line.split(":", 1)
+                            new_line = f'{lhs}: "https://yourdomain.com"'
+                        elif "=" in old_line:
+                            lhs, rhs = old_line.split("=", 1)
+                            new_line = f'{lhs}= "https://yourdomain.com"'
+                        else:
+                            new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
+                    if old_line.endswith("\n") and not new_line.endswith("\n"):
                         new_line += "\n"
                     lines[line_idx] = new_line
                     applied = True
@@ -554,17 +609,77 @@ def generate_fix(
     patch_lines: list[str] = []
     description = ""
 
+    # Try to load the original line from disk to show a precise and valid patch
+    real_old_line = None
+    if finding.file_path:
+        try:
+            from pathlib import Path
+            file_path_obj = Path(finding.file_path)
+            if not file_path_obj.is_absolute() and finding.scan:
+                file_path_obj = Path(finding.scan.target) / finding.file_path
+            
+            if file_path_obj.exists() and file_path_obj.is_file():
+                file_lines = file_path_obj.read_text(encoding="utf-8").splitlines()
+                if finding.line_number and 0 < finding.line_number <= len(file_lines):
+                    real_old_line = file_lines[finding.line_number - 1]
+        except Exception:
+            pass
+
+    old_line_val = real_old_line if real_old_line is not None else finding.evidence or ""
+
     if finding.category == "secret":
+        suffix = Path(finding.file_path).suffix.lower() if finding.file_path else ""
+        env_var = finding.rule_id.replace("-", "_").upper()
+        
+        if suffix == ".py":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= __import__('os').environ.get('{env_var}')"
+            else:
+                new_val = f"__import__('os').environ.get('{env_var}')"
+        elif suffix == ".env":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}=your_{lhs.strip().lower()}_here"
+            else:
+                new_val = f"{finding.rule_id}=your_secret_here"
+        elif suffix in (".json", ".yml", ".yaml", ".conf", ".ini", ".properties"):
+            if old_line_val and ":" in old_line_val:
+                lhs, rhs = old_line_val.split(":", 1)
+                new_val = f'{lhs}: "PLACEHOLDER_{env_var}"'
+            elif old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f'{lhs}=PLACEHOLDER_{env_var}'
+            else:
+                new_val = f"PLACEHOLDER_{env_var}"
+        elif suffix in (".js", ".ts", ".jsx", ".tsx"):
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= process.env.{env_var}"
+            elif old_line_val and ":" in old_line_val:
+                lhs, rhs = old_line_val.split(":", 1)
+                new_val = f"{lhs}: process.env.{env_var}"
+            else:
+                new_val = f"process.env.{env_var}"
+        elif suffix == ".java":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= System.getenv(\"{env_var}\")"
+            else:
+                new_val = f"System.getenv(\"{env_var}\")"
+        else:
+            new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+
         patch_lines = [
             f"--- a/{finding.file_path}",
             f"+++ b/{finding.file_path}",
             f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            f'+{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}',
+            f"-{old_line_val.rstrip()}",
+            f"+{new_val.rstrip()}",
         ]
         description = (
             f"Replace the hardcoded secret at {finding.file_path}:{finding.line_number} "
-            "with an environment variable reference. Remember to rotate the exposed credential."
+            "with an environment variable reference or safe configuration placeholder."
         )
     elif finding.category == "cve":
         old_dep = finding.evidence or ""
@@ -598,12 +713,27 @@ def generate_fix(
                 f"in {finding.file_path} after the base image is defined."
             )
         elif finding.rule_id == "SOVA-WEB-003":
+            suffix = Path(finding.file_path).suffix.lower() if finding.file_path else ""
+            if suffix in (".conf", ".nginx") or (old_line_val and "add_header" in old_line_val):
+                if old_line_val and "add_header" in old_line_val:
+                    new_val = old_line_val.replace("'*'", "'https://yourdomain.com'").replace('"*"', "'https://yourdomain.com'")
+                else:
+                    new_val = "    add_header 'Access-Control-Allow-Origin' 'https://yourdomain.com';"
+            else:
+                if old_line_val and ":" in old_line_val:
+                    lhs, rhs = old_line_val.split(":", 1)
+                    new_val = f'{lhs}: "https://yourdomain.com"'
+                elif old_line_val and "=" in old_line_val:
+                    lhs, rhs = old_line_val.split("=", 1)
+                    new_val = f'{lhs}= "https://yourdomain.com"'
+                else:
+                    new_val = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
             patch_lines = [
                 f"--- a/{finding.file_path}",
                 f"+++ b/{finding.file_path}",
                 f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-                f"-{finding.evidence}",
-                '+Access-Control-Allow-Origin = "https://yourdomain.com"',
+                f"-{old_line_val.rstrip()}",
+                f"+{new_val.rstrip()}",
             ]
             description = (
                 f"Specify exact allowed domains in {finding.file_path} "
