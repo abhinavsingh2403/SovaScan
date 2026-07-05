@@ -83,7 +83,7 @@ class PythonASTVisitor(ast.NodeVisitor):
 
     def _check_assignment(self, var_name: str, value_node: ast.AST, lineno: int) -> None:
         name_lower = var_name.lower()
-        
+
         # 1. SOVA-WEB-001: Debug Mode Enabled
         if name_lower in ("debug", "dev_mode"):
             is_true = False
@@ -91,7 +91,7 @@ class PythonASTVisitor(ast.NodeVisitor):
                 is_true = True
             elif isinstance(value_node, ast.Name) and value_node.id == "True":
                 is_true = True
-            
+
             if is_true:
                 self.findings_data.append({
                     "rule_id": "SOVA-WEB-001",
@@ -105,7 +105,7 @@ class PythonASTVisitor(ast.NodeVisitor):
                     "references": ["https://cwe.mitre.org/data/definitions/489.html"],
                     "tags": ["web", "debug", "disclosure"]
                 })
-        
+
         # 2. SOVA-WEB-003: CORS Wildcard Origin Allowed
         elif name_lower in ("allow_origins", "cors_origins", "access_control_allow_origin", "cors_origin"):
             is_wildcard = False
@@ -117,9 +117,13 @@ class PythonASTVisitor(ast.NodeVisitor):
                 for elt in value_node.elts:
                     if isinstance(elt, ast.Constant) and elt.value == "*":
                         is_wildcard = True
-                        evidence_str = f"{var_name} = {ast.unparse(value_node) if hasattr(ast, 'unparse') else '[\"*\"]'}"
+                        if hasattr(ast, "unparse"):
+                            val_str = ast.unparse(value_node)
+                        else:
+                            val_str = '["*"]'
+                        evidence_str = f"{var_name} = {val_str}"
                         break
-            
+
             if is_wildcard:
                 self.findings_data.append({
                     "rule_id": "SOVA-WEB-003",

@@ -13,7 +13,6 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from sovascan.core.cve_scanner import Finding
 from sovascan.core.secret_scanner import COMPILED_PATTERNS, SecretPattern
@@ -121,8 +120,8 @@ class GitHistoryScanner:
     def _is_git_repo(path: Path) -> bool:
         """Check whether *path* is inside a git repository."""
         try:
-            result = subprocess.run(
-                ["git", "rev-parse", "--git-dir"],
+            result = subprocess.run(  # noqa: S603, S607
+                ["git", "rev-parse", "--git-dir"],  # noqa: S607
                 cwd=str(path if path.is_dir() else path.parent),
                 capture_output=True,
                 text=True,
@@ -137,8 +136,8 @@ class GitHistoryScanner:
         """Run ``git log`` and return the raw diff output."""
         cwd = str(target if target.is_dir() else target.parent)
         try:
-            result = subprocess.run(
-                [
+            result = subprocess.run(  # noqa: S603, S607
+                [  # noqa: S607
                     "git", "log",
                     "--all",
                     "--diff-filter=A",     # only commits that Added files

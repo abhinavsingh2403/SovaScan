@@ -2,6 +2,7 @@
 
 import time
 from pathlib import Path
+
 from fastapi.testclient import TestClient
 
 # A real, always-present directory to scan against now that the API route
@@ -261,7 +262,7 @@ def test_websocket_connection(client: TestClient) -> None:
                     break
             except Exception:
                 break
-        
+
         # In case the scan was fast and completed immediately
         if not completed:
             db_resp = client.get(f"/api/v1/scan/{scan_id}")

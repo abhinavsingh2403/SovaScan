@@ -9,7 +9,6 @@ Provides:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -19,11 +18,12 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.core.sast_scanner import SASTScanner
-from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.models.base import SessionLocal
-from sovascan.models.finding import Finding as FindingModel, Severity
+from sovascan.models.finding import Finding as FindingModel
+from sovascan.models.finding import Severity
 from sovascan.models.scan import Scan, ScanStatus
 
 logger = logging.getLogger("sovascan.ws")
@@ -40,7 +40,7 @@ def _clean_path(path_str: str, base_path: Path) -> str:
         p = Path(path_str)
         if p.is_absolute():
             return str(p.relative_to(base_path))
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     base_str = str(base_path)
     if path_str.startswith(base_str):
@@ -197,12 +197,11 @@ class ScanManager:
 
             # -- Validate and Resolve Target ---------------------------------
             if target.startswith("http://") or target.startswith("https://"):
-                import tempfile
-                import shutil
                 import subprocess
+                import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
                 target_path = Path(temp_dir.name)
-                
+
                 self._broadcast(
                     scan_id,
                     self._make_event(
@@ -213,8 +212,8 @@ class ScanManager:
                         findings_count=findings_count,
                     ),
                 )
-                proc = subprocess.run(
-                    ["git", "clone", "--depth", "1", target, str(target_path)],
+                proc = subprocess.run(  # noqa: S603, S607
+                    ["git", "clone", "--depth", "1", target, str(target_path)],  # noqa: S607
                     capture_output=True,
                     text=True,
                     timeout=180
@@ -332,7 +331,7 @@ class ScanManager:
                     findings_count += 1
                     field = _severity_to_field(sev)
                     severity_counts[field] += 1
- 
+
                     self._broadcast(
                         scan_id,
                         self._make_event(
@@ -341,7 +340,7 @@ class ScanManager:
                             finding={"id": f.id, "rule_id": f.rule_id, "title": f.title, "severity": sev.value, "category": f.category, "file_path": f.file_path},
                         ),
                     )
- 
+
             # -- Phase 6: Git history (only for full/git-history) ------------
             if scan_type in ("full", "git-history"):
                 max_commits = 500
@@ -525,7 +524,7 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
                 # Close after terminal events
                 if event.type in ("scan_complete", "scan_failed"):
                     break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send keepalive ping
                 try:
                     await websocket.send_text(
@@ -545,5 +544,5 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
         scan_manager.unsubscribe(scan_id, queue)
         try:
             await websocket.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass

@@ -2,13 +2,12 @@
 
 import json
 import logging
+import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-import subprocess
 
-from sovascan.models.finding import Severity
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -23,11 +22,11 @@ from sovascan.api.schemas import (
     ScanRequest,
     ScanResponse,
 )
+from sovascan.api.websocket import scan_manager
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
-from sovascan.api.websocket import scan_manager
 
 logger = logging.getLogger("sovascan.api")
 
@@ -46,7 +45,7 @@ def _clean_path(path_str: str, base_path: Path) -> str:
         p = Path(path_str)
         if p.is_absolute():
             return str(p.relative_to(base_path))
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     base_str = str(base_path)
     if path_str.startswith(base_str):
@@ -71,8 +70,8 @@ def _map_bandit_severity(sev: str) -> Severity:
 def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
     """Run semgrep with the auto ruleset and return findings as dicts."""
     try:
-        proc = subprocess.run(
-            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],
+        proc = subprocess.run(  # noqa: S603, S607
+            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=300,
@@ -117,8 +116,8 @@ def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
 def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
     """Run bandit against a Python target and return findings as dicts."""
     try:
-        proc = subprocess.run(
-            ["bandit", "-r", str(target_path), "-f", "json"],
+        proc = subprocess.run(  # noqa: S603, S607
+            ["bandit", "-r", str(target_path), "-f", "json"],  # noqa: S607
             capture_output=True,
             text=True,
             timeout=300,
@@ -188,12 +187,11 @@ def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -
     try:
         if target.startswith("http://") or target.startswith("https://"):
             import tempfile
-            import shutil
             temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
             target_path = Path(temp_dir.name)
-            
-            proc = subprocess.run(
-                ["git", "clone", "--depth", "1", target, str(target_path)],
+
+            proc = subprocess.run(  # noqa: S603, S607
+                ["git", "clone", "--depth", "1", target, str(target_path)],  # noqa: S607
                 capture_output=True,
                 text=True,
                 timeout=180
@@ -241,12 +239,12 @@ def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -
         if scan_type in ("full", "sast"):
             findings.extend(_run_semgrep(target_path))
             findings.extend(_run_bandit(target_path))
-            
+
             # Clean paths of SAST findings too
             for f in findings:
                 if "file_path" in f:
                     f["file_path"] = _clean_path(f["file_path"], target_path)
-        
+
         return findings
     finally:
         if temp_dir is not None:

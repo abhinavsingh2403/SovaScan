@@ -11,7 +11,6 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from sovascan.core.cve_scanner import Finding
 
@@ -97,8 +96,8 @@ class SASTScanner:
             return []
 
         try:
-            proc = subprocess.run(
-                ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target)],
+            proc = subprocess.run(  # noqa: S603, S607
+                ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target)],  # noqa: S607
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
@@ -159,8 +158,8 @@ class SASTScanner:
             return []
 
         try:
-            proc = subprocess.run(
-                ["bandit", "-r", str(target), "-f", "json"],
+            proc = subprocess.run(  # noqa: S603, S607
+                ["bandit", "-r", str(target), "-f", "json"],  # noqa: S607
                 capture_output=True,
                 text=True,
                 encoding="utf-8",
