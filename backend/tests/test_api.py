@@ -266,3 +266,66 @@ def test_websocket_connection(client: TestClient) -> None:
         if not completed:
             db_resp = client.get(f"/api/v1/scan/{scan_id}")
             assert db_resp.json()["status"] in ("completed", "failed")
+
+
+def test_ast_visitor_ignores_comments(client: TestClient, tmp_path: Path) -> None:
+    """Verify that comments and logs are ignored by the Python AST scanner."""
+    # 1. Create a dummy python file with comments and print logs that would trigger regex
+    dummy_code = (
+        "# DEBUG = True\n"
+        "# hashlib.md5()\n"
+        "print('DEBUG = True')\n"
+        "print('hashlib.md5()')\n"
+    )
+    python_file = tmp_path / "test_comments.py"
+    python_file.write_text(dummy_code, encoding="utf-8")
+
+    # 2. Trigger scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings and assert there are 0 findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+    # Check specifically for SOVA-WEB-001 or SOVA-CRYPTO-001
+    bad_findings = [f for f in findings if f["rule_id"] in ("SOVA-WEB-001", "SOVA-CRYPTO-001")]
+    assert len(bad_findings) == 0
+
+
+def test_ast_visitor_detects_real_issues(client: TestClient, tmp_path: Path) -> None:
+    """Verify that actual configuration vulnerabilities in Python files are detected structurally."""
+    # 1. Create a python file with actual vulnerabilities
+    dummy_code = (
+        "import hashlib\n"
+        "import ssl\n"
+        "DEBUG = True\n"
+        "h = hashlib.md5()\n"
+        "tls_version = ssl.PROTOCOL_SSLv3\n"
+    )
+    python_file = tmp_path / "test_vulnerable.py"
+    python_file.write_text(dummy_code, encoding="utf-8")
+
+    # 2. Trigger scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+
+    # We expect three distinct findings: debug mode, weak hashing, and legacy ssl/tls version
+    rule_ids = {f["rule_id"] for f in findings}
+    assert "SOVA-WEB-001" in rule_ids
+    assert "SOVA-CRYPTO-001" in rule_ids
+    assert "SOVA-CRYPTO-005" in rule_ids
+
