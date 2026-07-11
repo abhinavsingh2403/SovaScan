@@ -108,3 +108,13 @@ export interface ScanProgressEvent {
   error: string;
   timestamp: string;
 }
+
+export interface SovaNotification {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+}
+

@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
+import { useStore } from '../store';
 import './Layout.css';
 
 function NetworkBackground() {
@@ -153,6 +154,27 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+
+  const {
+    notifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearNotifications,
+  } = useStore();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   const pageTitle = pageTitles[location.pathname] || 'SovaScan';
 
@@ -219,10 +241,70 @@ export default function Layout({ children }: LayoutProps) {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <button className="topbar__icon-btn" title="Notifications">
-              🔔
-              <span className="topbar__notif-dot" />
-            </button>
+            <div className="topbar__notif-container" ref={notifRef}>
+              <button
+                className="topbar__icon-btn"
+                title="Notifications"
+                onClick={() => setNotifOpen(!notifOpen)}
+              >
+                🔔
+                {unreadCount > 0 && <span className="topbar__notif-dot" />}
+              </button>
+
+              {notifOpen && (
+                <div className="notif-dropdown">
+                  <div className="notif-dropdown__header">
+                    <h3>Notifications</h3>
+                    <div className="notif-dropdown__header-actions">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllNotificationsAsRead} className="notif-dropdown__btn-link">
+                          Mark all read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button onClick={clearNotifications} className="notif-dropdown__btn-link text-danger">
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="notif-dropdown__list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-dropdown__empty">
+                        <span className="notif-dropdown__empty-icon">📭</span>
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`notif-item notif-item--${n.type} ${!n.read ? 'notif-item--unread' : ''}`}
+                          onClick={() => markNotificationAsRead(n.id)}
+                        >
+                          <div className="notif-item__icon">
+                            {n.type === 'success' && '🟢'}
+                            {n.type === 'warning' && '🟡'}
+                            {n.type === 'error' && '🔴'}
+                            {n.type === 'info' && '🔵'}
+                          </div>
+                          <div className="notif-item__content">
+                            <div className="notif-item__title">
+                              {n.title}
+                              {!n.read && <span className="notif-item__unread-indicator" />}
+                            </div>
+                            <div className="notif-item__message">{n.message}</div>
+                            <div className="notif-item__time">
+                              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
             <div className="topbar__avatar" title="User">
               <span>SS</span>
             </div>

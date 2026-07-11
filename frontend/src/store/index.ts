@@ -9,6 +9,7 @@ import type {
   ComplianceReport,
   ComplianceControl,
   ScanProgressEvent,
+  SovaNotification,
 } from '../types';
 
 /* ============================================================
@@ -261,6 +262,7 @@ interface SovaState {
     percent: number;
     findingsCount: number;
   };
+  notifications: SovaNotification[];
 
   fetchDashboard: () => Promise<void>;
   fetchScans: () => Promise<void>;
@@ -271,17 +273,52 @@ interface SovaState {
   getComplianceReport: (framework: string) => ComplianceReport | null;
   fixAllFindings: () => Promise<any[]>;
   fixAllScanFindings: (scanId: string) => Promise<any[]>;
+  addNotification: (notification: Omit<SovaNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  clearNotifications: () => void;
 }
 
 /* ============================================================
    Store Implementation
    ============================================================ */
 
+const getEnableNotificationsSetting = (): boolean => {
+  try {
+    const stored = localStorage.getItem('sovascan-settings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.enableNotifications !== false;
+    }
+  } catch {
+    // ignore
+  }
+  return true;
+};
+
+const loadNotifications = (): SovaNotification[] => {
+  try {
+    const stored = localStorage.getItem('sovascan-notifications');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveNotifications = (notifs: SovaNotification[]) => {
+  try {
+    localStorage.setItem('sovascan-notifications', JSON.stringify(notifs));
+  } catch (err) {
+    console.error('Failed to save notifications', err);
+  }
+};
+
 export const useStore = create<SovaState>((set, get) => ({
   scans: [],
   findings: [],
   dashboardSummary: null,
   complianceReports: {},
+  notifications: loadNotifications(),
   loading: false,
   error: null,
   selectedScan: null,
@@ -416,6 +453,12 @@ export const useStore = create<SovaState>((set, get) => ({
         throw new Error('No scan ID returned from server');
       }
 
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Started',
+        message: `Scanning target: ${target.substring(target.lastIndexOf('/') + 1 || target.lastIndexOf('\\') + 1 || 0)}`,
+      });
+
       // Connect to WebSocket for real-time progress
       const ws = createScanWebSocket(scanId);
       let wsConnected = false;
@@ -450,6 +493,13 @@ export const useStore = create<SovaState>((set, get) => ({
                   findingsCount: msg.findings_count,
                 },
               });
+              if (msg.finding) {
+                get().addNotification({
+                  type: 'warning',
+                  title: 'Finding Discovered',
+                  message: `${msg.finding.title} (${msg.finding.severity.toUpperCase()}) found in ${msg.finding.file_path}`,
+                });
+              }
               break;
 
             case 'scan_complete': {
@@ -463,6 +513,11 @@ export const useStore = create<SovaState>((set, get) => ({
                 loading: false,
               });
               ws.close();
+              get().addNotification({
+                type: 'success',
+                title: 'Scan Completed',
+                message: `Scan successfully completed. Found ${msg.findings_count} vulnerabilities.`,
+              });
               // Refresh all data views
               const store = useStore.getState();
               store.fetchDashboard();
@@ -483,6 +538,11 @@ export const useStore = create<SovaState>((set, get) => ({
                 error: msg.error || 'Scan execution failed',
               });
               ws.close();
+              get().addNotification({
+                type: 'error',
+                title: 'Scan Failed',
+                message: msg.error || 'Scan execution failed',
+              });
               break;
 
             case 'keepalive':
@@ -514,6 +574,11 @@ export const useStore = create<SovaState>((set, get) => ({
                   scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
                   loading: false,
                 });
+                get().addNotification({
+                  type: 'success',
+                  title: 'Scan Completed',
+                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
+                });
                 const store = useStore.getState();
                 store.fetchDashboard();
                 store.fetchScans();
@@ -524,6 +589,11 @@ export const useStore = create<SovaState>((set, get) => ({
                   scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
                   loading: false,
                   error: 'Scan execution failed',
+                });
+                get().addNotification({
+                  type: 'error',
+                  title: 'Scan Failed',
+                  message: 'Scan execution failed',
                 });
               }
             } catch (pollErr) {
@@ -550,6 +620,11 @@ export const useStore = create<SovaState>((set, get) => ({
                   scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
                   loading: false,
                 });
+                get().addNotification({
+                  type: 'success',
+                  title: 'Scan Completed',
+                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
+                });
                 const store = useStore.getState();
                 store.fetchDashboard();
                 store.fetchScans();
@@ -560,6 +635,11 @@ export const useStore = create<SovaState>((set, get) => ({
                   scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
                   loading: false,
                   error: 'Scan execution failed',
+                });
+                get().addNotification({
+                  type: 'error',
+                  title: 'Scan Failed',
+                  message: 'Scan execution failed',
                 });
               }
             } catch (pollErr) {
@@ -629,4 +709,37 @@ export const useStore = create<SovaState>((set, get) => ({
       return [];
     }
   },
+
+  addNotification: (n) => {
+    if (!getEnableNotificationsSetting()) return;
+    const newNotif: SovaNotification = {
+      ...n,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    const updated = [newNotif, ...get().notifications];
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  markNotificationAsRead: (id) => {
+    const updated = get().notifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  markAllNotificationsAsRead: () => {
+    const updated = get().notifications.map((n) => ({ ...n, read: true }));
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  clearNotifications: () => {
+    set({ notifications: [] });
+    saveNotifications([]);
+  },
 }));
+
