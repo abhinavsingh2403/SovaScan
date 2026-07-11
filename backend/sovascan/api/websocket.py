@@ -9,7 +9,6 @@ Provides:
 from __future__ import annotations
 
 import asyncio
-import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -19,11 +18,12 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect
 from pydantic import BaseModel
 
+from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.core.sast_scanner import SASTScanner
-from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.models.base import SessionLocal
-from sovascan.models.finding import Finding as FindingModel, Severity
+from sovascan.models.finding import Finding as FindingModel
+from sovascan.models.finding import Severity
 from sovascan.models.scan import Scan, ScanStatus
 
 logger = logging.getLogger("sovascan.ws")
@@ -197,12 +197,11 @@ class ScanManager:
 
             # -- Validate and Resolve Target ---------------------------------
             if target.startswith("http://") or target.startswith("https://"):
-                import tempfile
-                import shutil
                 import subprocess
+                import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
                 target_path = Path(temp_dir.name)
-                
+
                 self._broadcast(
                     scan_id,
                     self._make_event(
@@ -228,7 +227,6 @@ class ScanManager:
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
-                nonlocal findings_count
                 self._broadcast(
                     scan_id,
                     self._make_event(
@@ -332,7 +330,7 @@ class ScanManager:
                     findings_count += 1
                     field = _severity_to_field(sev)
                     severity_counts[field] += 1
- 
+
                     self._broadcast(
                         scan_id,
                         self._make_event(
@@ -341,7 +339,7 @@ class ScanManager:
                             finding={"id": f.id, "rule_id": f.rule_id, "title": f.title, "severity": sev.value, "category": f.category, "file_path": f.file_path},
                         ),
                     )
- 
+
             # -- Phase 6: Git history (only for full/git-history) ------------
             if scan_type in ("full", "git-history"):
                 max_commits = 500
@@ -525,7 +523,7 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
                 # Close after terminal events
                 if event.type in ("scan_complete", "scan_failed"):
                     break
-            except asyncio.TimeoutError:
+            except TimeoutError:
                 # Send keepalive ping
                 try:
                     await websocket.send_text(

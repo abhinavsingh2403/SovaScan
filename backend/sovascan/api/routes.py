@@ -2,13 +2,12 @@
 
 import json
 import logging
+import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
-import subprocess
 
-from sovascan.models.finding import Severity
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -23,11 +22,11 @@ from sovascan.api.schemas import (
     ScanRequest,
     ScanResponse,
 )
+from sovascan.api.websocket import scan_manager
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
-from sovascan.api.websocket import scan_manager
 
 logger = logging.getLogger("sovascan.api")
 
@@ -61,12 +60,14 @@ def _map_semgrep_severity(sev: str) -> Severity:
         "INFO": Severity.LOW,
     }.get(sev.upper(), Severity.LOW)
 
+
 def _map_bandit_severity(sev: str) -> Severity:
     return {
         "HIGH": Severity.HIGH,
         "MEDIUM": Severity.MEDIUM,
         "LOW": Severity.LOW,
     }.get(sev.upper(), Severity.LOW)
+
 
 def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
     """Run semgrep with the auto ruleset and return findings as dicts."""
@@ -80,39 +81,40 @@ def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
     except FileNotFoundError as exc:
         logger.warning("semgrep binary not found: %s", exc)
         return []
-    except subprocess.TimeoutExpired:
-        logger.warning("semgrep timed out for target %s", target_path)
+    except Exception as exc:
+        logger.warning("semgrep failed: %s", exc)
         return []
 
-    if not proc.stdout:
-        logger.warning("semgrep produced no output (stderr: %s)", proc.stderr)
+    if proc.returncode != 0:
+        logger.warning("semgrep returned non-zero code %d", proc.returncode)
         return []
 
     try:
-        payload = json.loads(proc.stdout)
+        data = json.loads(proc.stdout)
     except json.JSONDecodeError:
-        logger.exception("Failed to parse semgrep JSON output")
+        logger.warning("semgrep returned invalid JSON")
         return []
 
     findings: list[dict[str, Any]] = []
-    for result in payload.get("results", []):
-        extra = result.get("extra", {})
+    for result in data.get("results", []):
+        msg = result.get("extra", {}).get("message", "")
         findings.append(
             {
-                "rule_id": result.get("check_id", "SEMGREP-UNKNOWN"),
-                "title": extra.get("message", "Semgrep finding")[:200],
-                "description": extra.get("message", ""),
-                "severity": _map_semgrep_severity(extra.get("severity", "INFO")),
+                "rule_id": result.get("check_id", "semgrep-finding"),
+                "title": msg[:100] if len(msg) > 100 else msg,
+                "description": msg,
+                "severity": _map_semgrep_severity(result.get("extra", {}).get("severity", "WARNING")),
                 "category": "sast",
                 "file_path": result.get("path", ""),
                 "line_number": result.get("start", {}).get("line"),
-                "evidence": extra.get("lines", ""),
-                "remediation": extra.get("metadata", {}).get("fix", "") or "Review and remediate per rule guidance.",
+                "evidence": result.get("extra", {}).get("lines", ""),
+                "remediation": result.get("extra", {}).get("metadata", {}).get("remediation", ""),
                 "cve_id": None,
                 "cvss_score": None,
             }
         )
     return findings
+
 
 def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
     """Run bandit against a Python target and return findings as dicts."""
@@ -162,7 +164,7 @@ def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
     return findings
 
 
-def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -> None:
+def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> None:
     """Execute the core scan logic and return raw findings.
 
     Delegates to the real ScanOrchestrator (discovery -> dependency
@@ -188,10 +190,9 @@ def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -
     try:
         if target.startswith("http://") or target.startswith("https://"):
             import tempfile
-            import shutil
             temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
             target_path = Path(temp_dir.name)
-            
+
             proc = subprocess.run(
                 ["git", "clone", "--depth", "1", target, str(target_path)],
                 capture_output=True,
@@ -241,12 +242,12 @@ def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -
         if scan_type in ("full", "sast"):
             findings.extend(_run_semgrep(target_path))
             findings.extend(_run_bandit(target_path))
-            
+
             # Clean paths of SAST findings too
             for f in findings:
                 if "file_path" in f:
                     f["file_path"] = _clean_path(f["file_path"], target_path)
-        
+
         return findings
     finally:
         if temp_dir is not None:

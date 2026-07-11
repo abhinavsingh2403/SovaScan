@@ -11,7 +11,6 @@ import logging
 import shutil
 import subprocess
 from pathlib import Path
-from typing import Any
 
 from sovascan.core.cve_scanner import Finding
 
