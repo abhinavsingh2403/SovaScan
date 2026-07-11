@@ -90,6 +90,10 @@ PROD_CONFIG_PATTERNS = re.compile(
     r"(?i)(?:prod|production|live|release|deploy|\.env\.prod|application-prod|docker-compose\.prod)"
 )
 
+CRITICAL_BANKING_DIRS = re.compile(
+    r"(?i)[\\/](?:payment|payments|checkout|billing|card|auth|authorization|authentication|login|transaction|transactions|ledger|transfer|transfers|wallet|wallets)(?:[\\/]|$)"
+)
+
 
 class SeverityScorer:
     """Applies contextual severity scoring to security findings."""
@@ -118,6 +122,10 @@ class SeverityScorer:
         file_path = getattr(finding, "file_path", "")
 
         # ── Contextual modifiers ───────────────────────────────────
+
+        # +2 if file is in critical banking module directory (e.g. auth, payments)
+        if CRITICAL_BANKING_DIRS.search(file_path):
+            modifiers.append(("critical_banking_module", 2.0))
 
         # +2 if file is in production config
         if PROD_CONFIG_PATTERNS.search(file_path):

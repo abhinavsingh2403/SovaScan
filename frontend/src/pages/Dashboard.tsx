@@ -402,37 +402,45 @@ const Dashboard: React.FC = () => {
       {/* Bottom Grid: Recent Scans & Top Vulnerabilities */}
       <div className="bottom-grid animate-slide-up">
         {/* Recent Scans Table */}
-        <div className="list-card glassmorphism table-section">
-          <h2>Recent Scans</h2>
-          <div className="table-responsive">
-            <table className="recent-scans-table">
-              <thead>
-                <tr>
-                  <th>Target Directory</th>
-                  <th>Type</th>
-                  <th>Findings</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardSummary.recentScans.map((scan) => (
-                  <tr key={scan.id}>
-                    <td className="monospace-td">{scan.target}</td>
-                    <td><span className="badge-type">{scan.scanType}</span></td>
-                    <td>
-                      <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                      <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                      <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${scan.status}`}>
-                        {scan.status}
-                      </span>
-                    </td>
+        <div className="list-card glassmorphism table-section console-window">
+          <div className="terminal-header">
+            <span className="dot dot-red"></span>
+            <span className="dot dot-yellow"></span>
+            <span className="dot dot-green"></span>
+            <span className="terminal-title">sovascan@history:~</span>
+          </div>
+          <div className="console-body">
+            <h2>Recent Scans</h2>
+            <div className="table-responsive">
+              <table className="recent-scans-table">
+                <thead>
+                  <tr>
+                    <th>Target Directory</th>
+                    <th>Type</th>
+                    <th>Findings</th>
+                    <th>Status</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {dashboardSummary.recentScans.map((scan) => (
+                    <tr key={scan.id}>
+                      <td className="monospace-td">{scan.target}</td>
+                      <td><span className="badge-type">{scan.scanType}</span></td>
+                      <td>
+                        <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
+                        <span className="scan-count-tag orange-tag">{scan.highCount}</span>
+                        <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${scan.status}`}>
+                          {scan.status}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

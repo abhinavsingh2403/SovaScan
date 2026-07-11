@@ -28,7 +28,7 @@ const DEFAULT_SETTINGS: SettingsState = {
   enableNotifications: true,
   autoRefreshDashboard: true,
   darkMode: true,
-  defaultFramework: 'RBI-CSF',
+  defaultFramework: 'NIST-CSF',
 };
 
 const STORAGE_KEY = 'sovascan-settings';
@@ -75,9 +75,9 @@ const Settings: React.FC = () => {
   };
 
   return (
-    <div className="settings">
+    <div className="settings animate-fade-in">
       {/* ---- API Configuration ---- */}
-      <section className="settings__section">
+      <section className="settings__section glassmorphism">
         <div className="settings__section-header">
           <span className="settings__section-icon">🔗</span>
           <h2 className="settings__section-title">API Configuration</h2>
@@ -138,7 +138,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- Scan Defaults ---- */}
-      <section className="settings__section">
+      <section className="settings__section glassmorphism">
         <div className="settings__section-header">
           <span className="settings__section-icon">🚀</span>
           <h2 className="settings__section-title">Scan Defaults</h2>
@@ -178,15 +178,15 @@ const Settings: React.FC = () => {
             value={settings.defaultFramework}
             onChange={(e) => update('defaultFramework', e.target.value)}
           >
-            <option value="RBI-CSF">RBI Cyber Security Framework</option>
-            <option value="PCI-DSS">PCI-DSS</option>
-            <option value="ISO-27001">ISO 27001</option>
+            <option value="NIST-CSF">NIST Cybersecurity Framework</option>
+            <option value="SOC-2">SOC 2 Type II Standard</option>
+            <option value="OWASP-10">OWASP Top 10 Security Risks</option>
           </select>
         </div>
       </section>
 
       {/* ---- Preferences ---- */}
-      <section className="settings__section">
+      <section className="settings__section glassmorphism">
         <div className="settings__section-header">
           <span className="settings__section-icon">🎛️</span>
           <h2 className="settings__section-title">Preferences</h2>
@@ -248,7 +248,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- Data Management ---- */}
-      <section className="settings__section">
+      <section className="settings__section glassmorphism">
         <div className="settings__section-header">
           <span className="settings__section-icon">🗄️</span>
           <h2 className="settings__section-title">Data Management</h2>
@@ -271,13 +271,13 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- About ---- */}
-      <section className="settings__section">
+      <section className="settings__section glassmorphism">
         <div className="settings__section-header">
           <span className="settings__section-icon">🦉</span>
           <h2 className="settings__section-title">About SovaScan</h2>
         </div>
         <div className="settings__about">
-          <span className="settings__about-logo">🦉</span>
+          <span className="settings__about-logo animate-radar-pulse">🦉</span>
           <div className="settings__about-info">
             <h3>SovaScan v0.1.0</h3>
             <p>

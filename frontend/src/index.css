@@ -665,3 +665,38 @@ tbody td {
 
 .bottom-grid > div:nth-child(1) { animation-delay: 0.35s; }
 .bottom-grid > div:nth-child(2) { animation-delay: 0.4s; }
+
+/* Hybrid Console Window */
+.console-window {
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+.console-window .terminal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(12, 15, 23, 0.6);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.console-window .terminal-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.console-window .terminal-title {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+.console-window .console-body {
+  padding: 24px;
+}
