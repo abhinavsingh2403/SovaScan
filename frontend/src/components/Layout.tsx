@@ -156,6 +156,8 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
 
   const {
     notifications,
@@ -170,6 +172,9 @@ export default function Layout({ children }: LayoutProps) {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
         setNotifOpen(false);
+      }
+      if (avatarRef.current && !avatarRef.current.contains(event.target as Node)) {
+        setAvatarOpen(false);
       }
     }
     document.addEventListener('mousedown', handleClickOutside);
@@ -305,8 +310,93 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               )}
             </div>
-            <div className="topbar__avatar" title="User">
-              <span>SS</span>
+            <div className="topbar__avatar-container" ref={avatarRef}>
+              <button
+                className="topbar__avatar-btn"
+                onClick={() => setAvatarOpen(!avatarOpen)}
+                title="User Profile"
+              >
+                <div className="topbar__avatar">
+                  <span>SA</span>
+                </div>
+              </button>
+
+              {avatarOpen && (
+                <div className="avatar-dropdown">
+                  {/* User Profile Summary */}
+                  <div className="avatar-dropdown__user-card">
+                    <div className="avatar-dropdown__avatar-large">SA</div>
+                    <div className="avatar-dropdown__user-info">
+                      <div className="avatar-dropdown__name">Sova Admin</div>
+                      <div className="avatar-dropdown__email">admin@sovascan.local</div>
+                      <span className="avatar-dropdown__role-badge">Security Administrator</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats Grid */}
+                  <div className="avatar-dropdown__stats">
+                    <div className="avatar-dropdown__stat-item">
+                      <span className="avatar-dropdown__stat-value">42</span>
+                      <span className="avatar-dropdown__stat-label">Scans Run</span>
+                    </div>
+                    <div className="avatar-dropdown__stat-item">
+                      <span className="avatar-dropdown__stat-value">18</span>
+                      <span className="avatar-dropdown__stat-label">Fixes Applied</span>
+                    </div>
+                  </div>
+
+                  {/* Menu Links */}
+                  <div className="avatar-dropdown__menu">
+                    <NavLink
+                      to="/profile"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">👤</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">Account Details</span>
+                        <span className="avatar-dropdown__menu-desc">Manage profile settings</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/profile#api-keys"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">🔑</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">CLI & API Keys</span>
+                        <span className="avatar-dropdown__menu-desc">Manage CI/CD tokens</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/profile#activity"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">🕒</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">User Activity Log</span>
+                        <span className="avatar-dropdown__menu-desc">View audit trail logs</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/settings"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">⚙️</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">Global Preferences</span>
+                        <span className="avatar-dropdown__menu-desc">Adjust scan defaults</span>
+                      </div>
+                    </NavLink>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>
