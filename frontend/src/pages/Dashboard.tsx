@@ -18,10 +18,10 @@ import './Dashboard.css';
 import { useNavigate } from 'react-router-dom';
 
 const SEVERITY_COLORS = {
-  critical: '#dc2626',
-  high: '#ea580c',
-  medium: '#2563eb',
-  low: '#8b5cf6',
+  critical: '#f43f5e',
+  high: '#fb923c',
+  medium: '#60a5fa',
+  low: '#c084fc',
   info: '#64748b',
 };
 
@@ -206,35 +206,68 @@ const Dashboard: React.FC = () => {
                 <PieChart>
                   <defs>
                     <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#dc2626" />
-                      <stop offset="100%" stopColor="#ef4444" />
+                      <stop offset="0%" stopColor="#7f1d1d" />
+                      <stop offset="100%" stopColor="#f43f5e" />
                     </linearGradient>
                     <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#ea580c" />
-                      <stop offset="100%" stopColor="#f97316" />
+                      <stop offset="0%" stopColor="#7c2d12" />
+                      <stop offset="100%" stopColor="#fb923c" />
                     </linearGradient>
                     <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#2563eb" />
-                      <stop offset="100%" stopColor="#3b82f6" />
+                      <stop offset="0%" stopColor="#1e3a8a" />
+                      <stop offset="100%" stopColor="#60a5fa" />
                     </linearGradient>
                     <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" />
-                      <stop offset="100%" stopColor="#a78bfa" />
+                      <stop offset="0%" stopColor="#4c1d95" />
+                      <stop offset="100%" stopColor="#c084fc" />
                     </linearGradient>
                     <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#64748b" />
-                      <stop offset="100%" stopColor="#94a3b8" />
+                      <stop offset="0%" stopColor="#1e293b" />
+                      <stop offset="100%" stopColor="#64748b" />
                     </linearGradient>
                   </defs>
+
+                  {/* Glowing cyber dotted target outer ring */}
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r={92}
+                    fill="none"
+                    stroke="rgba(99, 102, 241, 0.12)"
+                    strokeWidth="1"
+                    strokeDasharray="4 6"
+                  />
+                  <circle
+                    cx="50%"
+                    cy="50%"
+                    r={96}
+                    fill="none"
+                    stroke="rgba(255, 255, 255, 0.02)"
+                    strokeWidth="1"
+                  />
+
+                  {/* Background Track Ring */}
+                  <Pie
+                    data={[{ value: 100 }]}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={76}
+                    outerRadius={82}
+                    dataKey="value"
+                    isAnimationActive={false}
+                    fill="rgba(255, 255, 255, 0.03)"
+                  />
+
                   <Pie
                     data={pieData}
                     cx="50%"
                     cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
+                    innerRadius={76}
+                    outerRadius={82}
                     paddingAngle={3}
                     dataKey="value"
                   >
+
                     {pieData.map((entry, index) => {
                       const isHovered = hoveredSeverity
                         ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
