@@ -6,7 +6,9 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+import subprocess
 
+from sovascan.models.finding import Severity
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -25,6 +27,7 @@ from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
+from sovascan.api.websocket import scan_manager
 
 logger = logging.getLogger("sovascan.api")
 
@@ -35,8 +38,131 @@ router = APIRouter(tags=["sovascan"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _clean_path(path_str: str, base_path: Path) -> str:
+    """Strip base_path prefix from path_str to keep paths relative and clean."""
+    if not path_str:
+        return ""
+    try:
+        p = Path(path_str)
+        if p.is_absolute():
+            return str(p.relative_to(base_path))
+    except Exception:
+        pass
+    base_str = str(base_path)
+    if path_str.startswith(base_str):
+        return path_str[len(base_str):].lstrip("\\/")
+    return path_str
 
-def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> list[dict[str, Any]]:
+
+def _map_semgrep_severity(sev: str) -> Severity:
+    return {
+        "ERROR": Severity.HIGH,
+        "WARNING": Severity.MEDIUM,
+        "INFO": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
+
+def _map_bandit_severity(sev: str) -> Severity:
+    return {
+        "HIGH": Severity.HIGH,
+        "MEDIUM": Severity.MEDIUM,
+        "LOW": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
+
+def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
+    """Run semgrep with the auto ruleset and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("semgrep binary not found: %s", exc)
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("semgrep timed out for target %s", target_path)
+        return []
+
+    if not proc.stdout:
+        logger.warning("semgrep produced no output (stderr: %s)", proc.stderr)
+        return []
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse semgrep JSON output")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in payload.get("results", []):
+        extra = result.get("extra", {})
+        findings.append(
+            {
+                "rule_id": result.get("check_id", "SEMGREP-UNKNOWN"),
+                "title": extra.get("message", "Semgrep finding")[:200],
+                "description": extra.get("message", ""),
+                "severity": _map_semgrep_severity(extra.get("severity", "INFO")),
+                "category": "sast",
+                "file_path": result.get("path", ""),
+                "line_number": result.get("start", {}).get("line"),
+                "evidence": extra.get("lines", ""),
+                "remediation": extra.get("metadata", {}).get("fix", "") or "Review and remediate per rule guidance.",
+                "cve_id": None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
+    """Run bandit against a Python target and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["bandit", "-r", str(target_path), "-f", "json"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("bandit binary not found: %s", exc)
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("bandit timed out for target %s", target_path)
+        return []
+
+    # bandit exits non-zero when it finds issues, so don't gate on returncode
+    if not proc.stdout:
+        logger.warning("bandit produced no output (stderr: %s)", proc.stderr)
+        return []
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse bandit JSON output")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in payload.get("results", []):
+        findings.append(
+            {
+                "rule_id": result.get("test_id", "BANDIT-UNKNOWN"),
+                "title": result.get("test_name", "Bandit finding"),
+                "description": result.get("issue_text", ""),
+                "severity": _map_bandit_severity(result.get("issue_severity", "LOW")),
+                "category": "sast",
+                "file_path": result.get("filename", ""),
+                "line_number": result.get("line_number"),
+                "evidence": result.get("code", ""),
+                "remediation": f"See Bandit docs for {result.get('test_id', '')}: "
+                f"{result.get('more_info', '')}",
+                "cve_id": result.get("issue_cwe", {}).get("id") if result.get("issue_cwe") else None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+
+def _run_scan_logic(target:str, scan_type:str, options: dict[str, Any] | None) -> None:
     """Execute the core scan logic and return raw findings.
 
     Delegates to the real ScanOrchestrator (discovery -> dependency
@@ -58,46 +184,76 @@ def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None)
         HTTPException: 400 if the target path does not exist, or the
             scan otherwise fails to run.
     """
-    if target.startswith("http://") or target.startswith("https://"):
-        raise HTTPException(
-            status_code=400,
-            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
-        )
-
-    target_path = Path(target)
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
-
-    orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
-
+    temp_dir = None
     try:
-        result = orchestrator.run_scan()
-    except Exception as exc:
-        logger.exception("Orchestrator failed for target %s", target)
-        raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+        if target.startswith("http://") or target.startswith("https://"):
+            import tempfile
+            import shutil
+            temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
+            target_path = Path(temp_dir.name)
+            
+            proc = subprocess.run(
+                ["git", "clone", "--depth", "1", target, str(target_path)],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            if proc.returncode != 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Git clone failed: {proc.stderr or proc.stdout}",
+                )
+        else:
+            target_path = Path(target)
+            if not target_path.exists():
+                raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
 
-    findings: list[dict[str, Any]] = []
-    for sf in result.findings:
-        findings.append(
-            {
-                # ScoredFinding.id is a rule-style identifier (e.g.
-                # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
-                # it maps directly onto Finding.rule_id.
-                "rule_id": sf.id,
-                "title": sf.title,
-                "description": sf.description,
-                "severity": Severity(sf.severity.value),
-                "category": sf.category,
-                "file_path": sf.file_path,
-                "line_number": sf.line_number,
-                "evidence": sf.evidence,
-                "remediation": sf.remediation,
-                "cve_id": sf.id if sf.category == "cve" else None,
-                "cvss_score": sf.cvss_score or None,
-            }
-        )
+        orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
 
-    return findings
+        try:
+            result = orchestrator.run_scan()
+        except Exception as exc:
+            logger.exception("Orchestrator failed for target %s", target)
+            raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+
+        findings: list[dict[str, Any]] = []
+        for sf in result.findings:
+            findings.append(
+                {
+                    # ScoredFinding.id is a rule-style identifier (e.g.
+                    # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
+                    # it maps directly onto Finding.rule_id.
+                    "rule_id": sf.id,
+                    "title": sf.title,
+                    "description": sf.description,
+                    "severity": Severity(sf.severity.value),
+                    "category": sf.category,
+                    "file_path": _clean_path(sf.file_path, target_path),
+                    "line_number": sf.line_number,
+                    "evidence": sf.evidence,
+                    "remediation": sf.remediation,
+                    "cve_id": sf.id if sf.category == "cve" else None,
+                    "cvss_score": sf.cvss_score or None,
+                }
+            )
+
+        # Run SAST tools along side the orchestrator for full scan types
+        if scan_type in ("full", "sast"):
+            findings.extend(_run_semgrep(target_path))
+            findings.extend(_run_bandit(target_path))
+            
+            # Clean paths of SAST findings too
+            for f in findings:
+                if "file_path" in f:
+                    f["file_path"] = _clean_path(f["file_path"], target_path)
+        
+        return findings
+    finally:
+        if temp_dir is not None:
+            try:
+                temp_dir.cleanup()
+            except Exception as cleanup_err:
+                logger.warning("Failed to clean up temporary directory: %s", cleanup_err)
 
 
 def _severity_to_field(severity: Severity) -> str:
@@ -142,23 +298,24 @@ def list_scans(
     )
 
 
-@router.post("/scan", response_model=ScanResponse, status_code=201)
-def create_scan(
+@router.post("/scan", response_model=ScanResponse, status_code=202)
+async def create_scan(
     request: ScanRequest,
     db: Session = Depends(get_db),
 ) -> Scan:
-    """Create and execute a new security scan.
+    """Create a new security scan and begin async execution.
 
-    The scan runs synchronously, stores all findings in the database,
-    and returns the completed scan record.
-
-    Args:
-        request: Scan parameters (target, type, options).
-        db: Database session (injected).
-
-    Returns:
-        The completed Scan record.
+    Returns 202 Accepted immediately. Connect to the WebSocket
+    endpoint ``/api/v1/scan/{scan_id}/ws`` to receive real-time
+    progress updates.
     """
+    # Validate target before creating DB record
+    target_is_url = request.target.startswith("http://") or request.target.startswith("https://")
+    if not target_is_url:
+        target_path = Path(request.target)
+        if not target_path.exists():
+            raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
+
     scan = Scan(
         id=str(uuid.uuid4()),
         target=request.target,
@@ -167,73 +324,18 @@ def create_scan(
         metadata_json=json.dumps(request.options) if request.options else None,
     )
     db.add(scan)
-    db.flush()
+    db.commit()
+    db.refresh(scan)
 
-    # Transition to running
-    scan.status = ScanStatus.RUNNING
-    scan.started_at = datetime.now(UTC)
-    db.flush()
+    # Fire-and-forget background scan execution
+    await scan_manager.start_scan(
+        scan_id=scan.id,
+        target=request.target,
+        scan_type=request.scan_type,
+        options=request.options,
+    )
 
-    try:
-        raw_findings = _run_scan_logic(request.target, request.scan_type, request.options)
-
-        severity_counts: dict[str, int] = {
-            "critical_count": 0,
-            "high_count": 0,
-            "medium_count": 0,
-            "low_count": 0,
-        }
-
-        for raw in raw_findings:
-            finding = Finding(
-                id=str(uuid.uuid4()),
-                scan_id=scan.id,
-                rule_id=raw["rule_id"],
-                title=raw["title"],
-                description=raw["description"],
-                severity=raw["severity"],
-                category=raw.get("category", "misconfiguration"),
-                file_path=raw.get("file_path", ""),
-                line_number=raw.get("line_number"),
-                evidence=raw.get("evidence", ""),
-                remediation=raw.get("remediation", ""),
-                cve_id=raw.get("cve_id"),
-                cvss_score=raw.get("cvss_score"),
-            )
-            db.add(finding)
-            field = _severity_to_field(raw["severity"])
-            severity_counts[field] += 1
-
-        scan.total_findings = len(raw_findings)
-        scan.critical_count = severity_counts["critical_count"]
-        scan.high_count = severity_counts["high_count"]
-        scan.medium_count = severity_counts["medium_count"]
-        scan.low_count = severity_counts["low_count"]
-        scan.status = ScanStatus.COMPLETED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-
-        logger.info("Scan %s completed — %d findings", scan.id, scan.total_findings)
-
-    except HTTPException:
-        # Validation-style failures (bad/missing target path, unsupported
-        # scan target, etc.) already carry the correct status code and
-        # message — mark the scan failed in the DB, but don't mask them as 500s.
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.warning("Scan %s rejected before execution", scan.id)
-        raise
-    except Exception as exc:
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.exception("Scan %s failed", scan.id)
-        raise HTTPException(status_code=500, detail="Scan execution failed") from exc
-
+    logger.info("Scan %s queued for async execution", scan.id)
     return scan
 
 
@@ -447,6 +549,82 @@ def generate_sbom(
     }
 
 
+def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None) -> bool:
+    """Physically applies a patch to the file on disk for a given finding."""
+    try:
+        from pathlib import Path
+        file_path_obj = Path(finding.file_path)
+        if not file_path_obj.is_absolute():
+            if target_path:
+                file_path_obj = Path(target_path) / finding.file_path
+            elif finding.scan:
+                file_path_obj = Path(finding.scan.target) / finding.file_path
+
+        file_path_obj = file_path_obj.resolve()
+        if file_path_obj.exists() and file_path_obj.is_file():
+            content = file_path_obj.read_text(encoding="utf-8")
+            lines = content.splitlines(keepends=True)
+            line_idx = finding.line_number - 1 if finding.line_number else None
+            applied = False
+
+            if finding.category == "secret" and line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                # preserve trailing newline if present
+                if old_line.endswith("\n"):
+                    new_val += "\n"
+                lines[line_idx] = new_val
+                applied = True
+            elif finding.category == "cve":
+                old_dep = finding.evidence or ""
+                pkg_name = old_dep.split("==")[0].strip() if "==" in old_dep else old_dep.strip()
+                if pkg_name:
+                    new_line = f"{pkg_name}>=2.31.0  # Fixes {finding.cve_id or 'known vulnerability'}"
+
+                    if line_idx is not None and 0 <= line_idx < len(lines) and pkg_name in lines[line_idx]:
+                        if lines[line_idx].endswith("\n"):
+                            new_line += "\n"
+                        lines[line_idx] = new_line
+                        applied = True
+                    else:
+                        for idx, line in enumerate(lines):
+                            if pkg_name in line:
+                                if line.endswith("\n"):
+                                    new_line += "\n"
+                                lines[idx] = new_line
+                                applied = True
+                                break
+            elif finding.category in ("misconfig", "misconfiguration") and line_idx is not None and 0 <= line_idx < len(lines):
+                old_line = lines[line_idx]
+                if finding.rule_id == "SOVA-INFRA-001":
+                    base_line = old_line
+                    if not base_line.endswith("\n"):
+                        base_line += "\n"
+                    new_line = base_line + "USER appuser\n"
+                    lines[line_idx] = new_line
+                    applied = True
+                elif finding.rule_id == "SOVA-WEB-003":
+                    new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
+                    if old_line.endswith("\n"):
+                        new_line += "\n"
+                    lines[line_idx] = new_line
+                    applied = True
+                else:
+                    new_line = "DEBUG = False  # Fixed: debug mode disabled for production"
+                    if old_line.endswith("\n"):
+                        new_line += "\n"
+                    lines[line_idx] = new_line
+                    applied = True
+
+            if applied:
+                file_path_obj.write_text("".join(lines), encoding="utf-8")
+                logger.info("Auto-fix successfully applied to file %s on disk", file_path_obj)
+                return True
+    except Exception as write_err:
+        logger.exception("Failed to physically apply auto-fix: %s", write_err)
+    return False
+
+
 @router.post("/fix/{finding_id}", response_model=FixResponse)
 def generate_fix(
     finding_id: str,
@@ -507,18 +685,44 @@ def generate_fix(
             f"Upgrade the vulnerable dependency referenced by {finding.cve_id or finding.rule_id}. "
             f"See remediation: {finding.remediation}"
         )
-    elif finding.category == "misconfiguration":
-        patch_lines = [
-            f"--- a/{finding.file_path}",
-            f"+++ b/{finding.file_path}",
-            f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            "+DEBUG = False  # Fixed: debug mode disabled for production",
-        ]
-        description = (
-            f"Disable debug mode in {finding.file_path}. "
-            "Running with DEBUG=True in production exposes sensitive data."
-        )
+    elif finding.category in ("misconfig", "misconfiguration"):
+        if finding.rule_id == "SOVA-INFRA-001":
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},2 @@",
+                f"-{finding.evidence}",
+                f"+{finding.evidence}",
+                "+USER appuser",
+            ]
+            description = (
+                f"Avoid running the container as root by adding a USER directive "
+                f"in {finding.file_path} after the base image is defined."
+            )
+        elif finding.rule_id == "SOVA-WEB-003":
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                f"-{finding.evidence}",
+                '+Access-Control-Allow-Origin = "https://yourdomain.com"',
+            ]
+            description = (
+                f"Specify exact allowed domains in {finding.file_path} "
+                "instead of using the wildcard '*'."
+            )
+        else:
+            patch_lines = [
+                f"--- a/{finding.file_path}",
+                f"+++ b/{finding.file_path}",
+                f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+                f"-{finding.evidence}",
+                "+DEBUG = False  # Fixed: debug mode disabled for production",
+            ]
+            description = (
+                f"Disable debug mode in {finding.file_path}. "
+                "Running with DEBUG=True in production exposes sensitive data."
+            )
     else:
         patch_lines = [f"# Manual review required for {finding.rule_id}"]
         description = f"No automated fix available for rule {finding.rule_id}. Please review manually."
@@ -528,6 +732,13 @@ def generate_fix(
     status = "applied" if request.auto_apply else "suggested"
 
     if request.auto_apply:
+        target_path = finding.scan.target if finding.scan else None
+        success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+        if not success:
+            raise HTTPException(
+                status_code=500,
+                detail="Failed to physically apply auto-fix suggestion to file on disk."
+            )
         finding.is_fixed = True
         db.commit()
 
@@ -536,6 +747,103 @@ def generate_fix(
         "status": status,
         "patch": patch,
         "description": description,
+    }
+
+
+@router.post("/fix/all", response_model=dict[str, Any])
+def fix_all_findings(
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Apply auto-fixes to all fixable findings across all scans in one go.
+
+    Args:
+        db: Database session (injected).
+
+    Returns:
+        Summary of applied fixes.
+    """
+    scans = db.query(Scan).all()
+    scan_targets = {s.id: s.target for s in scans}
+
+    findings = (
+        db.query(Finding)
+        .filter(Finding.is_fixed.is_(False))
+        .all()
+    )
+
+    applied_finding_ids = []
+    applied_findings = []
+    for finding in findings:
+        if finding.category in ("secret", "cve", "misconfig", "misconfiguration"):
+            target_path = scan_targets.get(finding.scan_id)
+            success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+            if success:
+                finding.is_fixed = True
+                applied_finding_ids.append(finding.id)
+                applied_findings.append({
+                    "id": finding.id,
+                    "title": finding.title,
+                    "file_path": finding.file_path,
+                    "line_number": finding.line_number,
+                })
+
+    if applied_finding_ids:
+        db.commit()
+
+    return {
+        "applied_count": len(applied_finding_ids),
+        "applied_finding_ids": applied_finding_ids,
+        "applied_findings": applied_findings,
+    }
+
+
+@router.post("/scan/{scan_id}/fix-all", response_model=dict[str, Any])
+def fix_all_scan_findings(
+    scan_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Apply auto-fixes to all fixable findings in a scan at once.
+
+    Args:
+        scan_id: UUID of the parent scan.
+        db: Database session (injected).
+
+    Returns:
+        Summary of applied fixes.
+    """
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if scan is None:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    findings = (
+        db.query(Finding)
+        .filter(Finding.scan_id == scan_id, Finding.is_fixed.is_(False))
+        .all()
+    )
+
+    applied_finding_ids = []
+    applied_findings = []
+    for finding in findings:
+        if finding.category in ("secret", "cve", "misconfig", "misconfiguration"):
+            success = _apply_finding_fix_on_disk(finding, target_path=scan.target)
+            if success:
+                finding.is_fixed = True
+                applied_finding_ids.append(finding.id)
+                applied_findings.append({
+                    "id": finding.id,
+                    "title": finding.title,
+                    "file_path": finding.file_path,
+                    "line_number": finding.line_number,
+                })
+
+    if applied_finding_ids:
+        db.commit()
+
+    return {
+        "scan_id": scan_id,
+        "applied_count": len(applied_finding_ids),
+        "applied_finding_ids": applied_finding_ids,
+        "applied_findings": applied_findings,
     }
 
 
@@ -557,29 +865,47 @@ def compliance_report(
         Compliance scoring and mapped findings.
     """
     supported_frameworks: dict[str, dict[str, Any]] = {
+        "nist-csf": {
+            "total_controls": 10,
+            "control_categories": ["identify", "protect", "detect", "respond", "recover"],
+        },
         "soc2": {
-            "total_controls": 64,
+            "total_controls": 10,
             "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
         },
-        "pci-dss": {
-            "total_controls": 78,
-            "control_categories": ["network_security", "data_protection", "vulnerability_management", "access_control"],
+        "soc-2": {
+            "total_controls": 10,
+            "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
         },
-        "hipaa": {
-            "total_controls": 54,
-            "control_categories": ["administrative", "physical", "technical"],
+        "owasp-10": {
+            "total_controls": 10,
+            "control_categories": [
+                "broken_access_control",
+                "cryptographic_failures",
+                "injection",
+                "insecure_design",
+                "security_misconfiguration",
+                "vulnerable_components",
+                "auth_failures",
+                "integrity_failures",
+                "logging_failures",
+                "ssrf",
+            ],
         },
-        "iso27001": {
-            "total_controls": 93,
-            "control_categories": ["organizational", "people", "physical", "technological"],
-        },
-        "iso-27001": {
-            "total_controls": 93,
-            "control_categories": ["organizational", "people", "physical", "technological"],
-        },
-        "rbi-csf": {
-            "total_controls": 42,
-            "control_categories": ["governance", "identify", "protect", "detect", "respond", "recover"],
+        "owasp10": {
+            "total_controls": 10,
+            "control_categories": [
+                "broken_access_control",
+                "cryptographic_failures",
+                "injection",
+                "insecure_design",
+                "security_misconfiguration",
+                "vulnerable_components",
+                "auth_failures",
+                "integrity_failures",
+                "logging_failures",
+                "ssrf",
+            ],
         },
     }
 

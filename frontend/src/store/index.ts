@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { api } from '../api/client';
+import { api, createScanWebSocket } from '../api/client';
 import type {
   Scan,
   ScanType,
@@ -8,6 +8,7 @@ import type {
   DashboardSummary,
   ComplianceReport,
   ComplianceControl,
+  ScanProgressEvent,
 } from '../types';
 
 /* ============================================================
@@ -102,55 +103,54 @@ const mapDashboardSummary = (d: Record<string, unknown>): DashboardSummary => {
    ============================================================ */
 
 const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
-  'RBI-CSF': [
-    'Governance', 'Governance', 'Identify', 'Identify',
-    'Protect', 'Protect', 'Protect', 'Detect',
-    'Detect', 'Respond', 'Respond', 'Recover',
+  'NIST-CSF': [
+    'Identify', 'Identify', 'Protect', 'Protect', 'Protect',
+    'Detect', 'Detect', 'Respond', 'Respond', 'Recover',
   ],
-  'PCI-DSS': [
-    'Network Security', 'Network Security', 'Data Protection', 'Data Protection',
-    'Vulnerability Management', 'Vulnerability Management', 'Access Control',
-    'Access Control', 'Monitoring', 'Monitoring', 'Security Policy', 'Security Policy',
+  'SOC-2': [
+    'Security', 'Security', 'Security', 'Confidentiality', 'Confidentiality',
+    'Confidentiality', 'Availability', 'Availability', 'Processing Integrity', 'Privacy',
   ],
-  'ISO-27001': [
-    'Information Security Policies', 'Organization of InfoSec',
-    'Human Resource Security', 'Asset Management', 'Access Control',
-    'Cryptography', 'Physical Security', 'Operations Security',
-    'Communications Security', 'System Acquisition',
-    'Supplier Relationships', 'Incident Management',
+  'OWASP-10': [
+    'Broken Access Control', 'Cryptographic Failures', 'Injection', 'Insecure Design',
+    'Security Misconfiguration', 'Vulnerable Components', 'Auth Failures',
+    'Integrity Failures', 'Logging Failures', 'SSRF',
   ],
 };
 
 const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
-  'RBI-CSF': [
-    'Cyber Security Policy', 'Board Oversight', 'Asset Inventory',
-    'Risk Assessment', 'Access Control Management', 'Data Protection',
-    'Network Security', 'SOC Monitoring', 'Anomaly Detection',
-    'Incident Response Plan', 'Communication Protocol', 'Recovery Planning',
+  'NIST-CSF': [
+    'Asset Management (ID.AM)', 'Risk Assessment (ID.RA)',
+    'Identity Management & Access Control (PR.AC)', 'Data Security & Encryption (PR.DS)',
+    'Protective Technology (PR.PT)', 'Security Continuous Monitoring (DE.CM)',
+    'Detection Processes (DE.DP)', 'Response Planning (RS.RP)',
+    'Mitigation (RS.MI)', 'Recovery Planning (RC.RP)',
   ],
-  'PCI-DSS': [
-    'Firewall Configuration', 'Default Password Policy',
-    'Cardholder Data Encryption', 'Data Retention Policy',
-    'Anti-Virus Deployment', 'Secure Development', 'Role-Based Access',
-    'Unique User IDs', 'Audit Trail Logging', 'Security Monitoring',
-    'InfoSec Policy', 'Risk Assessment Process',
+  'SOC-2': [
+    'Logical Access Control (CC6.1)', 'System Boundary Defense (CC6.3)',
+    'Vulnerability Patching (CC7.3)', 'Data Transmission Encryption (CC6.6)',
+    'Data Storage Protection (CC6.7)', 'Risk Mitigation (CC9.1)',
+    'System Operations & Monitoring (CC7.1)', 'Business Continuity & Backups (A1.2)',
+    'Change Management (CC8.1)', 'Privacy Policy & Consent (P1.1)',
   ],
-  'ISO-27001': [
-    'Security Policy Document', 'InfoSec Roles', 'Employee Screening',
-    'Asset Classification', 'User Access Management', 'Key Management',
-    'Secure Areas', 'Change Management', 'Network Controls',
-    'Security in Development', 'Supplier Policy', 'Incident Procedures',
+  'OWASP-10': [
+    'A01:2021-Broken Access Control', 'A02:2021-Cryptographic Failures',
+    'A03:2021-Injection', 'A04:2021-Insecure Design',
+    'A05:2021-Security Misconfiguration', 'A06:2021-Vulnerable and Outdated Components',
+    'A07:2021-Identification and Authentication Failures', 'A08:2021-Software and Data Integrity Failures',
+    'A09:2021-Security Logging and Monitoring Failures', 'A10:2021-Server-Side Request Forgery (SSRF)',
   ],
 };
 
 const FRAMEWORK_FULL_NAMES: Record<string, string> = {
-  'RBI-CSF': 'RBI Cyber Security Framework',
-  'PCI-DSS': 'Payment Card Industry Data Security Standard',
-  'ISO-27001': 'ISO/IEC 27001 Information Security',
-  'soc2': 'SOC 2 Type II',
-  'pci-dss': 'Payment Card Industry Data Security Standard',
-  'hipaa': 'HIPAA Security Rule',
-  'iso27001': 'ISO/IEC 27001 Information Security',
+  'NIST-CSF': 'NIST Cybersecurity Framework',
+  'SOC-2': 'SOC 2 Type II Compliance Standard',
+  'OWASP-10': 'OWASP Top 10 Security Risks',
+  'nist-csf': 'NIST Cybersecurity Framework',
+  'soc-2': 'SOC 2 Type II Compliance Standard',
+  'soc2': 'SOC 2 Type II Compliance Standard',
+  'owasp-10': 'OWASP Top 10 Security Risks',
+  'owasp10': 'OWASP Top 10 Security Risks',
 };
 
 /**
@@ -162,33 +162,45 @@ function isViolation(controlName: string, finding: Finding): boolean {
   const title = finding.title.toLowerCase();
   const cat = finding.category.toLowerCase();
 
-  // Access / Auth / Password controls
-  if (n.includes('password') || n.includes('access') || n.includes('user id') || n.includes('role-based')) {
-    if (cat.includes('secret') || title.includes('password') || cat.includes('auth') || title.includes('credential')) {
+  // Access / Auth / Password / Identity controls
+  if (n.includes('password') || n.includes('access') || n.includes('user id') || n.includes('role-based') || n.includes('auth') || n.includes('identity')) {
+    if (cat.includes('secret') || title.includes('password') || cat.includes('auth') || title.includes('credential') || title.includes('access')) {
       return true;
     }
   }
-  // Encryption / Crypto controls
-  if (n.includes('encryption') || n.includes('data protection') || n.includes('cryptography') || n.includes('key management')) {
-    if (cat.includes('crypto') || cat.includes('secret') || title.includes('hashing') || title.includes('tls') || title.includes('ssl') || title.includes('encrypt')) {
+  // Encryption / Crypto / Data Protection controls
+  if (n.includes('encryption') || n.includes('data protection') || n.includes('cryptography') || n.includes('key management') || n.includes('data security') || n.includes('data storage')) {
+    if (cat.includes('crypto') || cat.includes('secret') || title.includes('hashing') || title.includes('tls') || title.includes('ssl') || title.includes('encrypt') || title.includes('key')) {
       return true;
     }
   }
-  // Vulnerability / Dependency controls
-  if (n.includes('vulnerability') || n.includes('development') || n.includes('anti-virus') || n.includes('asset')) {
+  // Vulnerability / Dependency / Component controls
+  if (n.includes('vulnerability') || n.includes('development') || n.includes('anti-virus') || n.includes('asset') || n.includes('component') || n.includes('patching') || n.includes('integrity')) {
     if (cat.includes('dep') || cat.includes('cve') || title.includes('vulnerable') || title.includes('outdated')) {
       return true;
     }
   }
-  // Network / Config / Monitoring controls
-  if (n.includes('firewall') || n.includes('network') || n.includes('config') || n.includes('monitoring') || n.includes('audit')) {
-    if (cat.includes('misconfig') || title.includes('cors') || title.includes('port') || title.includes('bind') || title.includes('debug')) {
+  // Network / Config / Monitoring / Boundary / Operations controls
+  if (n.includes('firewall') || n.includes('network') || n.includes('config') || n.includes('monitoring') || n.includes('audit') || n.includes('boundary') || n.includes('operations') || n.includes('protective technology') || n.includes('logging')) {
+    if (cat.includes('misconfig') || title.includes('cors') || title.includes('port') || title.includes('bind') || title.includes('debug') || title.includes('log')) {
       return true;
     }
   }
-  // Incident / Response controls
-  if (n.includes('incident') || n.includes('response') || n.includes('communication')) {
-    if (title.includes('log') || title.includes('error') || title.includes('disclosure')) {
+  // Incident / Response / Recovery / Mitigation controls
+  if (n.includes('incident') || n.includes('response') || n.includes('communication') || n.includes('recovery') || n.includes('mitigation')) {
+    if (title.includes('log') || title.includes('error') || title.includes('disclosure') || title.includes('fix') || finding.remediation) {
+      return true;
+    }
+  }
+  // Injection controls
+  if (n.includes('injection')) {
+    if (title.includes('injection') || title.includes('sql') || title.includes('xss') || cat.includes('cve')) {
+      return true;
+    }
+  }
+  // SSRF controls
+  if (n.includes('ssrf') || n.includes('request forgery')) {
+    if (title.includes('ssrf') || title.includes('redirect') || title.includes('forgery')) {
       return true;
     }
   }
@@ -200,7 +212,7 @@ function isViolation(controlName: string, finding: Finding): boolean {
  * Generates compliance controls for a framework using actual findings from the backend.
  */
 function generateComplianceControls(framework: string, violatingFindings: Finding[]): ComplianceControl[] {
-  const fwKey = FRAMEWORK_CATEGORIES[framework] ? framework : 'RBI-CSF';
+  const fwKey = FRAMEWORK_CATEGORIES[framework] ? framework : 'NIST-CSF';
   const categories = FRAMEWORK_CATEGORIES[fwKey];
   const names = FRAMEWORK_CONTROL_NAMES[fwKey];
 
@@ -257,6 +269,8 @@ interface SovaState {
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
+  fixAllFindings: () => Promise<any[]>;
+  fixAllScanFindings: (scanId: string) => Promise<any[]>;
 }
 
 /* ============================================================
@@ -347,13 +361,20 @@ export const useStore = create<SovaState>((set, get) => ({
       const failedCount = controls.filter((c) => c.status === 'failed').length;
       const naCount = controls.filter((c) => c.status === 'not-applicable').length;
 
+      // Calculate the compliance score dynamically to align perfectly with the checklist stats.
+      // We exclude N/A (Not Applicable) controls from the baseline, which is standard compliance practice.
+      const totalApplicable = controls.length - naCount;
+      const calculatedScore = totalApplicable > 0 
+        ? Math.round((passedCount / totalApplicable) * 100) 
+        : 100;
+
       const report: ComplianceReport = {
         framework,
         frameworkFullName:
           FRAMEWORK_FULL_NAMES[framework] ??
           FRAMEWORK_FULL_NAMES[backendKey] ??
           framework,
-        score: (data.score as number) ?? 100,
+        score: calculatedScore,
         totalControls: controls.length,
         passed: passedCount,
         failed: failedCount,
@@ -374,60 +395,185 @@ export const useStore = create<SovaState>((set, get) => ({
   },
 
   /* -------------------------------------------------------
-     startScan — POST /api/v1/scan
-     Shows a smooth animated progress bar in the UI while
-     the synchronous backend request is running.
+     startScan — POST /api/v1/scan (202 Accepted)
+     Connects to WebSocket for real-time progress streaming
+     with automatic polling fallback.
      ------------------------------------------------------- */
   startScan: async (target: string, scanType: string, _frameworks: string[]) => {
     set({
-      scanProgress: { running: true, phase: 'Discovering', percent: 0, findingsCount: 0 },
+      loading: true,
       error: null,
+      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0 },
     });
 
-    const phases = ['Discovering', 'Resolving', 'Scanning', 'Scoring', 'Reporting'];
-    let currentPercent = 0;
-
-    // Animate the progress bar smoothly while the API call is pending
-    const interval = setInterval(() => {
-      currentPercent += Math.random() * 5 + 2;
-      if (currentPercent >= 95) currentPercent = 95; // Cap at 95% until backend responds
-
-      const phaseIdx = Math.min(Math.floor(currentPercent / 20), phases.length - 1);
-      set({
-        scanProgress: {
-          running: true,
-          phase: phases[phaseIdx],
-          percent: Math.round(currentPercent),
-          findingsCount: 0,
-        },
-      });
-    }, 400);
-
     try {
-      const res = await api.createScan({ target, scan_type: scanType });
-      clearInterval(interval);
+      // POST /scan now returns 202 Accepted with the scan in pending/running state
+      const response = await api.createScan({ target, scan_type: scanType });
+      const scanData = response.data;
+      const scanId: string = scanData.id || scanData.scan_id;
 
-      const completedScan = mapScan(res.data as Record<string, unknown>);
+      if (!scanId) {
+        throw new Error('No scan ID returned from server');
+      }
 
-      set((state) => ({
-        scans: [completedScan, ...state.scans],
-        scanProgress: {
-          running: false,
-          phase: 'Completed',
-          percent: 100,
-          findingsCount: completedScan.totalFindings,
-        },
-      }));
+      // Connect to WebSocket for real-time progress
+      const ws = createScanWebSocket(scanId);
+      let wsConnected = false;
 
-      // Refresh dashboard and scans list with fresh data
-      get().fetchScans();
-      get().fetchDashboard();
-    } catch (err: unknown) {
-      clearInterval(interval);
-      const message = err instanceof Error ? err.message : 'Scan failed';
+      ws.onopen = () => {
+        wsConnected = true;
+      };
+
+      ws.onmessage = (event: MessageEvent) => {
+        try {
+          const msg: ScanProgressEvent = JSON.parse(event.data);
+
+          switch (msg.type) {
+            case 'progress':
+            case 'status_change':
+              set({
+                scanProgress: {
+                  running: true,
+                  phase: msg.phase || msg.status || 'Scanning...',
+                  percent: msg.percent,
+                  findingsCount: msg.findings_count,
+                },
+              });
+              break;
+
+            case 'finding_discovered':
+              set({
+                scanProgress: {
+                  running: true,
+                  phase: msg.phase || 'Analyzing...',
+                  percent: msg.percent,
+                  findingsCount: msg.findings_count,
+                },
+              });
+              break;
+
+            case 'scan_complete': {
+              set({
+                scanProgress: {
+                  running: false,
+                  phase: 'Scan complete',
+                  percent: 100,
+                  findingsCount: msg.findings_count,
+                },
+                loading: false,
+              });
+              ws.close();
+              // Refresh all data views
+              const store = useStore.getState();
+              store.fetchDashboard();
+              store.fetchScans();
+              store.fetchFindings();
+              break;
+            }
+
+            case 'scan_failed':
+              set({
+                scanProgress: {
+                  running: false,
+                  phase: 'Scan failed',
+                  percent: 0,
+                  findingsCount: msg.findings_count,
+                },
+                loading: false,
+                error: msg.error || 'Scan execution failed',
+              });
+              ws.close();
+              break;
+
+            case 'keepalive':
+              // No-op, just keeps the connection alive
+              break;
+
+            default:
+              break;
+          }
+        } catch (parseErr) {
+          console.error('Failed to parse WS message:', parseErr);
+        }
+      };
+
+      ws.onerror = () => {
+        if (!wsConnected) {
+          // WebSocket failed to connect — fall back to polling
+          console.warn('WebSocket connection failed, falling back to polling');
+          ws.close();
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollRes = await api.getScan(scanId);
+              const pollScan = pollRes.data;
+              const status = pollScan.status;
+
+              if (status === 'completed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  loading: false,
+                });
+                const store = useStore.getState();
+                store.fetchDashboard();
+                store.fetchScans();
+                store.fetchFindings();
+              } else if (status === 'failed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  loading: false,
+                  error: 'Scan execution failed',
+                });
+              }
+            } catch (pollErr) {
+              console.error('Polling error:', pollErr);
+            }
+          }, 3000);
+        }
+      };
+
+      ws.onclose = () => {
+        // Ensure loading state is cleared if WS closes unexpectedly
+        const { scanProgress } = useStore.getState();
+        if (scanProgress.running) {
+          // WS closed while scan was still running — start polling fallback
+          const pollInterval = setInterval(async () => {
+            try {
+              const pollRes = await api.getScan(scanId);
+              const pollScan = pollRes.data;
+              const status = pollScan.status;
+
+              if (status === 'completed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  loading: false,
+                });
+                const store = useStore.getState();
+                store.fetchDashboard();
+                store.fetchScans();
+                store.fetchFindings();
+              } else if (status === 'failed') {
+                clearInterval(pollInterval);
+                set({
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  loading: false,
+                  error: 'Scan execution failed',
+                });
+              }
+            } catch (pollErr) {
+              console.error('Polling error:', pollErr);
+            }
+          }, 3000);
+        }
+      };
+
+    } catch (err: any) {
       set({
-        scanProgress: { running: false, phase: 'Failed', percent: 0, findingsCount: 0 },
-        error: message,
+        loading: false,
+        error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0 },
       });
     }
   },
@@ -442,5 +588,45 @@ export const useStore = create<SovaState>((set, get) => ({
      ------------------------------------------------------- */
   getComplianceReport: (framework: string) => {
     return get().complianceReports[framework] || null;
+  },
+
+  /* -------------------------------------------------------
+     fixAllFindings — bulk fixes all active findings globally
+     ------------------------------------------------------- */
+  fixAllFindings: async () => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAll();
+      // Re-fetch findings, dashboard and scans to sync state
+      await get().fetchFindings();
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply all fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
+  },
+
+  /* -------------------------------------------------------
+     fixAllScanFindings — bulk fixes all findings for a scan
+     ------------------------------------------------------- */
+  fixAllScanFindings: async (scanId: string) => {
+    set({ loading: true, error: null });
+    try {
+      const res = await api.fixAllScan(scanId);
+      // Re-fetch scan-specific findings, dashboard and scans
+      await get().fetchFindings(scanId);
+      await get().fetchDashboard();
+      await get().fetchScans();
+      set({ loading: false });
+      return res.data?.applied_findings || [];
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to apply scan fixes';
+      set({ error: message, loading: false });
+      return [];
+    }
   },
 }));

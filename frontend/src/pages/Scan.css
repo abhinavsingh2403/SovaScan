@@ -85,7 +85,7 @@
 /* Radio Option Cards */
 .scan-type-options {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  grid-template-columns: repeat(3, 1fr);
   gap: 12px;
 }
 
@@ -95,17 +95,31 @@
   border-radius: 10px;
   padding: 14px;
   cursor: pointer;
-  transition: border-color 0.2s ease, background 0.2s ease;
+  transition: border-color 0.2s ease, background 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
   position: relative;
 }
 
 .scan-type-card:hover {
   background: rgba(255, 255, 255, 0.04);
+  transform: translateY(-1px);
 }
 
 .scan-type-card.active {
   border-color: var(--accent-primary);
-  background: rgba(99, 102, 241, 0.05);
+  background: rgba(99, 102, 241, 0.06);
+  box-shadow: 0 0 14px rgba(99, 102, 241, 0.15);
+}
+
+@media (max-width: 600px) {
+  .scan-type-options {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 400px) {
+  .scan-type-options {
+    grid-template-columns: 1fr;
+  }
 }
 
 .scan-type-card input[type="radio"] {

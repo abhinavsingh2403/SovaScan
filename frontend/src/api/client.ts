@@ -55,9 +55,28 @@ export const api = {
       auto_apply: autoApply,
     }),
 
+  /** POST /api/v1/fix/all — bulk fix all findings */
+  fixAll: () => client.post('/fix/all'),
+
+  /** POST /api/v1/scan/{scanId}/fix-all — bulk fix all findings in a scan */
+  fixAllScan: (scanId: string) => client.post(`/scan/${scanId}/fix-all`),
+
   /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string) =>
     client.get(`/compliance/${framework}`),
 };
+
+/**
+ * Create a WebSocket connection for real-time scan progress streaming.
+ *
+ * @param scanId - The UUID of the scan to stream progress for.
+ * @returns A native WebSocket instance connected to the scan's WS endpoint.
+ */
+export function createScanWebSocket(scanId: string): WebSocket {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  const url = `${protocol}//${host}/api/v1/scan/${scanId}/ws`;
+  return new WebSocket(url);
+}
 
 export default client;

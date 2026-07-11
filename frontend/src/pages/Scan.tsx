@@ -6,7 +6,7 @@ const Scan: React.FC = () => {
   const { startScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
   const [scanType, setScanType] = useState('full');
-  const [frameworks, setFrameworks] = useState<string[]>(['RBI-CSF', 'PCI-DSS']);
+  const [frameworks, setFrameworks] = useState<string[]>(['NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
 
@@ -36,20 +36,22 @@ const Scan: React.FC = () => {
           <h2>Start New Security Scan</h2>
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
-              <label htmlFor="targetPath">Target Directory Path:</label>
+              <label htmlFor="targetPath">Target Path or Repository URL:</label>
               <div className="input-with-icon">
-                <span className="input-icon">📁</span>
+                <span className="input-icon">
+                  {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? '🔗' : '📁'}
+                </span>
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g., C:/projects/banking-app"
+                  placeholder="e.g., C:/projects/my-app OR https://github.com/user/repo"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              <p className="field-help">Specify the absolute path of the directory to analyze.</p>
+              <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
             </div>
 
             <div className="form-group">
@@ -108,13 +110,49 @@ const Scan: React.FC = () => {
                     </div>
                   </div>
                 </label>
+
+                <label className={`scan-type-card ${scanType === 'sast' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="sast"
+                    checked={scanType === 'sast'}
+                    onChange={() => setScanType('sast')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">🔬</span>
+                    <div className="radio-text">
+                      <strong>SAST Only</strong>
+                      <span>Static Application Security Testing</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`scan-type-card ${scanType === 'git-history' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="git-history"
+                    checked={scanType === 'git-history'}
+                    onChange={() => setScanType('git-history')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">📜</span>
+                    <div className="radio-text">
+                      <strong>Git History</strong>
+                      <span>Scan Commit History for Secrets</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 
             <div className="form-group">
               <label>Compliance Framework Mapping:</label>
               <div className="checkboxes-row">
-                {['RBI-CSF', 'PCI-DSS', 'ISO-27001'].map((fw) => (
+                {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => (
                   <label key={fw} className={`checkbox-card ${frameworks.includes(fw) ? 'active' : ''}`}>
                     <input
                       type="checkbox"

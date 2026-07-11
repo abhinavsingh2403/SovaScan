@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useStore } from '../store';
 import {
   AreaChart,
@@ -11,19 +11,43 @@ import {
   Pie,
   Cell,
   Legend,
+  CartesianGrid,
 } from 'recharts';
 import './Dashboard.css';
+
+import { useNavigate } from 'react-router-dom';
 
 const SEVERITY_COLORS = {
   critical: '#dc2626',
   high: '#ea580c',
-  medium: '#eab308',
-  low: '#2563eb',
+  medium: '#2563eb',
+  low: '#8b5cf6',
   info: '#64748b',
 };
 
+// Custom Chart Tooltips for premium aesthetic
+const CustomTooltip = ({ active, payload, label }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="custom-chart-tooltip glassmorphism">
+        <p className="tooltip-date">{label}</p>
+        {payload.map((p: any) => (
+          <p key={p.name} className="tooltip-value" style={{ color: p.color || p.payload?.color }}>
+            <span className="tooltip-dot" style={{ backgroundColor: p.color || p.payload?.color }}></span>
+            {p.name}: <strong>{p.value}</strong>
+          </p>
+        ))}
+      </div>
+    );
+  }
+  return null;
+};
+
+
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
+  const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
+  const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboard();
@@ -43,9 +67,38 @@ const Dashboard: React.FC = () => {
     ([name, value]) => ({
       name: name.charAt(0).toUpperCase() + name.slice(1),
       value,
-      color: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
+      color: `url(#grad-${name})`,
+      rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
     })
   );
+
+  // Preprocess trend data to display slope/area line properly even with a single point
+  let trendData = [...dashboardSummary.trendData];
+  if (trendData.length === 1) {
+    const singlePoint = trendData[0];
+    let prevHourStr = 'Start';
+    try {
+      const dateParts = singlePoint.date.split(' ');
+      if (dateParts.length === 2) {
+        const timeParts = dateParts[1].split(':');
+        const hour = parseInt(timeParts[0]);
+        const prevHour = (hour - 1 + 24) % 24;
+        prevHourStr = `${dateParts[0]} ${String(prevHour).padStart(2, '0')}:00`;
+      }
+    } catch (e) {
+      // fallback
+    }
+    trendData = [
+      {
+        date: prevHourStr,
+        critical: 0,
+        high: 0,
+        medium: 0,
+        low: 0,
+      },
+      singlePoint,
+    ];
+  }
 
   return (
     <div className="dashboard-container">
@@ -111,33 +164,146 @@ const Dashboard: React.FC = () => {
         {/* Severity Distribution */}
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
-          <div className="chart-wrapper">
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={pieData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={60}
-                  outerRadius={80}
-                  paddingAngle={5}
-                  dataKey="value"
-                >
-                  {pieData.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={entry.color} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
-                  }}
-                />
-                <Legend iconType="circle" wrapperStyle={{ color: '#94a3b8' }} />
-              </PieChart>
-            </ResponsiveContainer>
+          <div className="chart-wrapper side-by-side-chart">
+            <div className="donut-chart-container-left">
+              <ResponsiveContainer width="100%" height={220}>
+                <PieChart>
+                  <defs>
+                    <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#dc2626" />
+                      <stop offset="100%" stopColor="#ef4444" />
+                    </linearGradient>
+                    <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#ea580c" />
+                      <stop offset="100%" stopColor="#f97316" />
+                    </linearGradient>
+                    <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#2563eb" />
+                      <stop offset="100%" stopColor="#3b82f6" />
+                    </linearGradient>
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#a78bfa" />
+                    </linearGradient>
+                    <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
+                      <stop offset="0%" stopColor="#64748b" />
+                      <stop offset="100%" stopColor="#94a3b8" />
+                    </linearGradient>
+                  </defs>
+                  <Pie
+                    data={pieData}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={65}
+                    outerRadius={85}
+                    paddingAngle={3}
+                    dataKey="value"
+                  >
+                    {pieData.map((entry, index) => {
+                      const isHovered = hoveredSeverity
+                        ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
+                        : true;
+                      return (
+                        <Cell
+                          key={`cell-${index}`}
+                          fill={entry.color}
+                          opacity={isHovered ? 1 : 0.15}
+                          style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
+                          onMouseEnter={() => setHoveredSeverity(entry.name.toLowerCase())}
+                          onMouseLeave={() => setHoveredSeverity(null)}
+                        />
+                      );
+                    })}
+                  </Pie>
+                </PieChart>
+              </ResponsiveContainer>
+              <div className="donut-center-text">
+                <div className="donut-center-card">
+                  <span className="donut-center-num">
+                    {hoveredSeverity
+                      ? (dashboardSummary.severityDistribution[hoveredSeverity as keyof typeof SEVERITY_COLORS] || 0)
+                      : dashboardSummary.totalFindings}
+                  </span>
+                  <span className="donut-center-label">
+                    {hoveredSeverity ? hoveredSeverity : 'Findings'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Premium Vertical Progress List */}
+            <div className="severity-progress-list">
+              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey) => {
+                const count = dashboardSummary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
+                const total = dashboardSummary.totalFindings || 1;
+                const percentage = Math.round((count / total) * 100);
+                const color = SEVERITY_COLORS[sevKey as keyof typeof SEVERITY_COLORS];
+                const label = sevKey.charAt(0).toUpperCase() + sevKey.slice(1);
+
+                // Define icon based on severity (crisp 16x16 pixel-aligned SVGs)
+                let icon = null;
+                if (sevKey === 'critical') {
+                  icon = (
+                    <svg className="sev-icon red-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M8 2l6 10H2L8 2z" />
+                      <line x1="8" y1="6" x2="8" y2="9" />
+                      <line x1="8" y1="12" x2="8.01" y2="12" />
+                    </svg>
+                  );
+                } else if (sevKey === 'high') {
+                  icon = (
+                    <svg className="sev-icon orange-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="8" cy="8" r="6" />
+                      <line x1="8" y1="5" x2="8" y2="8" />
+                      <line x1="8" y1="11" x2="8.01" y2="11" />
+                    </svg>
+                  );
+                } else if (sevKey === 'medium') {
+                  icon = (
+                    <svg className="sev-icon blue-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#2563eb" />
+                    </svg>
+                  );
+                } else if (sevKey === 'low') {
+                  icon = (
+                    <svg className="sev-icon purple-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#8b5cf6" />
+                    </svg>
+                  );
+                } else {
+                  icon = (
+                    <svg className="sev-icon grey-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="8" cy="8" r="6" />
+                      <line x1="8" y1="11" x2="8" y2="8" />
+                      <line x1="8" y1="5" x2="8.01" y2="5" />
+                    </svg>
+                  );
+                }
+
+                return (
+                  <div
+                    key={sevKey}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${hoveredSeverity === sevKey ? 'hovered' : ''}`}
+                    onMouseEnter={() => count > 0 && setHoveredSeverity(sevKey)}
+                    onMouseLeave={() => setHoveredSeverity(null)}
+                  >
+                    <div className="sev-info-section">
+                      <div className="sev-label-row">
+                        <span className="sev-icon-wrap">{icon}</span>
+                        <span className="sev-label-name">{label}</span>
+                      </div>
+                      <div className="sev-bar-track">
+                        <div className="sev-bar-fill" style={{ width: `${count > 0 ? percentage : 0}%`, backgroundColor: color }}></div>
+                      </div>
+                    </div>
+                    <div className="sev-values-section">
+                      <span className="sev-count-val">{count}</span>
+                      <span className="sev-percent-val">{count > 0 ? `${percentage}%` : '0%'}</span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
 
@@ -146,7 +312,7 @@ const Dashboard: React.FC = () => {
           <h2>Security Trend Over Time</h2>
           <div className="chart-wrapper">
             <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={dashboardSummary.trendData}>
+              <AreaChart data={trendData}>
                 <defs>
                   <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
                     <stop offset="5%" stopColor="#dc2626" stopOpacity={0.4} />
@@ -157,36 +323,39 @@ const Dashboard: React.FC = () => {
                     <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
                   </linearGradient>
                 </defs>
+                <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
                 <XAxis
                   dataKey="date"
                   stroke="#64748b"
+                  fontSize={11}
                   tickLine={false}
+                  axisLine={false}
+                  dy={10}
                   tickFormatter={(value) => (typeof value === 'string' && value.includes(' ') ? value.split(' ')[1] : value)}
                 />
-                <YAxis stroke="#64748b" tickLine={false} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#1e293b',
-                    borderColor: 'rgba(255,255,255,0.08)',
-                    borderRadius: '8px',
-                    color: '#f8fafc',
-                  }}
-                />
+                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-10} />
+                <Tooltip content={<CustomTooltip />} />
                 <Area
                   type="monotone"
                   dataKey="critical"
                   stroke="#dc2626"
+                  strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorCritical)"
                   name="Critical"
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#dc2626' }}
                 />
                 <Area
                   type="monotone"
                   dataKey="high"
                   stroke="#ea580c"
+                  strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorHigh)"
                   name="High"
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#ea580c' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
@@ -236,7 +405,11 @@ const Dashboard: React.FC = () => {
           <h2>Top Security Findings</h2>
           <div className="vulns-list">
             {dashboardSummary.topVulnerabilities.map((vuln) => (
-              <div key={vuln.id} className="vuln-item">
+              <div
+                key={vuln.id}
+                className="vuln-item interactive-vuln-card"
+                onClick={() => navigate(`/findings?search=${encodeURIComponent(vuln.title)}`)}
+              >
                 <div className="vuln-details">
                   <span className={`severity-indicator ${vuln.severity}`}></span>
                   <div className="vuln-title-wrap">
