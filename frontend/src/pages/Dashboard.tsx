@@ -104,21 +104,57 @@ const Dashboard: React.FC = () => {
     <div className="dashboard-container">
       {/* Top Stats Cards */}
       <div className="stats-grid animate-fade-in">
-        <div className="stat-card glassmorphism risk-card">
+        <div className="stat-card glassmorphism risk-card animate-scan-glow">
           <div className="risk-score-circle">
-            <svg viewBox="0 0 36 36" className="circular-chart">
-              <path
+            <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
+              <defs>
+                <linearGradient id="risk-grad" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="50%" stopColor="#ea580c" />
+                  <stop offset="100%" stopColor="#dc2626" />
+                </linearGradient>
+                <filter id="glow-filter">
+                  <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <circle
+                className="hud-outer-ring animate-radar-spin"
+                cx="18"
+                cy="18"
+                r="17"
+                stroke="rgba(99, 102, 241, 0.25)"
+                strokeWidth="0.5"
+                strokeDasharray="4, 2"
+                fill="none"
+              />
+              <circle
                 className="circle-bg"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                cx="18"
+                cy="18"
+                r="14"
+                stroke="rgba(255, 255, 255, 0.03)"
+                strokeWidth="2.5"
+                fill="none"
               />
               <path
-                className="circle"
+                className="circle progress-path"
                 strokeDasharray={`${dashboardSummary.riskScore}, 100`}
-                stroke={dashboardSummary.riskScore > 70 ? '#dc2626' : '#ea580c'}
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                stroke="url(#risk-grad)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                filter="url(#glow-filter)"
+                d="M18 4 a 14 14 0 1 1 0 28 a 14 14 0 1 1 0 -28"
+                fill="none"
               />
-              <text x="18" y="20.35" className="percentage">
+              <text x="18" y="18.5" className="percentage">
                 {dashboardSummary.riskScore}
+              </text>
+              <text x="18" y="25" className="hud-label">
+                {dashboardSummary.riskScore > 75 ? 'CRITICAL' : dashboardSummary.riskScore > 40 ? 'WARNING' : 'SECURE'}
               </text>
             </svg>
           </div>

@@ -385,86 +385,84 @@ const Findings: React.FC = () => {
                 </div>
 
                 {/* Expanded Details Body */}
-                {isExpanded && (
-                  <div className="finding-body" onClick={(e) => e.stopPropagation()}>
-                    <div className="details-section">
-                      <h5>Description</h5>
-                      <p className="desc-text">{finding.description}</p>
-                    </div>
-
-                    <div className="details-section">
-                      <h5>Potential Impact (Plain English)</h5>
-                      <p className="impact-text">{getVulnerabilityImpact(finding)}</p>
-                    </div>
-
-                    <div className="details-section">
-                      <h5>Code Evidence</h5>
-                      <pre className="evidence-pre">
-                        <code>{finding.evidence}</code>
-                      </pre>
-                    </div>
-
-                    <div className="details-section">
-                      <h5>Remediation Steps</h5>
-                      <p className="remediation-text">{finding.remediation}</p>
-                    </div>
-
-                    {finding.cveId && (
-                      <div className="details-section">
-                        <h5>Vulnerability Identifier</h5>
-                        <p className="cve-link-text">
-                          <a
-                            href={`https://nvd.nist.gov/vuln/detail/${finding.cveId}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                          >
-                            {finding.cveId} (NVD details)
-                          </a>
-                        </p>
-                      </div>
-                    )}
-
-                    {pendingFix[finding.id] && (
-                      <div className="fix-preview-box glassmorphism" onClick={(e) => e.stopPropagation()}>
-                        <h5>Suggested Fix Preview</h5>
-                        <p className="fix-desc">{pendingFix[finding.id].description}</p>
-                        
-                        {renderDiff(pendingFix[finding.id].patch)}
-
-                        <div className="fix-actions">
-                          <a
-                            className="editor-link-btn"
-                            href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
-                            onClick={(e) => e.stopPropagation()}
-                          >
-                            🖥️ Open in Editor (VS Code / Antigravity)
-                          </a>
-                          
-                          <button
-                            className="confirm-fix-btn"
-                            onClick={() => confirmApplyFix(finding)}
-                            disabled={applyingFixId === finding.id}
-                          >
-                            {applyingFixId === finding.id ? 'Applying...' : '✓ Confirm & Apply Fix'}
-                          </button>
-                          
-                          <button
-                            className="cancel-fix-btn"
-                            onClick={() => cancelFixSuggestion(finding.id)}
-                          >
-                            Cancel
-                          </button>
-                        </div>
-                      </div>
-                    )}
-
-                    {fixSuccessMsg[finding.id] && (
-                      <div className="fix-success-banner">
-                        {fixSuccessMsg[finding.id]}
-                      </div>
-                    )}
+                <div className={`finding-body ${isExpanded ? 'show' : ''}`} onClick={(e) => e.stopPropagation()}>
+                  <div className="details-section">
+                    <h5>Description</h5>
+                    <p className="desc-text">{finding.description}</p>
                   </div>
-                )}
+
+                  <div className="details-section">
+                    <h5>Potential Impact (Plain English)</h5>
+                    <p className="impact-text">{getVulnerabilityImpact(finding)}</p>
+                  </div>
+
+                  <div className="details-section">
+                    <h5>Code Evidence</h5>
+                    <pre className="evidence-pre">
+                      <code>{finding.evidence}</code>
+                    </pre>
+                  </div>
+
+                  <div className="details-section">
+                    <h5>Remediation Steps</h5>
+                    <p className="remediation-text">{finding.remediation}</p>
+                  </div>
+
+                  {finding.cveId && (
+                    <div className="details-section">
+                      <h5>Vulnerability Identifier</h5>
+                      <p className="cve-link-text">
+                        <a
+                          href={`https://nvd.nist.gov/vuln/detail/${finding.cveId}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {finding.cveId} (NVD details)
+                        </a>
+                      </p>
+                    </div>
+                  )}
+
+                  {pendingFix[finding.id] && (
+                    <div className="fix-preview-box glassmorphism" onClick={(e) => e.stopPropagation()}>
+                      <h5>Suggested Fix Preview</h5>
+                      <p className="fix-desc">{pendingFix[finding.id].description}</p>
+                      
+                      {renderDiff(pendingFix[finding.id].patch)}
+
+                      <div className="fix-actions">
+                        <a
+                          className="editor-link-btn"
+                          href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          🖥️ Open in Editor (VS Code / Antigravity)
+                        </a>
+                        
+                        <button
+                          className="confirm-fix-btn"
+                          onClick={() => confirmApplyFix(finding)}
+                          disabled={applyingFixId === finding.id}
+                        >
+                          {applyingFixId === finding.id ? 'Applying...' : '✓ Confirm & Apply Fix'}
+                        </button>
+                        
+                        <button
+                          className="cancel-fix-btn"
+                          onClick={() => cancelFixSuggestion(finding.id)}
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
+                  {fixSuccessMsg[finding.id] && (
+                    <div className="fix-success-banner">
+                      {fixSuccessMsg[finding.id]}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })
