@@ -637,3 +637,31 @@ tbody td {
 .animate-scan-glow {
   animation: scan-glow 3s ease-in-out infinite;
 }
+
+/* Global scrollbar styling for modern dark layout */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: rgba(5, 7, 17, 0.5);
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(99, 102, 241, 0.35);
+}
+
+/* Staggered card animation delays */
+.stats-grid > div:nth-child(1) { animation-delay: 0.05s; }
+.stats-grid > div:nth-child(2) { animation-delay: 0.1s; }
+.stats-grid > div:nth-child(3) { animation-delay: 0.15s; }
+.stats-grid > div:nth-child(4) { animation-delay: 0.2s; }
+
+.charts-grid > div:nth-child(1) { animation-delay: 0.25s; }
+.charts-grid > div:nth-child(2) { animation-delay: 0.3s; }
+
+.bottom-grid > div:nth-child(1) { animation-delay: 0.35s; }
+.bottom-grid > div:nth-child(2) { animation-delay: 0.4s; }
