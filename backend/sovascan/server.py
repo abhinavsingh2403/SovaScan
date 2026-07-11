@@ -11,9 +11,9 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from sovascan import __version__
 from sovascan.api.routes import router
+from sovascan.api.websocket import scan_websocket
 from sovascan.config import get_settings
 from sovascan.models.base import init_db
-from sovascan.api.websocket import scan_websocket
 
 logger = logging.getLogger("sovascan")
 

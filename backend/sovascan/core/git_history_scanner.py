@@ -13,7 +13,6 @@ import re
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
 
 from sovascan.core.cve_scanner import Finding
 from sovascan.core.secret_scanner import COMPILED_PATTERNS, SecretPattern

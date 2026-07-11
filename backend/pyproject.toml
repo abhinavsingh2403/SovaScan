@@ -82,6 +82,9 @@ ignore = [
     "S104",  # binding to 0.0.0.0 for development/docker
     "S314",  # xml element tree parsing for local pom.xml files
     "UP042", # str+Enum subclassing for Python 3.10 compatibility
+    "S110",  # try-except-pass exception suppression
+    "S603",  # check for untrusted input in subprocess call
+    "S607",  # partial executable path for subprocess call (git, semgrep, bandit)
 ]
 
 [tool.ruff.lint.per-file-ignores]
