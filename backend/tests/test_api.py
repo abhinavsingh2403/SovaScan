@@ -1,5 +1,6 @@
 """Tests for SovaScan FastAPI endpoints."""
 
+import time
 from pathlib import Path
 
 from fastapi.testclient import TestClient
@@ -9,6 +10,25 @@ from fastapi.testclient import TestClient
 # needs *a* valid path on disk — it doesn't need to find anything interesting
 # for these tests, just to complete without raising.
 SCAN_TARGET = str(Path(__file__).resolve().parent)
+
+
+def _create_scan_and_wait(client: TestClient, payload: dict, timeout: float = 30.0) -> dict:
+    """Helper to initiate a scan, verify 202 Accepted, and poll until completion."""
+    resp = client.post("/api/v1/scan", json=payload)
+    assert resp.status_code == 202
+    data = resp.json()
+    scan_id = data["id"]
+
+    start_time = time.time()
+    while time.time() - start_time < timeout:
+        get_resp = client.get(f"/api/v1/scan/{scan_id}")
+        assert get_resp.status_code == 200
+        scan_data = get_resp.json()
+        if scan_data["status"] in ("completed", "failed"):
+            return scan_data
+        time.sleep(0.1)
+
+    raise TimeoutError(f"Scan {scan_id} did not complete within {timeout} seconds")
 
 
 def test_health(client: TestClient) -> None:
@@ -28,37 +48,37 @@ def test_create_scan(client: TestClient) -> None:
         "options": {}
     }
     resp = client.post("/api/v1/scan", json=payload)
-    assert resp.status_code == 201
+    assert resp.status_code == 202
     data = resp.json()
     assert "id" in data
     assert data["target"] == SCAN_TARGET
-    assert data["status"] in ("completed", "running", "pending")
+    assert data["status"] == "pending"
 
 
 def test_get_scan(client: TestClient) -> None:
-    """Test fetching scan status/details."""
-    # First create a scan
+    """Test fetching scan status/details after completion."""
     payload = {
         "target": SCAN_TARGET,
         "scan_type": "full"
     }
-    create_resp = client.post("/api/v1/scan", json=payload)
-    scan_id = create_resp.json()["id"]
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
 
     resp = client.get(f"/api/v1/scan/{scan_id}")
     assert resp.status_code == 200
     data = resp.json()
     assert data["id"] == scan_id
+    assert data["status"] == "completed"
 
 
 def test_list_findings(client: TestClient) -> None:
-    """Test listing scan findings."""
+    """Test listing scan findings after completed scan."""
     payload = {
         "target": SCAN_TARGET,
         "scan_type": "full"
     }
-    create_resp = client.post("/api/v1/scan", json=payload)
-    scan_id = create_resp.json()["id"]
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
 
     resp = client.get(f"/api/v1/scan/{scan_id}/findings")
     assert resp.status_code == 200
@@ -68,13 +88,13 @@ def test_list_findings(client: TestClient) -> None:
 
 
 def test_get_sbom(client: TestClient) -> None:
-    """Test generating SBOM for a scan."""
+    """Test generating SBOM for a completed scan."""
     payload = {
         "target": SCAN_TARGET,
         "scan_type": "dependencies"
     }
-    create_resp = client.post("/api/v1/scan", json=payload)
-    scan_id = create_resp.json()["id"]
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
 
     resp = client.get(f"/api/v1/scan/{scan_id}/sbom")
     assert resp.status_code == 200
@@ -97,12 +117,11 @@ def test_compliance_report(client: TestClient) -> None:
 
 def test_dashboard_summary(client: TestClient) -> None:
     """Test dashboard stats aggregation."""
-    # Make sure at least one scan exists
     payload = {
         "target": SCAN_TARGET,
         "scan_type": "full"
     }
-    client.post("/api/v1/scan", json=payload)
+    _create_scan_and_wait(client, payload)
 
     resp = client.get("/api/v1/dashboard/summary")
     assert resp.status_code == 200
@@ -123,14 +142,14 @@ def test_create_scan_rejects_missing_path(client: TestClient) -> None:
     assert resp.status_code == 400
 
 
-def test_create_scan_rejects_remote_url(client: TestClient) -> None:
-    """Remote URL targets aren't supported yet by the orchestrator and should 400, not fake success."""
+def test_create_scan_accepts_remote_url(client: TestClient) -> None:
+    """Remote URL targets are supported by the orchestrator and should return 202."""
     payload = {
         "target": "https://github.com/example/repo",
         "scan_type": "full",
     }
     resp = client.post("/api/v1/scan", json=payload)
-    assert resp.status_code == 400
+    assert resp.status_code == 202
 
 
 def test_apply_fix_updates_file(client: TestClient, tmp_path: Path) -> None:
@@ -144,9 +163,8 @@ def test_apply_fix_updates_file(client: TestClient, tmp_path: Path) -> None:
         "target": str(tmp_path),
         "scan_type": "misconfig"
     }
-    scan_resp = client.post("/api/v1/scan", json=payload)
-    assert scan_resp.status_code == 201
-    scan_id = scan_resp.json()["id"]
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
 
     # 3. Retrieve findings
     findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
@@ -183,9 +201,8 @@ def test_bulk_fix_endpoints(client: TestClient, tmp_path: Path) -> None:
         "target": str(tmp_path),
         "scan_type": "misconfig"
     }
-    scan_resp = client.post("/api/v1/scan", json=payload)
-    assert scan_resp.status_code == 201
-    scan_id = scan_resp.json()["id"]
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
 
     # 3. Trigger bulk scan-specific fix-all
     fix_all_resp = client.post(f"/api/v1/scan/{scan_id}/fix-all")
@@ -199,3 +216,54 @@ def test_bulk_fix_endpoints(client: TestClient, tmp_path: Path) -> None:
     assert "DEBUG = False" in updated_content
 
 
+def test_sast_scanner_graceful_fallback() -> None:
+    """Verify that SASTScanner behaves gracefully even if tools are missing."""
+    from sovascan.core.sast_scanner import SASTScanner
+    scanner = SASTScanner()
+    # Should scan without raising even if semgrep/bandit are not present
+    findings = scanner.scan(SCAN_TARGET)
+    assert isinstance(findings, list)
+
+
+def test_git_history_scanner_non_repo(tmp_path: Path) -> None:
+    """Verify that GitHistoryScanner exits gracefully for non-git paths."""
+    from sovascan.core.git_history_scanner import GitHistoryScanner
+    scanner = GitHistoryScanner()
+    findings = scanner.scan(tmp_path)
+    assert findings == []
+
+
+def test_websocket_connection(client: TestClient) -> None:
+    """Test WebSocket connection and message stream."""
+    payload = {
+        "target": SCAN_TARGET,
+        "scan_type": "secrets"
+    }
+    resp = client.post("/api/v1/scan", json=payload)
+    assert resp.status_code == 202
+    scan_id = resp.json()["id"]
+
+    # Open WebSocket connection using FastAPI TestClient
+    with client.websocket_connect(f"/api/v1/scan/{scan_id}/ws") as ws:
+        # First message is status_change event
+        msg = ws.receive_json()
+        assert msg["scan_id"] == scan_id
+        assert msg["type"] in ("status_change", "progress", "finding_discovered", "scan_complete")
+
+        # Poll status until complete
+        start_time = time.time()
+        completed = False
+        while time.time() - start_time < 10.0:
+            try:
+                msg = ws.receive_json()
+                if msg["type"] == "scan_complete":
+                    assert msg["status"] == "completed"
+                    completed = True
+                    break
+            except Exception:
+                break
+
+        # In case the scan was fast and completed immediately
+        if not completed:
+            db_resp = client.get(f"/api/v1/scan/{scan_id}")
+            assert db_resp.json()["status"] in ("completed", "failed")

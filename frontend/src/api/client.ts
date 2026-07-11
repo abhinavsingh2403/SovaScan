@@ -66,4 +66,17 @@ export const api = {
     client.get(`/compliance/${framework}`),
 };
 
+/**
+ * Create a WebSocket connection for real-time scan progress streaming.
+ *
+ * @param scanId - The UUID of the scan to stream progress for.
+ * @returns A native WebSocket instance connected to the scan's WS endpoint.
+ */
+export function createScanWebSocket(scanId: string): WebSocket {
+  const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+  const host = window.location.host;
+  const url = `${protocol}//${host}/api/v1/scan/${scanId}/ws`;
+  return new WebSocket(url);
+}
+
 export default client;

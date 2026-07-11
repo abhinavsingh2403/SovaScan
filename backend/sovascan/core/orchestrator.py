@@ -16,7 +16,9 @@ from typing import Any
 from sovascan.core.config_drift import ConfigDriftAnalyzer
 from sovascan.core.cve_scanner import CVEScanner, Finding
 from sovascan.core.dependency_resolver import Dependency, DependencyResolver
+from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.misconfig_detector import MisconfigDetector
+from sovascan.core.sast_scanner import SASTScanner
 from sovascan.core.secret_scanner import SecretScanner
 from sovascan.core.severity_scorer import ScoredFinding, Severity, SeverityScorer
 
@@ -138,6 +140,24 @@ class ScanOrchestrator:
                 raw_findings.extend(drift_analyzer.analyze(self.target_path))
             except Exception as exc:
                 logger.error("Config drift analysis failed: %s", exc)
+
+        # 3.5 SAST scanning (Bandit + Semgrep)
+        if self.scan_type in ("full", "sast"):
+            self._update_progress("Running SAST analysis (Bandit + Semgrep)", 60.0)
+            sast_scanner = SASTScanner()
+            try:
+                raw_findings.extend(sast_scanner.scan(self.target_path))
+            except Exception as exc:
+                logger.error("SAST scan failed: %s", exc)
+
+        # 3.6 Git history secrets scanning
+        if self.scan_type in ("full", "git-history"):
+            self._update_progress("Scanning git history for leaked secrets", 70.0)
+            git_scanner = GitHistoryScanner()
+            try:
+                raw_findings.extend(git_scanner.scan(self.target_path))
+            except Exception as exc:
+                logger.error("Git history scan failed: %s", exc)
 
         # Phase 4: Severity Scoring
         self._update_progress("Applying contextual severity scoring", 80.0)

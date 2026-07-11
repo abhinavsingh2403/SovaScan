@@ -2,6 +2,7 @@
 
 import json
 import logging
+import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -21,6 +22,7 @@ from sovascan.api.schemas import (
     ScanRequest,
     ScanResponse,
 )
+from sovascan.api.websocket import scan_manager
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
@@ -35,8 +37,134 @@ router = APIRouter(tags=["sovascan"])
 # Helpers
 # ---------------------------------------------------------------------------
 
+def _clean_path(path_str: str, base_path: Path) -> str:
+    """Strip base_path prefix from path_str to keep paths relative and clean."""
+    if not path_str:
+        return ""
+    try:
+        p = Path(path_str)
+        if p.is_absolute():
+            return str(p.relative_to(base_path))
+    except Exception:
+        pass
+    base_str = str(base_path)
+    if path_str.startswith(base_str):
+        return path_str[len(base_str):].lstrip("\\/")
+    return path_str
 
-def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> list[dict[str, Any]]:
+
+def _map_semgrep_severity(sev: str) -> Severity:
+    return {
+        "ERROR": Severity.HIGH,
+        "WARNING": Severity.MEDIUM,
+        "INFO": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
+
+
+def _map_bandit_severity(sev: str) -> Severity:
+    return {
+        "HIGH": Severity.HIGH,
+        "MEDIUM": Severity.MEDIUM,
+        "LOW": Severity.LOW,
+    }.get(sev.upper(), Severity.LOW)
+
+
+def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
+    """Run semgrep with the auto ruleset and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("semgrep binary not found: %s", exc)
+        return []
+    except Exception as exc:
+        logger.warning("semgrep failed: %s", exc)
+        return []
+
+    if proc.returncode != 0:
+        logger.warning("semgrep returned non-zero code %d", proc.returncode)
+        return []
+
+    try:
+        data = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.warning("semgrep returned invalid JSON")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in data.get("results", []):
+        msg = result.get("extra", {}).get("message", "")
+        findings.append(
+            {
+                "rule_id": result.get("check_id", "semgrep-finding"),
+                "title": msg[:100] if len(msg) > 100 else msg,
+                "description": msg,
+                "severity": _map_semgrep_severity(result.get("extra", {}).get("severity", "WARNING")),
+                "category": "sast",
+                "file_path": result.get("path", ""),
+                "line_number": result.get("start", {}).get("line"),
+                "evidence": result.get("extra", {}).get("lines", ""),
+                "remediation": result.get("extra", {}).get("metadata", {}).get("remediation", ""),
+                "cve_id": None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+
+def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
+    """Run bandit against a Python target and return findings as dicts."""
+    try:
+        proc = subprocess.run(
+            ["bandit", "-r", str(target_path), "-f", "json"],
+            capture_output=True,
+            text=True,
+            timeout=300,
+        )
+    except FileNotFoundError as exc:
+        logger.warning("bandit binary not found: %s", exc)
+        return []
+    except subprocess.TimeoutExpired:
+        logger.warning("bandit timed out for target %s", target_path)
+        return []
+
+    # bandit exits non-zero when it finds issues, so don't gate on returncode
+    if not proc.stdout:
+        logger.warning("bandit produced no output (stderr: %s)", proc.stderr)
+        return []
+
+    try:
+        payload = json.loads(proc.stdout)
+    except json.JSONDecodeError:
+        logger.exception("Failed to parse bandit JSON output")
+        return []
+
+    findings: list[dict[str, Any]] = []
+    for result in payload.get("results", []):
+        findings.append(
+            {
+                "rule_id": result.get("test_id", "BANDIT-UNKNOWN"),
+                "title": result.get("test_name", "Bandit finding"),
+                "description": result.get("issue_text", ""),
+                "severity": _map_bandit_severity(result.get("issue_severity", "LOW")),
+                "category": "sast",
+                "file_path": result.get("filename", ""),
+                "line_number": result.get("line_number"),
+                "evidence": result.get("code", ""),
+                "remediation": f"See Bandit docs for {result.get('test_id', '')}: "
+                f"{result.get('more_info', '')}",
+                "cve_id": result.get("issue_cwe", {}).get("id") if result.get("issue_cwe") else None,
+                "cvss_score": None,
+            }
+        )
+    return findings
+
+
+def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> None:
     """Execute the core scan logic and return raw findings.
 
     Delegates to the real ScanOrchestrator (discovery -> dependency
@@ -58,46 +186,75 @@ def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None)
         HTTPException: 400 if the target path does not exist, or the
             scan otherwise fails to run.
     """
-    if target.startswith("http://") or target.startswith("https://"):
-        raise HTTPException(
-            status_code=400,
-            detail="Remote URL scanning is not yet supported. Provide a local filesystem path.",
-        )
-
-    target_path = Path(target)
-    if not target_path.exists():
-        raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
-
-    orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
-
+    temp_dir = None
     try:
-        result = orchestrator.run_scan()
-    except Exception as exc:
-        logger.exception("Orchestrator failed for target %s", target)
-        raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+        if target.startswith("http://") or target.startswith("https://"):
+            import tempfile
+            temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
+            target_path = Path(temp_dir.name)
 
-    findings: list[dict[str, Any]] = []
-    for sf in result.findings:
-        findings.append(
-            {
-                # ScoredFinding.id is a rule-style identifier (e.g.
-                # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
-                # it maps directly onto Finding.rule_id.
-                "rule_id": sf.id,
-                "title": sf.title,
-                "description": sf.description,
-                "severity": Severity(sf.severity.value),
-                "category": sf.category,
-                "file_path": sf.file_path,
-                "line_number": sf.line_number,
-                "evidence": sf.evidence,
-                "remediation": sf.remediation,
-                "cve_id": sf.id if sf.category == "cve" else None,
-                "cvss_score": sf.cvss_score or None,
-            }
-        )
+            proc = subprocess.run(
+                ["git", "clone", "--depth", "1", target, str(target_path)],
+                capture_output=True,
+                text=True,
+                timeout=180
+            )
+            if proc.returncode != 0:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Git clone failed: {proc.stderr or proc.stdout}",
+                )
+        else:
+            target_path = Path(target)
+            if not target_path.exists():
+                raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
 
-    return findings
+        orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
+
+        try:
+            result = orchestrator.run_scan()
+        except Exception as exc:
+            logger.exception("Orchestrator failed for target %s", target)
+            raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
+
+        findings: list[dict[str, Any]] = []
+        for sf in result.findings:
+            findings.append(
+                {
+                    # ScoredFinding.id is a rule-style identifier (e.g.
+                    # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
+                    # it maps directly onto Finding.rule_id.
+                    "rule_id": sf.id,
+                    "title": sf.title,
+                    "description": sf.description,
+                    "severity": Severity(sf.severity.value),
+                    "category": sf.category,
+                    "file_path": _clean_path(sf.file_path, target_path),
+                    "line_number": sf.line_number,
+                    "evidence": sf.evidence,
+                    "remediation": sf.remediation,
+                    "cve_id": sf.id if sf.category == "cve" else None,
+                    "cvss_score": sf.cvss_score or None,
+                }
+            )
+
+        # Run SAST tools along side the orchestrator for full scan types
+        if scan_type in ("full", "sast"):
+            findings.extend(_run_semgrep(target_path))
+            findings.extend(_run_bandit(target_path))
+
+            # Clean paths of SAST findings too
+            for f in findings:
+                if "file_path" in f:
+                    f["file_path"] = _clean_path(f["file_path"], target_path)
+
+        return findings
+    finally:
+        if temp_dir is not None:
+            try:
+                temp_dir.cleanup()
+            except Exception as cleanup_err:
+                logger.warning("Failed to clean up temporary directory: %s", cleanup_err)
 
 
 def _severity_to_field(severity: Severity) -> str:
@@ -142,23 +299,24 @@ def list_scans(
     )
 
 
-@router.post("/scan", response_model=ScanResponse, status_code=201)
-def create_scan(
+@router.post("/scan", response_model=ScanResponse, status_code=202)
+async def create_scan(
     request: ScanRequest,
     db: Session = Depends(get_db),
 ) -> Scan:
-    """Create and execute a new security scan.
+    """Create a new security scan and begin async execution.
 
-    The scan runs synchronously, stores all findings in the database,
-    and returns the completed scan record.
-
-    Args:
-        request: Scan parameters (target, type, options).
-        db: Database session (injected).
-
-    Returns:
-        The completed Scan record.
+    Returns 202 Accepted immediately. Connect to the WebSocket
+    endpoint ``/api/v1/scan/{scan_id}/ws`` to receive real-time
+    progress updates.
     """
+    # Validate target before creating DB record
+    target_is_url = request.target.startswith("http://") or request.target.startswith("https://")
+    if not target_is_url:
+        target_path = Path(request.target)
+        if not target_path.exists():
+            raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
+
     scan = Scan(
         id=str(uuid.uuid4()),
         target=request.target,
@@ -167,73 +325,18 @@ def create_scan(
         metadata_json=json.dumps(request.options) if request.options else None,
     )
     db.add(scan)
-    db.flush()
+    db.commit()
+    db.refresh(scan)
 
-    # Transition to running
-    scan.status = ScanStatus.RUNNING
-    scan.started_at = datetime.now(UTC)
-    db.flush()
+    # Fire-and-forget background scan execution
+    await scan_manager.start_scan(
+        scan_id=scan.id,
+        target=request.target,
+        scan_type=request.scan_type,
+        options=request.options,
+    )
 
-    try:
-        raw_findings = _run_scan_logic(request.target, request.scan_type, request.options)
-
-        severity_counts: dict[str, int] = {
-            "critical_count": 0,
-            "high_count": 0,
-            "medium_count": 0,
-            "low_count": 0,
-        }
-
-        for raw in raw_findings:
-            finding = Finding(
-                id=str(uuid.uuid4()),
-                scan_id=scan.id,
-                rule_id=raw["rule_id"],
-                title=raw["title"],
-                description=raw["description"],
-                severity=raw["severity"],
-                category=raw.get("category", "misconfiguration"),
-                file_path=raw.get("file_path", ""),
-                line_number=raw.get("line_number"),
-                evidence=raw.get("evidence", ""),
-                remediation=raw.get("remediation", ""),
-                cve_id=raw.get("cve_id"),
-                cvss_score=raw.get("cvss_score"),
-            )
-            db.add(finding)
-            field = _severity_to_field(raw["severity"])
-            severity_counts[field] += 1
-
-        scan.total_findings = len(raw_findings)
-        scan.critical_count = severity_counts["critical_count"]
-        scan.high_count = severity_counts["high_count"]
-        scan.medium_count = severity_counts["medium_count"]
-        scan.low_count = severity_counts["low_count"]
-        scan.status = ScanStatus.COMPLETED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-
-        logger.info("Scan %s completed — %d findings", scan.id, scan.total_findings)
-
-    except HTTPException:
-        # Validation-style failures (bad/missing target path, unsupported
-        # scan target, etc.) already carry the correct status code and
-        # message — mark the scan failed in the DB, but don't mask them as 500s.
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.warning("Scan %s rejected before execution", scan.id)
-        raise
-    except Exception as exc:
-        scan.status = ScanStatus.FAILED
-        scan.completed_at = datetime.now(UTC)
-        db.commit()
-        db.refresh(scan)
-        logger.exception("Scan %s failed", scan.id)
-        raise HTTPException(status_code=500, detail="Scan execution failed") from exc
-
+    logger.info("Scan %s queued for async execution", scan.id)
     return scan
 
 

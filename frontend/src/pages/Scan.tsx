@@ -10,9 +10,48 @@ const Scan: React.FC = () => {
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
 
+  const [scanLogs, setScanLogs] = useState<string[]>([]);
+  const terminalEndRef = React.useRef<HTMLDivElement>(null);
+
   useEffect(() => {
     fetchScans();
   }, [fetchScans]);
+
+  useEffect(() => {
+    if (scanProgress.running) {
+      if (scanLogs.length === 0) {
+        setScanLogs([
+          `[SYSTEM] Initializing SovaScan engine for target: ${targetPath}...`,
+          "[SYSTEM] Establishing WebSocket handshake...",
+          "[SYSTEM] Queuing codebase scan target..."
+        ]);
+      }
+      if (scanProgress.phase) {
+        const logMsg = `[ENGINE] Entering phase: ${scanProgress.phase}`;
+        setScanLogs((prev) => {
+          if (prev.length > 0 && prev[prev.length - 1] === logMsg) return prev;
+          return [...prev, logMsg];
+        });
+      }
+    } else {
+      setScanLogs([]);
+    }
+  }, [scanProgress.running, scanProgress.phase, targetPath]);
+
+  useEffect(() => {
+    if (scanProgress.running && scanProgress.findingsCount > 0) {
+      setScanLogs((prev) => [
+        ...prev,
+        `[ALERT] Discovered security vulnerability #${scanProgress.findingsCount}: MATCHED!`
+      ]);
+    }
+  }, [scanProgress.running, scanProgress.findingsCount]);
+
+  useEffect(() => {
+    if (terminalEndRef.current) {
+      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [scanLogs]);
 
   const handleFrameworkToggle = (fw: string) => {
     if (frameworks.includes(fw)) {
@@ -36,20 +75,22 @@ const Scan: React.FC = () => {
           <h2>Start New Security Scan</h2>
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
-              <label htmlFor="targetPath">Target Directory Path:</label>
+              <label htmlFor="targetPath">Target Path or Repository URL:</label>
               <div className="input-with-icon">
-                <span className="input-icon">📁</span>
+                <span className="input-icon">
+                  {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? '🔗' : '📁'}
+                </span>
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g., C:/projects/banking-app"
+                  placeholder="e.g., C:/projects/my-app OR https://github.com/user/repo"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              <p className="field-help">Specify the absolute path of the directory to analyze.</p>
+              <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
             </div>
 
             <div className="form-group">
@@ -105,6 +146,42 @@ const Scan: React.FC = () => {
                     <div className="radio-text">
                       <strong>Secrets</strong>
                       <span>API Keys, Credentials, Tokens</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`scan-type-card ${scanType === 'sast' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="sast"
+                    checked={scanType === 'sast'}
+                    onChange={() => setScanType('sast')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">🔬</span>
+                    <div className="radio-text">
+                      <strong>SAST Only</strong>
+                      <span>Static Application Security Testing</span>
+                    </div>
+                  </div>
+                </label>
+
+                <label className={`scan-type-card ${scanType === 'git-history' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="git-history"
+                    checked={scanType === 'git-history'}
+                    onChange={() => setScanType('git-history')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">📜</span>
+                    <div className="radio-text">
+                      <strong>Git History</strong>
+                      <span>Scan Commit History for Secrets</span>
                     </div>
                   </div>
                 </label>
@@ -168,9 +245,16 @@ const Scan: React.FC = () => {
         <div className="progress-panel glassmorphism animate-fade-in">
           {scanProgress.running ? (
             <div className="progress-active-state">
-              <div className="scanning-pulse"></div>
-              <h3>Analyzing Codebase</h3>
-              <p className="target-lbl">{targetPath}</p>
+              <div className="radar-hud-container animate-scan-glow">
+                <div className="radar-ping-ring animate-radar-pulse"></div>
+                <div className="radar-ping-ring-2"></div>
+                <div className="radar-sweep-line animate-radar-spin"></div>
+                <div className="radar-core-glow"></div>
+                <span className="radar-icon-center">🦉</span>
+              </div>
+              
+              <h3>Analyzing Target</h3>
+              <p className="target-lbl truncate">{targetPath}</p>
 
               <div className="progress-bar-container">
                 <div
@@ -187,10 +271,28 @@ const Scan: React.FC = () => {
                 <span className="ticker-number font-red">{scanProgress.findingsCount}</span>
                 <p>Security findings discovered so far</p>
               </div>
+
+              {/* Scrolling Terminal Console Logs */}
+              <div className="terminal-log-container">
+                <div className="terminal-header">
+                  <span className="dot dot-red"></span>
+                  <span className="dot dot-yellow"></span>
+                  <span className="dot dot-green"></span>
+                  <span className="terminal-title">sovascan@engine-log:~</span>
+                </div>
+                <div className="terminal-body">
+                  {scanLogs.map((log, index) => (
+                    <div key={index} className={`terminal-line ${log.startsWith('[ALERT]') ? 'warn' : ''}`}>
+                      <span className="term-prompt">$</span> {log}
+                    </div>
+                  ))}
+                  <div ref={terminalEndRef} />
+                </div>
+              </div>
             </div>
           ) : (
             <div className="progress-idle-state">
-              <div className="owl-mascot">🦉</div>
+              <div className="owl-mascot animate-radar-pulse">🦉</div>
               <h3>Scan Engine Idle</h3>
               <p>Configure parameters on the left and start the analyzer to view live results.</p>
             </div>
