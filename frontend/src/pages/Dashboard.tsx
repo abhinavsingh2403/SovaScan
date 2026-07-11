@@ -227,32 +227,47 @@ const Dashboard: React.FC = () => {
                     </linearGradient>
                   </defs>
 
-                  {/* Glowing cyber dotted target outer ring */}
-                  <circle
+                  {/* Outer dotted scanning arc */}
+                  <Pie
+                    data={[{ value: 100 }]}
                     cx="50%"
-                    cy="50%"
-                    r={92}
+                    cy="75%"
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={93}
+                    outerRadius={94}
+                    dataKey="value"
+                    isAnimationActive={false}
                     fill="none"
                     stroke="rgba(99, 102, 241, 0.12)"
                     strokeWidth="1"
-                    strokeDasharray="4 6"
+                    strokeDasharray="4 4"
                   />
-                  <circle
+                  {/* Outer border arc */}
+                  <Pie
+                    data={[{ value: 100 }]}
                     cx="50%"
-                    cy="50%"
-                    r={96}
+                    cy="75%"
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={97}
+                    outerRadius={98}
+                    dataKey="value"
+                    isAnimationActive={false}
                     fill="none"
                     stroke="rgba(255, 255, 255, 0.02)"
                     strokeWidth="1"
                   />
 
-                  {/* Background Track Ring */}
+                  {/* Background Track Arc */}
                   <Pie
                     data={[{ value: 100 }]}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={76}
-                    outerRadius={82}
+                    cy="75%"
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={70}
+                    outerRadius={90}
                     dataKey="value"
                     isAnimationActive={false}
                     fill="rgba(255, 255, 255, 0.03)"
@@ -261,13 +276,14 @@ const Dashboard: React.FC = () => {
                   <Pie
                     data={pieData}
                     cx="50%"
-                    cy="50%"
-                    innerRadius={76}
-                    outerRadius={82}
-                    paddingAngle={3}
+                    cy="75%"
+                    startAngle={180}
+                    endAngle={0}
+                    innerRadius={70}
+                    outerRadius={90}
+                    paddingAngle={2}
                     dataKey="value"
                   >
-
                     {pieData.map((entry, index) => {
                       const isHovered = hoveredSeverity
                         ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
@@ -286,7 +302,7 @@ const Dashboard: React.FC = () => {
                   </Pie>
                 </PieChart>
               </ResponsiveContainer>
-              <div className="donut-center-text">
+              <div className="donut-center-text gauge-center-text">
                 <div className="donut-center-card">
                   <span className="donut-center-num">
                     {hoveredSeverity

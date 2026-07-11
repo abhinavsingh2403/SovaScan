@@ -413,6 +413,14 @@
   pointer-events: none;
 }
 
+.donut-chart-container-left .gauge-center-text {
+  position: absolute;
+  top: unset;
+  bottom: 8px;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+
 .donut-center-card {
   display: flex;
   flex-direction: column;
