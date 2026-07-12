@@ -39,6 +39,39 @@ const getWhyItMatters = (category: string): string => {
   return 'General security exposure: deviates from security best practices and increases the attack surface of the application.';
 };
 
+const mapScan = (s: any): Scan => ({
+  id: s.id,
+  target: s.target,
+  status: s.status,
+  scanType: s.scan_type ?? 'full',
+  totalFindings: s.total_findings ?? 0,
+  criticalCount: s.critical_count ?? 0,
+  highCount: s.high_count ?? 0,
+  mediumCount: s.medium_count ?? 0,
+  lowCount: s.low_count ?? 0,
+  startedAt: s.started_at ?? '',
+  completedAt: s.completed_at ?? null,
+  createdAt: s.created_at ?? '',
+});
+
+const mapFinding = (f: any): Finding => ({
+  id: f.id,
+  scanId: f.scan_id ?? '',
+  ruleId: f.rule_id ?? '',
+  title: f.title ?? '',
+  description: f.description ?? '',
+  severity: f.severity ?? 'info',
+  category: f.category ?? '',
+  filePath: f.file_path ?? '',
+  lineNumber: f.line_number ?? 0,
+  evidence: f.evidence ?? '',
+  remediation: f.remediation ?? '',
+  cveId: f.cve_id ?? null,
+  cvssScore: f.cvss_score ?? null,
+  isFixed: f.is_fixed ?? false,
+  createdAt: f.created_at ?? '',
+});
+
 const Report: React.FC = () => {
   const { scanId } = useParams<{ scanId: string }>();
   const { scans, fetchScans } = useStore();
@@ -70,8 +103,8 @@ const Report: React.FC = () => {
         const scanRes = await api.getScan(scanId);
         const findingsRes = await api.getFindings({ scan_id: scanId, per_page: 100 });
 
-        setScan(scanRes.data);
-        setFindings(findingsRes.data.findings || []);
+        setScan(mapScan(scanRes.data));
+        setFindings((findingsRes.data.findings || []).map(mapFinding));
 
         // Fetch SBOM (handles missing gracefully)
         try {
@@ -84,9 +117,9 @@ const Report: React.FC = () => {
         // Fetch compliance reports
         try {
           const [nistRes, soc2Res, owasp10Res] = await Promise.all([
-            api.getCompliance('NIST-CSF'),
-            api.getCompliance('SOC-2'),
-            api.getCompliance('OWASP-10'),
+            api.getCompliance('nist-csf'),
+            api.getCompliance('soc-2'),
+            api.getCompliance('owasp-10'),
           ]);
           setCompliance({
             nist: nistRes.data,
@@ -640,6 +673,25 @@ const Report: React.FC = () => {
                     <span className="compliance-stat-val fail">{report?.failed || 0} controls</span>
                   </div>
                 </div>
+
+                {report && report.controls && (
+                  (() => {
+                    const failedControls = report.controls.filter((c: any) => c.status === 'failed');
+                    if (failedControls.length === 0) return null;
+                    return (
+                      <div style={{ marginTop: '12px', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '10px' }}>
+                        <div style={{ fontSize: '11px', fontWeight: 600, color: 'var(--danger)', textTransform: 'uppercase', marginBottom: '6px', letterSpacing: '0.5px' }}>Top Failed Controls:</div>
+                        <ul style={{ margin: 0, paddingLeft: '16px', fontSize: '12px', color: 'var(--text-secondary)', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          {failedControls.slice(0, 3).map((ctrl: any) => (
+                            <li key={ctrl.id} title={ctrl.description}>
+                              <strong>{ctrl.id}:</strong> {ctrl.name}
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })()
+                )}
               </div>
             );
           })}
