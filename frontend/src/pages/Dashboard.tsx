@@ -426,7 +426,7 @@ const Dashboard: React.FC = () => {
                 <tbody>
                   {dashboardSummary.recentScans.map((scan) => (
                     <tr key={scan.id}>
-                      <td className="monospace-td">{scan.target}</td>
+                      <td className="monospace-td" title={scan.target}>{scan.target}</td>
                       <td><span className="badge-type">{scan.scanType}</span></td>
                       <td>
                         <span className="scan-count-tag red-tag">{scan.criticalCount}</span>

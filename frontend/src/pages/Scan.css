@@ -566,3 +566,13 @@
 .scan-history-table tr:hover td {
   background: rgba(255, 255, 255, 0.01);
 }
+
+.monospace-td {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--accent-secondary) !important;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

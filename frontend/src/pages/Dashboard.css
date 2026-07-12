@@ -288,6 +288,10 @@
   font-family: var(--font-mono);
   font-weight: 500;
   color: var(--accent-secondary) !important;
+  max-width: 220px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .badge-type {

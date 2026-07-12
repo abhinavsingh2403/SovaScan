@@ -340,7 +340,7 @@ const Scan: React.FC = () => {
               <tbody>
                 {scans.slice(0, 10).map((scan) => (
                   <tr key={scan.id}>
-                    <td className="monospace-td">{scan.target}</td>
+                    <td className="monospace-td" title={scan.target}>{scan.target}</td>
                     <td><span className="badge-type">{scan.scanType}</span></td>
                     <td>{new Date(scan.createdAt).toLocaleString()}</td>
                     <td>
