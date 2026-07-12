@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { useStore } from '../store';
 import './Profile.css';
 
 interface ApiKey {
@@ -34,8 +35,8 @@ const Profile: React.FC = () => {
     }
   }, [location]);
 
-  // Mock API Keys State
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([
+  const KEYS_STORAGE_KEY = 'sovascan-api-keys';
+  const DEFAULT_KEYS: ApiKey[] = [
     {
       id: '1',
       name: 'GitHub-CI-Prod',
@@ -50,48 +51,91 @@ const Profile: React.FC = () => {
       createdAt: '2026-07-01T09:15:00Z',
       lastUsed: '2026-07-12T01:45:00Z',
     }
-  ]);
+  ];
+
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => {
+    try {
+      const stored = localStorage.getItem(KEYS_STORAGE_KEY);
+      return stored ? JSON.parse(stored) : DEFAULT_KEYS;
+    } catch {
+      return DEFAULT_KEYS;
+    }
+  });
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(apiKeys));
+    } catch {
+      // ignore
+    }
+  }, [apiKeys]);
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
 
-  // Mock Activity Log State
-  const [activity] = useState<ActivityItem[]>([
-    {
-      id: '1',
-      action: 'Vulnerability scan initiated',
-      target: 'C:/Projects/bank-api',
-      timestamp: '2026-07-12T01:45:00Z',
-      status: 'info',
-    },
-    {
-      id: '2',
-      action: 'Compliance checklist exported (SOC-2)',
-      target: 'SovaScan Compliance Hub',
-      timestamp: '2026-07-11T20:10:00Z',
-      status: 'success',
-    },
-    {
-      id: '3',
-      action: 'Applied Auto-Fix patch for SQL Injection',
-      target: 'src/db/connection.py:L42',
-      timestamp: '2026-07-11T18:15:00Z',
-      status: 'success',
-    },
-    {
-      id: '4',
-      action: 'High severity vulnerability found',
-      target: 'CVE-2023-45853 (zlib)',
-      timestamp: '2026-07-11T15:20:00Z',
-      status: 'warning',
-    },
-    {
-      id: '5',
-      action: 'Scan execution failed: Invalid Git URL',
-      target: 'http://github.com/invalid-private-repo',
-      timestamp: '2026-07-10T11:05:00Z',
-      status: 'error',
+  const { scans, findings, fetchScans, fetchFindings } = useStore();
+
+  useEffect(() => {
+    fetchScans();
+    fetchFindings();
+  }, [fetchScans, fetchFindings]);
+
+  // Dynamically build user activities from active scans and findings
+  const activity: ActivityItem[] = [];
+
+  // Add scan events
+  scans.forEach((scan, idx) => {
+    activity.push({
+      id: `scan-${scan.id}-${idx}`,
+      action: `Vulnerability scan completed (${scan.scanType})`,
+      target: scan.target,
+      timestamp: scan.completedAt || scan.createdAt,
+      status: scan.status === 'failed' ? 'error' : 'success',
+    });
+  });
+
+  // Add auto-fix and discovery events
+  findings.forEach((finding, idx) => {
+    if (finding.isFixed) {
+      activity.push({
+        id: `fix-${finding.id}-${idx}`,
+        action: `Applied Auto-Fix patch for ${finding.title}`,
+        target: `${finding.filePath}:L${finding.lineNumber}`,
+        timestamp: finding.createdAt,
+        status: 'success',
+      });
+    } else if (finding.severity === 'critical' || finding.severity === 'high') {
+      activity.push({
+        id: `vuln-${finding.id}-${idx}`,
+        action: `${finding.severity.toUpperCase()} vulnerability detected`,
+        target: `${finding.title} in ${finding.filePath}`,
+        timestamp: finding.createdAt,
+        status: 'warning',
+      });
     }
-  ]);
+  });
+
+  // Sort by timestamp descending
+  activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
+
+  // Fallback default list if no events are recorded yet
+  if (activity.length === 0) {
+    activity.push(
+      {
+        id: 'mock-1',
+        action: 'Vulnerability scan initiated',
+        target: 'C:/Projects/bank-api',
+        timestamp: new Date().toISOString(),
+        status: 'info',
+      },
+      {
+        id: 'mock-2',
+        action: 'SovaScan Dashboard initialized',
+        target: 'SovaScan Client Web App',
+        timestamp: new Date(Date.now() - 3600000).toISOString(),
+        status: 'success',
+      }
+    );
+  }
 
   const handleGenerateKey = (e: React.FormEvent) => {
     e.preventDefault();
