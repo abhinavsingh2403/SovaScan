@@ -1,7 +1,7 @@
 # SovaScan test configuration file with exposed credentials
 
 # Vulnerability: Hardcoded AWS Access Key ID
-AWS_ACCESS_KEY = "AKIAIOSFODNN7EXAMPLE"
+AWS_ACCESS_KEY = __import__('os').environ.get('SECRET_AWS_ACCESS_KEY_ID')
 
 # Vulnerability: Hardcoded API Key
 API_KEY = "super_secret_api_key_1234567890"

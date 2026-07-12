@@ -524,3 +524,361 @@
   padding: 8px 12px;
   border-radius: 0 6px 6px 0;
 }
+
+/* ================================================
+   Code Context Viewer
+   ================================================ */
+.code-context-viewer {
+  background: linear-gradient(135deg, rgba(10, 12, 18, 0.95) 0%, rgba(18, 20, 28, 0.98) 100%);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.05);
+  backdrop-filter: blur(12px);
+  transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.code-context-viewer.fixed-state {
+  border-color: rgba(16, 185, 129, 0.35);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 15px rgba(16, 185, 129, 0.1);
+}
+
+.context-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 10px 14px;
+  background: linear-gradient(90deg, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
+  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
+  border-left: 3px solid #6366f1;
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.code-context-viewer.fixed-state .context-header {
+  background: linear-gradient(90deg, rgba(16, 185, 129, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
+  border-bottom: 1px solid rgba(16, 185, 129, 0.15);
+  border-left: 3px solid #10b981;
+}
+
+.context-file-label {
+  font-weight: 600;
+  color: #a5b4fc;
+}
+
+.code-context-viewer.fixed-state .context-file-label {
+  color: #34d399;
+}
+
+.context-line-range {
+  font-size: 10px;
+  background: rgba(99, 102, 241, 0.12);
+  color: #a5b4fc;
+  padding: 2px 6px;
+  border-radius: 4px;
+  border: 1px solid rgba(99, 102, 241, 0.2);
+}
+
+.code-context-viewer.fixed-state .context-line-range {
+  background: rgba(16, 185, 129, 0.12);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.2);
+}
+
+.context-lines-wrap {
+  overflow-x: auto;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.context-line {
+  display: flex;
+  align-items: stretch;
+  padding: 0;
+  transition: background 0.15s ease;
+}
+
+.context-line:hover {
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.context-line.target-highlight {
+  background: rgba(239, 68, 68, 0.12);
+  border-left: 3px solid #ef4444;
+}
+
+.context-line.target-highlight .line-content {
+  color: #ff6b6b;
+  font-weight: 500;
+  text-shadow: 0 0 8px rgba(255, 107, 107, 0.2);
+}
+
+.context-line.target-highlight:hover {
+  background: rgba(239, 68, 68, 0.18);
+}
+
+.line-num-gutter {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  min-width: 44px;
+  padding: 0 10px;
+  color: #4f5b66;
+  background: rgba(0, 0, 0, 0.2);
+  user-select: none;
+  font-size: 11px;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.context-line.target-highlight .line-num-gutter {
+  color: #ff8787;
+  background: rgba(239, 68, 68, 0.15);
+}
+
+.line-content {
+  padding: 0 12px;
+  white-space: pre;
+  color: #c9d1d9;
+  flex: 1;
+}
+
+.code-context-loading {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+/* ================================================
+   Split Side-by-Side Diff & Sandbox Styles
+   ================================================ */
+.split-diff-container {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+  margin-top: 12px;
+  margin-bottom: 12px;
+}
+
+.split-pane {
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  transition: border-color 0.3s, box-shadow 0.3s;
+}
+
+.split-pane.original-pane {
+  border: 1px solid rgba(239, 68, 68, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(239, 68, 68, 0.04);
+}
+
+.split-pane.sandbox-pane {
+  border: 1px solid rgba(16, 185, 129, 0.18);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(16, 185, 129, 0.04);
+}
+
+.pane-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.header-original {
+  background: rgba(239, 68, 68, 0.08);
+  color: #f87171;
+}
+
+.header-sandbox {
+  background: rgba(16, 185, 129, 0.08);
+  color: #34d399;
+}
+
+.pane-indicator {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.file-tag, .edit-badge {
+  font-size: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 2px 6px;
+  border-radius: 4px;
+  color: var(--text-secondary);
+}
+
+.pane-editor-wrap {
+  padding: 12px;
+  flex-grow: 1;
+  display: flex;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.code-display {
+  margin: 0;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  color: #f87171;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.sandbox-textarea {
+  width: 100%;
+  background: transparent;
+  color: #34d399;
+  border: none;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.5;
+  resize: vertical;
+  outline: none;
+  padding: 0;
+  margin: 0;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.sandbox-textarea::placeholder {
+  color: rgba(52, 211, 153, 0.3);
+}
+
+@media (max-width: 768px) {
+  .split-diff-container {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ================================================
+   Applied Fix Success Styles
+   ================================================ */
+.context-line.fixed-highlight {
+  background: rgba(16, 185, 129, 0.12);
+  border-left: 3px solid #10b981;
+}
+
+.context-line.fixed-highlight:hover {
+  background: rgba(16, 185, 129, 0.18);
+}
+
+.fixed-indicator-badge {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  margin-left: 8px;
+  font-weight: bold;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.confirm-fix-btn.success-applied {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%) !important;
+  color: #ffffff !important;
+  border: none !important;
+  cursor: not-allowed;
+  opacity: 0.9;
+}
+
+/* ================================================
+   Interactive Code Context Sandbox
+   ================================================ */
+.code-context-sandbox-container {
+  background: #0d1117;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 8px;
+  overflow: hidden;
+  margin-bottom: 12px;
+}
+
+.code-context-sandbox-container.fixed-state {
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.code-context-sandbox-body {
+  display: flex;
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.sandbox-gutter {
+  display: flex;
+  flex-direction: column;
+  background: rgba(0, 0, 0, 0.15);
+  padding: 12px 0;
+  color: #484f58;
+  user-select: none;
+  border-right: 1px solid rgba(255, 255, 255, 0.04);
+  min-width: 44px;
+}
+
+.sandbox-gutter-num {
+  text-align: right;
+  padding-right: 10px;
+  min-height: 19.2px; /* 1.6 * 12px */
+  display: block;
+}
+
+.sandbox-gutter-num.target-highlight-num {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-left: 3px solid #ef4444;
+  padding-left: 5px;
+  font-weight: bold;
+}
+
+.sandbox-gutter-num.fixed-highlight-num {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-left: 3px solid #10b981;
+  padding-left: 5px;
+  font-weight: bold;
+}
+
+.sandbox-editor-area {
+  flex: 1;
+  background: transparent;
+  color: #c9d1d9;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 12px;
+  resize: vertical;
+  outline: none;
+  white-space: pre;
+  tab-size: 4;
+}
+
+.code-context-sandbox-container.fixed-state .sandbox-editor-area {
+  color: #34d399;
+}
+
+.sandbox-static-pre {
+  flex: 1;
+  background: transparent;
+  color: #f87171;
+  border: none;
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+  padding: 12px;
+  margin: 0;
+  white-space: pre;
+  tab-size: 4;
+  overflow-x: auto;
+}
+

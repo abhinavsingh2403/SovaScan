@@ -5,6 +5,15 @@ import { api } from '../api/client';
 import { Finding } from '../types';
 import './Findings.css';
 
+const getReplacementFromPatch = (patch: string): string => {
+  if (!patch) return '';
+  const lines = patch.split('\n');
+  const addedLines = lines
+    .filter((line) => line.startsWith('+') && !line.startsWith('+++'))
+    .map((line) => line.slice(1));
+  return addedLines.join('\n');
+};
+
 const Findings: React.FC = () => {
   const {
     findings,
@@ -26,6 +35,12 @@ const Findings: React.FC = () => {
   const [applyingBulkFix, setApplyingBulkFix] = useState(false);
   const [pendingFix, setPendingFix] = useState<Record<string, { patch: string; description: string }>>({});
   const [loadingFixId, setLoadingFixId] = useState<string | null>(null);
+  const [customReplacements, setCustomReplacements] = useState<Record<string, string>>({});
+  const [contextCache, setContextCache] = useState<Record<string, { lines: Array<{num: number; content: string}>; targetLine: number; filePath: string; startLine: number; endLine: number }>>({});
+  const [loadingContextId, setLoadingContextId] = useState<string | null>(null);
+  const [collapsedContext, setCollapsedContext] = useState<Record<string, boolean>>({});
+  const [currentContextText, setCurrentContextText] = useState<Record<string, string>>({});
+  const [backupContextText, setBackupContextText] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -85,20 +100,78 @@ const Findings: React.FC = () => {
     }
   };
 
-  const toggleExpand = (id: string) => {
-    setExpandedId(expandedId === id ? null : id);
+  const loadFindingContext = async (finding: Finding) => {
+    const id = finding.id;
+    if (contextCache[id]) return;
+    setLoadingContextId(id);
+    try {
+      const ctxRes = await api.getFindingContext(id);
+      const ctxData = ctxRes.data;
+      setContextCache((prev) => ({
+        ...prev,
+        [id]: {
+          lines: ctxData.lines,
+          targetLine: ctxData.target_line,
+          filePath: ctxData.file_path,
+          startLine: ctxData.start_line,
+          endLine: ctxData.end_line,
+        },
+      }));
+
+      const initialText = ctxData.lines.map((l: any) => l.content).join('\n');
+      setCurrentContextText((prev) => ({
+        ...prev,
+        [id]: initialText,
+      }));
+      setBackupContextText((prev) => ({
+        ...prev,
+        [id]: initialText,
+      }));
+      setCustomReplacements((prev) => ({
+        ...prev,
+        [id]: prev[id] !== undefined ? prev[id] : (finding.evidence || ''),
+      }));
+      setCollapsedContext((prev) => ({
+        ...prev,
+        [id]: false,
+      }));
+    } catch (err) {
+      console.error("Failed to load context for finding", id, err);
+    } finally {
+      setLoadingContextId(null);
+    }
+  };
+
+  const toggleExpand = async (id: string, finding: Finding) => {
+    const isExpanding = expandedId !== id;
+    setExpandedId(isExpanding ? id : null);
+    if (isExpanding) {
+      await loadFindingContext(finding);
+    }
   };
 
   const requestFixSuggestion = async (finding: Finding, e: React.MouseEvent) => {
     e.stopPropagation();
+    setExpandedId(finding.id); // auto-expand to show details/sandbox
     setLoadingFixId(finding.id);
+
+    const fixPromise = api.applyFix(finding.id, false);
+    const contextPromise = loadFindingContext(finding);
+
     try {
-      const res = await api.applyFix(finding.id, false);
+      const [res] = await Promise.all([fixPromise, contextPromise]);
       const patch = res.data?.patch || '';
       const description = res.data?.description || 'No suggestion description available.';
+      
       setPendingFix((prev) => ({
         ...prev,
         [finding.id]: { patch, description },
+      }));
+
+      const replacementText = getReplacementFromPatch(patch);
+      setCustomReplacements((prev) => ({
+        ...prev,
+        [finding.id]: replacementText,
       }));
     } catch (err: any) {
       alert(`Failed to load fix suggestion: ${err.message || err}`);
@@ -110,56 +183,241 @@ const Findings: React.FC = () => {
   const confirmApplyFix = async (finding: Finding) => {
     setApplyingFixId(finding.id);
     try {
-      const res = await api.applyFix(finding.id, true);
-      const desc = res.data?.description || 'Fix applied successfully!';
+      const customReplacement = customReplacements[finding.id] || '';
+      
+      const res = await api.applyFix(
+        finding.id,
+        true,
+        customReplacement,
+        undefined, // contextReplacement
+        undefined, // contextStartLine
+        undefined  // contextEndLine
+      );
+        const desc = res.data?.description || 'Fix applied successfully!';
+        setFixSuccessMsg((prev) => ({
+          ...prev,
+          [finding.id]: desc,
+        }));
+        finding.isFixed = true;
+
+        // Refetch context to show the updated file directly on the page
+        try {
+          const ctxRes = await api.getFindingContext(finding.id);
+          const ctxData = ctxRes.data;
+          setContextCache((prev) => ({
+            ...prev,
+            [finding.id]: {
+              lines: ctxData.lines,
+              targetLine: ctxData.target_line,
+              filePath: ctxData.file_path,
+              startLine: ctxData.start_line,
+              endLine: ctxData.end_line,
+            },
+          }));
+          const updatedText = ctxData.lines.map((l: any) => l.content).join('\n');
+          setCurrentContextText((prev) => ({
+            ...prev,
+            [finding.id]: updatedText,
+          }));
+        } catch (e) {
+          console.error("Failed to refetch context", e);
+        }
+    } catch (err: any) {
       setFixSuccessMsg((prev) => ({
         ...prev,
-        [finding.id]: desc,
-      }));
-      finding.isFixed = true;
-      setPendingFix((prev) => {
-        const next = { ...prev };
-        delete next[finding.id];
-        return next;
-      });
-    } catch {
-      setFixSuccessMsg((prev) => ({
-        ...prev,
-        [finding.id]: 'Fix request failed. Please try again.',
+        [finding.id]: `Fix request failed: ${err.message || err}`,
       }));
     } finally {
       setApplyingFixId(null);
     }
   };
 
-  const cancelFixSuggestion = (findingId: string) => {
+  const revertAppliedFix = async (finding: Finding) => {
+    const ctx = contextCache[finding.id];
+    const backupText = backupContextText[finding.id];
+    if (!ctx || !backupText) {
+      alert("No backup context available to revert the fix!");
+      return;
+    }
+    setApplyingFixId(finding.id);
+    try {
+      await api.revertFix(finding.id, backupText, ctx.startLine, ctx.endLine);
+      setFixSuccessMsg((prev) => ({
+        ...prev,
+        [finding.id]: "Fix reverted successfully! File restored to original content.",
+      }));
+      finding.isFixed = false;
+      
+      // Refetch context to show the original content
+      try {
+        const ctxRes = await api.getFindingContext(finding.id);
+        const ctxData = ctxRes.data;
+        setContextCache((prev) => ({
+          ...prev,
+          [finding.id]: {
+            lines: ctxData.lines,
+            targetLine: ctxData.target_line,
+            filePath: ctxData.file_path,
+            startLine: ctxData.start_line,
+            endLine: ctxData.end_line,
+          },
+        }));
+        const restoredText = ctxData.lines.map((l: any) => l.content).join('\n');
+        setCurrentContextText((prev) => ({
+          ...prev,
+          [finding.id]: restoredText,
+        }));
+        setPendingFix((prev) => {
+          const next = { ...prev };
+          delete next[finding.id];
+          return next;
+        });
+      } catch (e) {
+        console.error("Failed to refetch context after revert", e);
+      }
+    } catch (err: any) {
+      alert(`Failed to revert fix: ${err.message || err}`);
+    } finally {
+      setApplyingFixId(null);
+    }
+  };
+
+  const cancelFixSuggestion = (finding: Finding) => {
+    const findingId = finding.id;
+    const ctx = contextCache[findingId];
+    if (ctx) {
+      const originalText = ctx.lines.map((l: any) => l.content).join('\n');
+      setCurrentContextText((prev) => ({
+        ...prev,
+        [findingId]: originalText,
+      }));
+    }
+    setCustomReplacements((prev) => ({
+      ...prev,
+      [findingId]: finding.evidence || '',
+    }));
     setPendingFix((prev) => {
+      const next = { ...prev };
+      delete next[findingId];
+      return next;
+    });
+    setFixSuccessMsg((prev) => {
       const next = { ...prev };
       delete next[findingId];
       return next;
     });
   };
 
-  const renderDiff = (patch: string) => {
-    if (!patch) return <div className="no-diff">No diff content generated.</div>;
-    const lines = patch.split('\n');
+  const renderCodeContext = (finding: Finding) => {
+    const ctx = contextCache[finding.id];
+    if (loadingContextId === finding.id) {
+      return (
+        <div className="code-context-loading">
+          <div className="spinner" style={{ width: 16, height: 16 }}></div>
+          <span>Loading source context...</span>
+        </div>
+      );
+    }
+    if (!ctx || !ctx.lines || ctx.lines.length === 0) return null;
+
+    const isCollapsed = collapsedContext[finding.id] || false;
+
     return (
-      <div className="diff-viewer">
-        {lines.map((line, idx) => {
-          let lineClass = 'diff-line';
-          if (line.startsWith('+') && !line.startsWith('+++')) {
-            lineClass += ' insertion';
-          } else if (line.startsWith('-') && !line.startsWith('---')) {
-            lineClass += ' deletion';
-          } else if (line.startsWith('@@') || line.startsWith('---') || line.startsWith('+++')) {
-            lineClass += ' meta';
-          }
-          return (
-            <div key={idx} className={lineClass}>
-              {line}
-            </div>
-          );
-        })}
+      <div className={`code-context-viewer ${finding.isFixed ? 'fixed-state' : ''}`}>
+        <div 
+          className="context-header" 
+          onClick={() => setCollapsedContext(prev => ({ ...prev, [finding.id]: !isCollapsed }))}
+          style={{ cursor: 'pointer', userSelect: 'none' }}
+        >
+          <span className="context-file-label">
+            📄 {ctx.filePath} {finding.isFixed && <span className="fixed-indicator-badge">✓ Applied</span>}
+          </span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+            <span className="context-line-range">Lines {ctx.lines[0]?.num}–{ctx.lines[ctx.lines.length - 1]?.num}</span>
+            <span className="collapse-chevron" style={{ 
+              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)', 
+              transition: 'transform 0.2s',
+              display: 'inline-block'
+            }}>▼</span>
+          </div>
+        </div>
+
+        {!isCollapsed && (
+          <div className="context-lines-wrap" style={{ background: '#0d1117' }}>
+            {ctx.lines.map((line: { num: number; content: string }) => {
+              const isTarget = line.num === ctx.targetLine;
+              return (
+                <div
+                  key={line.num}
+                  className={`context-line ${isTarget ? (finding.isFixed ? 'fixed-highlight' : 'target-highlight') : ''}`}
+                >
+                  <span className="line-num-gutter">{line.num}</span>
+                  <code className="line-content">{line.content}</code>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const renderSideBySideSandbox = (finding: Finding) => {
+    const originalCode = finding.evidence || '';
+    const currentValue = customReplacements[finding.id] !== undefined ? customReplacements[finding.id] : '';
+
+    return (
+      <div className="split-diff-container" style={{ marginTop: '16px', marginBottom: '12px' }}>
+        {/* Left Pane: Original Code */}
+        <div className="split-pane original-pane" style={{ background: 'rgba(0, 0, 0, 0.25)' }}>
+          <div className="pane-header header-original" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#f87171' }}>
+            <span className="pane-indicator">🔴 Original Code</span>
+            <span className="file-tag">Original</span>
+          </div>
+          <div className="pane-editor-wrap" style={{ padding: '12px', background: 'rgba(0, 0, 0, 0.15)' }}>
+            <pre className="code-display" style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#f87171' }}>
+              <code>{originalCode}</code>
+            </pre>
+          </div>
+        </div>
+
+        {/* Right Pane: Proposed Sandbox Editor */}
+        <div className="split-pane sandbox-pane" style={{ background: 'rgba(0, 0, 0, 0.25)' }}>
+          <div className="pane-header header-sandbox" style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#34d399' }}>
+            <span className="pane-indicator">🟢 Sandbox / Proposed Fix</span>
+            <span className="edit-badge">Editable ✏️</span>
+          </div>
+          <div className="pane-editor-wrap" style={{ padding: '12px', background: 'rgba(0, 0, 0, 0.15)' }}>
+            <textarea
+              className="sandbox-textarea"
+              value={currentValue}
+              disabled={finding.isFixed}
+              onChange={(e) => {
+                setCustomReplacements((prev) => ({
+                  ...prev,
+                  [finding.id]: e.target.value,
+                }));
+              }}
+              placeholder="// Write/tweak your replacement code here..."
+              rows={Math.max(3, currentValue.split('\n').length)}
+              style={{
+                width: '100%',
+                background: 'transparent',
+                color: '#34d399',
+                border: 'none',
+                fontFamily: "'Fira Code', 'Courier New', Courier, monospace",
+                fontSize: '12px',
+                lineHeight: '1.5',
+                resize: 'vertical',
+                outline: 'none',
+                padding: 0,
+                margin: 0,
+                whiteSpace: 'pre',
+                tabSize: 4,
+              }}
+            />
+          </div>
+        </div>
       </div>
     );
   };
@@ -350,7 +608,7 @@ const Findings: React.FC = () => {
                 className={`finding-row-card glassmorphism ${isExpanded ? 'expanded' : ''} ${
                   finding.isFixed ? 'fixed' : ''
                 }`}
-                onClick={() => toggleExpand(finding.id)}
+                onClick={() => toggleExpand(finding.id, finding)}
               >
                 {/* Header Summary Row */}
                 <div className="finding-header">
@@ -397,10 +655,98 @@ const Findings: React.FC = () => {
                   </div>
 
                   <div className="details-section">
-                    <h5>Code Evidence</h5>
-                    <pre className="evidence-pre">
-                      <code>{finding.evidence}</code>
-                    </pre>
+                    <h5>Code Context Sandbox</h5>
+                    <p className="sandbox-help-text" style={{ fontSize: '11px', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                      Edit the code directly inside the sandbox box below, or click <strong>⚡ Auto Fix</strong> to view the AI suggestion.
+                    </p>
+                    
+                    {renderCodeContext(finding)}
+                    {!finding.isFixed && renderSideBySideSandbox(finding)}
+
+                    {!finding.isFixed && pendingFix[finding.id] && (
+                      <div className="fix-desc-box" style={{ 
+                        marginTop: '8px', 
+                        marginBottom: '8px', 
+                        padding: '10px 12px', 
+                        background: 'rgba(245, 158, 11, 0.08)', 
+                        borderLeft: '3px solid #f59e0b',
+                        borderRadius: '4px', 
+                        fontSize: '12px',
+                        color: '#f3f4f6'
+                      }}>
+                        <strong>AI Fix Suggestion:</strong> {pendingFix[finding.id].description}
+                      </div>
+                    )}
+                    
+                    <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px' }}>
+                      <a
+                        className="editor-link-btn"
+                        href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        🖥️ Open in Editor (VS Code / Antigravity)
+                      </a>
+
+                      {finding.isFixed ? (
+                        <>
+                          <button
+                            className="confirm-fix-btn success-applied"
+                            disabled={true}
+                            style={{ marginRight: '8px' }}
+                          >
+                            ✓ Applied to Disk
+                          </button>
+                          <button
+                            className="revert-fix-btn"
+                            onClick={() => revertAppliedFix(finding)}
+                            disabled={applyingFixId === finding.id}
+                            style={{
+                              background: 'rgba(255, 255, 255, 0.08)',
+                              border: '1px solid rgba(255, 255, 255, 0.15)',
+                              color: '#c9d1d9',
+                              padding: '8px 16px',
+                              borderRadius: '6px',
+                              fontWeight: '600',
+                              cursor: 'pointer'
+                            }}
+                          >
+                            {applyingFixId === finding.id ? 'Reverting...' : '↩ Revert Fix'}
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="confirm-fix-btn"
+                            onClick={() => confirmApplyFix(finding)}
+                            disabled={applyingFixId === finding.id || loadingContextId === finding.id}
+                          >
+                            {applyingFixId === finding.id ? 'Applying to disk...' : '✓ Confirm & Apply Fix'}
+                          </button>
+                          
+                          <button
+                            className="cancel-fix-btn"
+                            onClick={() => cancelFixSuggestion(finding)}
+                          >
+                            Reset
+                          </button>
+                        </>
+                      )}
+                    </div>
+
+                    {finding.isFixed && (
+                      <div className="fix-applied-desc-banner" style={{
+                        marginTop: '12px',
+                        padding: '12px 16px',
+                        background: 'rgba(16, 185, 129, 0.08)',
+                        border: '1px solid rgba(16, 185, 129, 0.25)',
+                        borderRadius: '6px',
+                        color: '#34d399',
+                        fontSize: '12px',
+                        lineHeight: '1.5'
+                      }}>
+                        {pendingFix[finding.id]?.description || finding.description}
+                      </div>
+                    )}
                   </div>
 
                   <div className="details-section">
@@ -420,40 +766,6 @@ const Findings: React.FC = () => {
                           {finding.cveId} (NVD details)
                         </a>
                       </p>
-                    </div>
-                  )}
-
-                  {pendingFix[finding.id] && (
-                    <div className="fix-preview-box glassmorphism" onClick={(e) => e.stopPropagation()}>
-                      <h5>Suggested Fix Preview</h5>
-                      <p className="fix-desc">{pendingFix[finding.id].description}</p>
-                      
-                      {renderDiff(pendingFix[finding.id].patch)}
-
-                      <div className="fix-actions">
-                        <a
-                          className="editor-link-btn"
-                          href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
-                          onClick={(e) => e.stopPropagation()}
-                        >
-                          🖥️ Open in Editor (VS Code / Antigravity)
-                        </a>
-                        
-                        <button
-                          className="confirm-fix-btn"
-                          onClick={() => confirmApplyFix(finding)}
-                          disabled={applyingFixId === finding.id}
-                        >
-                          {applyingFixId === finding.id ? 'Applying...' : '✓ Confirm & Apply Fix'}
-                        </button>
-                        
-                        <button
-                          className="cancel-fix-btn"
-                          onClick={() => cancelFixSuggestion(finding.id)}
-                        >
-                          Cancel
-                        </button>
-                      </div>
                     </div>
                   )}
 

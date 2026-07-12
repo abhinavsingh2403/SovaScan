@@ -49,10 +49,21 @@ export const api = {
   }) => client.get('/findings', { params }),
 
   /** POST /api/v1/fix/{findingId} — generate or apply an auto-fix */
-  applyFix: (findingId: string, autoApply: boolean = true) =>
+  applyFix: (
+    findingId: string, 
+    autoApply: boolean = true, 
+    customReplacement?: string,
+    contextReplacement?: string,
+    contextStartLine?: number,
+    contextEndLine?: number
+  ) =>
     client.post(`/fix/${findingId}`, {
       finding_id: findingId,
       auto_apply: autoApply,
+      custom_replacement: customReplacement,
+      context_replacement: contextReplacement,
+      context_start_line: contextStartLine,
+      context_end_line: contextEndLine,
     }),
 
   /** POST /api/v1/fix/all — bulk fix all findings */
@@ -64,6 +75,25 @@ export const api = {
   /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string) =>
     client.get(`/compliance/${framework}`),
+
+  /** GET /api/v1/findings/{findingId}/context — surrounding code context */
+  getFindingContext: (findingId: string) =>
+    client.get(`/findings/${findingId}/context`),
+
+  /** POST /api/v1/findings/{findingId}/revert — revert applied fix */
+  revertFix: (
+    findingId: string,
+    backupText: string,
+    startLine: number,
+    endLine: number
+  ) =>
+    client.post(`/findings/${findingId}/revert`, {
+      finding_id: findingId,
+      auto_apply: true,
+      context_replacement: backupText,
+      context_start_line: startLine,
+      context_end_line: endLine,
+    }),
 };
 
 /**

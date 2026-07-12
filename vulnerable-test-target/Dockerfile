@@ -1,4 +1,5 @@
 FROM ubuntu:latest
+USER appuser
 
 # Vulnerability: Running as root (missing USER directive)
 # Vulnerability: Using ADD instead of COPY for remote/archive files
