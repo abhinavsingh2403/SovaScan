@@ -12,7 +12,7 @@ SovaScan is an enterprise-grade security scanner designed to find, score, and re
 
 ---
 
-## 🚀 Key Features
+## 🚀Key Features
 
 * 🔍 **Multi-Vector Scanning**:
   * **Remote Repository URL Scanning**: Paste a remote Git/GitHub URL (`https://...` or `http://...`) to automatically clone the codebase into a secure temporary directory, run scans, and safely delete the cloned directory afterwards.
