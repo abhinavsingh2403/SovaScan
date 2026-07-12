@@ -7,10 +7,9 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
-  PieChart,
-  Pie,
+  BarChart,
+  Bar,
   Cell,
-  Legend,
   CartesianGrid,
 } from 'recharts';
 import './Dashboard.css';
@@ -23,6 +22,14 @@ const SEVERITY_COLORS = {
   medium: '#2563eb',
   low: '#8b5cf6',
   info: '#64748b',
+};
+
+const SEVERITY_RGBS = {
+  critical: '220, 38, 38',
+  high: '234, 88, 12',
+  medium: '37, 99, 235',
+  low: '139, 92, 246',
+  info: '100, 116, 139',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -43,10 +50,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
-  const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,15 +68,16 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Format data for severity pie chart
-  const pieData = Object.entries(dashboardSummary.severityDistribution).map(
-    ([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: `url(#grad-${name})`,
-      rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
-    })
-  );
+
+
+  // Format data for vertical threat columns chart
+  const barData = ['critical', 'high', 'medium', 'low', 'info'].map((name) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value: dashboardSummary.severityDistribution[name as keyof typeof SEVERITY_COLORS] || 0,
+    color: `url(#grad-${name})`,
+    rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
+    sevKey: name,
+  }));
 
   // Preprocess trend data to display slope/area line properly even with a single point
   let trendData = [...dashboardSummary.trendData];
@@ -103,7 +110,7 @@ const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-container">
       {/* Top Stats Cards */}
-      <div className="stats-grid animate-fade-in">
+      <div className="stats-grid animate-fade-in stagger-children">
         <div className="stat-card glassmorphism risk-card animate-scan-glow">
           <div className="risk-score-circle">
             <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
@@ -201,75 +208,69 @@ const Dashboard: React.FC = () => {
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
           <div className="chart-wrapper side-by-side-chart">
-            <div className="donut-chart-container-left">
+            <div className="bar-chart-container-left">
               <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
+                <BarChart
+                  data={barData}
+                  margin={{ top: 15, right: 10, left: 15, bottom: 5 }}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
                   <defs>
-                    <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#dc2626" />
-                      <stop offset="100%" stopColor="#ef4444" />
+                    <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ef4444" />
+                      <stop offset="100%" stopColor="#dc2626" />
                     </linearGradient>
-                    <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#ea580c" />
-                      <stop offset="100%" stopColor="#f97316" />
+                    <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#f97316" />
+                      <stop offset="100%" stopColor="#ea580c" />
                     </linearGradient>
-                    <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#2563eb" />
-                      <stop offset="100%" stopColor="#3b82f6" />
+                    <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#3b82f6" />
+                      <stop offset="100%" stopColor="#2563eb" />
                     </linearGradient>
-                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" />
-                      <stop offset="100%" stopColor="#a78bfa" />
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#a78bfa" />
+                      <stop offset="100%" stopColor="#8b5cf6" />
                     </linearGradient>
-                    <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#64748b" />
-                      <stop offset="100%" stopColor="#94a3b8" />
+                    <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#94a3b8" />
+                      <stop offset="100%" stopColor="#64748b" />
                     </linearGradient>
                   </defs>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={3}
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600, fontFamily: 'Outfit' }}
+                  />
+                  <YAxis axisLine={false} tickLine={false} hide />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.02)' }} />
+                  <Bar
                     dataKey="value"
+                    radius={[6, 6, 0, 0]}
+                    barSize={20}
                   >
-                    {pieData.map((entry, index) => {
-                      const isHovered = hoveredSeverity
-                        ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
-                        : true;
+                    {barData.map((entry, index) => {
+                      const isDimmed = activeIndex !== null && activeIndex !== index;
                       return (
                         <Cell
                           key={`cell-${index}`}
                           fill={entry.color}
-                          opacity={isHovered ? 1 : 0.15}
+                          opacity={isDimmed ? 0.35 : 1}
                           style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredSeverity(entry.name.toLowerCase())}
-                          onMouseLeave={() => setHoveredSeverity(null)}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onMouseLeave={() => setActiveIndex(null)}
                         />
                       );
                     })}
-                  </Pie>
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
-              <div className="donut-center-text">
-                <div className="donut-center-card">
-                  <span className="donut-center-num">
-                    {hoveredSeverity
-                      ? (dashboardSummary.severityDistribution[hoveredSeverity as keyof typeof SEVERITY_COLORS] || 0)
-                      : dashboardSummary.totalFindings}
-                  </span>
-                  <span className="donut-center-label">
-                    {hoveredSeverity ? hoveredSeverity : 'Findings'}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Premium Vertical Progress List */}
             <div className="severity-progress-list">
-              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey) => {
+              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey, index) => {
                 const count = dashboardSummary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
                 const total = dashboardSummary.totalFindings || 1;
                 const percentage = Math.round((count / total) * 100);
@@ -316,12 +317,13 @@ const Dashboard: React.FC = () => {
                   );
                 }
 
+                const isRowActive = activeIndex === index;
                 return (
                   <div
                     key={sevKey}
-                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${hoveredSeverity === sevKey ? 'hovered' : ''}`}
-                    onMouseEnter={() => count > 0 && setHoveredSeverity(sevKey)}
-                    onMouseLeave={() => setHoveredSeverity(null)}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${isRowActive ? 'hovered' : ''}`}
+                    onMouseEnter={() => count > 0 && setActiveIndex(index)}
+                    onMouseLeave={() => setActiveIndex(null)}
                   >
                     <div className="sev-info-section">
                       <div className="sev-label-row">
@@ -400,7 +402,7 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Bottom Grid: Recent Scans & Top Vulnerabilities */}
-      <div className="bottom-grid animate-slide-up">
+      <div className="bottom-grid animate-slide-up stagger-children">
         {/* Recent Scans Table */}
         <div className="list-card glassmorphism table-section console-window">
           <div className="terminal-header">

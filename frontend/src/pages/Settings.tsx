@@ -77,7 +77,7 @@ const Settings: React.FC = () => {
   return (
     <div className="settings animate-fade-in">
       {/* ---- API Configuration ---- */}
-      <section className="settings__section glassmorphism">
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">🔗</span>
           <h2 className="settings__section-title">API Configuration</h2>
@@ -138,7 +138,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- Scan Defaults ---- */}
-      <section className="settings__section glassmorphism">
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.12s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">🚀</span>
           <h2 className="settings__section-title">Scan Defaults</h2>
@@ -160,9 +160,10 @@ const Settings: React.FC = () => {
             onChange={(e) => update('defaultScanType', e.target.value)}
           >
             <option value="full">Full Scan</option>
-            <option value="dependency">Dependency Only</option>
-            <option value="secret">Secret Detection</option>
-            <option value="config">Configuration Audit</option>
+            <option value="dependencies">Dependencies</option>
+            <option value="secrets">Secrets</option>
+            <option value="sast">SAST Only</option>
+            <option value="git-history">Git History</option>
           </select>
         </div>
 
@@ -186,7 +187,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- Preferences ---- */}
-      <section className="settings__section glassmorphism">
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.19s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">🎛️</span>
           <h2 className="settings__section-title">Preferences</h2>
@@ -248,7 +249,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- Data Management ---- */}
-      <section className="settings__section glassmorphism">
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.26s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">🗄️</span>
           <h2 className="settings__section-title">Data Management</h2>
@@ -271,7 +272,7 @@ const Settings: React.FC = () => {
       </section>
 
       {/* ---- About ---- */}
-      <section className="settings__section glassmorphism">
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.33s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">🦉</span>
           <h2 className="settings__section-title">About SovaScan</h2>

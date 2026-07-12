@@ -5,7 +5,18 @@ import './Scan.css';
 const Scan: React.FC = () => {
   const { startScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
-  const [scanType, setScanType] = useState('full');
+  const [scanType, setScanType] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.defaultScanType || 'full';
+      }
+    } catch {
+      // ignore
+    }
+    return 'full';
+  });
   const [frameworks, setFrameworks] = useState<string[]>(['NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
@@ -233,7 +244,7 @@ const Scan: React.FC = () => {
 
             <button
               type="submit"
-              className="submit-scan-btn"
+              className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() ? 'glow-cta' : ''}`}
               disabled={scanProgress.running || !targetPath.trim()}
             >
               {scanProgress.running ? 'Scanning Execution in Progress...' : '🦉 Launch SovaScan'}

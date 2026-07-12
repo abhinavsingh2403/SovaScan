@@ -1,5 +1,6 @@
 import { NavLink, useLocation } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
+import { useStore } from '../store';
 import './Layout.css';
 
 function NetworkBackground() {
@@ -154,6 +155,36 @@ export default function Layout({ children }: LayoutProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
+  // Notifications & Profile states
+  const {
+    notifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearNotifications,
+  } = useStore();
+
+  const [notifOpen, setNotifOpen] = useState(false);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+
+  const notifRef = useRef<HTMLDivElement>(null);
+  const avatarRef = useRef<HTMLDivElement>(null);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  // Handle click outside dropdowns
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+      if (avatarRef.current && !avatarRef.current.contains(event.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   const pageTitle = pageTitles[location.pathname] || 'SovaScan';
 
   return (
@@ -219,12 +250,158 @@ export default function Layout({ children }: LayoutProps) {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
             </div>
-            <button className="topbar__icon-btn" title="Notifications">
-              🔔
-              <span className="topbar__notif-dot" />
-            </button>
-            <div className="topbar__avatar" title="User">
-              <span>SS</span>
+            <div className="topbar__notif-container" ref={notifRef}>
+              <button
+                className="topbar__icon-btn"
+                title="Notifications"
+                onClick={() => setNotifOpen(!notifOpen)}
+              >
+                🔔
+                {unreadCount > 0 && <span className="topbar__notif-dot" />}
+              </button>
+
+              {notifOpen && (
+                <div className="notif-dropdown">
+                  <div className="notif-dropdown__header">
+                    <h3>Notifications</h3>
+                    <div className="notif-dropdown__header-actions">
+                      {unreadCount > 0 && (
+                        <button onClick={markAllNotificationsAsRead} className="notif-dropdown__btn-link">
+                          Mark all read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button onClick={clearNotifications} className="notif-dropdown__btn-link text-danger">
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="notif-dropdown__list">
+                    {notifications.length === 0 ? (
+                      <div className="notif-dropdown__empty">
+                        <span className="notif-dropdown__empty-icon">📭</span>
+                        <p>No notifications yet</p>
+                      </div>
+                    ) : (
+                      notifications.map((n) => (
+                        <div
+                          key={n.id}
+                          className={`notif-item notif-item--${n.type} ${!n.read ? 'notif-item--unread' : ''}`}
+                          onClick={() => markNotificationAsRead(n.id)}
+                        >
+                          <div className="notif-item__icon">
+                            {n.type === 'success' && '🟢'}
+                            {n.type === 'warning' && '🟡'}
+                            {n.type === 'error' && '🔴'}
+                            {n.type === 'info' && '🔵'}
+                          </div>
+                          <div className="notif-item__content">
+                            <div className="notif-item__title">
+                              {n.title}
+                              {!n.read && <span className="notif-item__unread-indicator" />}
+                            </div>
+                            <div className="notif-item__message">{n.message}</div>
+                            <div className="notif-item__time">
+                              {new Date(n.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="topbar__avatar-container" ref={avatarRef}>
+              <button
+                className="topbar__avatar-btn"
+                onClick={() => setAvatarOpen(!avatarOpen)}
+                title="User Profile"
+              >
+                <div className="topbar__avatar">
+                  <span>SA</span>
+                </div>
+              </button>
+
+              {avatarOpen && (
+                <div className="avatar-dropdown">
+                  {/* User Profile Summary */}
+                  <div className="avatar-dropdown__user-card">
+                    <div className="avatar-dropdown__avatar-large">SA</div>
+                    <div className="avatar-dropdown__user-info">
+                      <div className="avatar-dropdown__name">Sova Admin</div>
+                      <div className="avatar-dropdown__email">admin@sovascan.local</div>
+                      <span className="avatar-dropdown__role-badge">Security Administrator</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Stats Grid */}
+                  <div className="avatar-dropdown__stats">
+                    <div className="avatar-dropdown__stat-item">
+                      <span className="avatar-dropdown__stat-value">42</span>
+                      <span className="avatar-dropdown__stat-label">Scans Run</span>
+                    </div>
+                    <div className="avatar-dropdown__stat-item">
+                      <span className="avatar-dropdown__stat-value">18</span>
+                      <span className="avatar-dropdown__stat-label">Fixes Applied</span>
+                    </div>
+                  </div>
+
+                  {/* Menu Links */}
+                  <div className="avatar-dropdown__menu">
+                    <NavLink
+                      to="/profile"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">👤</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">Account Details</span>
+                        <span className="avatar-dropdown__menu-desc">Manage profile settings</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/profile#api-keys"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">🔑</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">CLI & API Keys</span>
+                        <span className="avatar-dropdown__menu-desc">Manage CI/CD tokens</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/profile#activity"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">🕒</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">User Activity Log</span>
+                        <span className="avatar-dropdown__menu-desc">View audit trail logs</span>
+                      </div>
+                    </NavLink>
+
+                    <NavLink
+                      to="/settings"
+                      className="avatar-dropdown__menu-item"
+                      onClick={() => setAvatarOpen(false)}
+                    >
+                      <span className="avatar-dropdown__menu-icon">⚙️</span>
+                      <div className="avatar-dropdown__menu-text">
+                        <span className="avatar-dropdown__menu-title">Global Preferences</span>
+                        <span className="avatar-dropdown__menu-desc">Adjust scan defaults</span>
+                      </div>
+                    </NavLink>
+                  </div>
+                </div>
+              )}
             </div>
           </div>
         </header>

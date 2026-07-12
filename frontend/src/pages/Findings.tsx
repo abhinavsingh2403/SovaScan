@@ -330,7 +330,7 @@ const Findings: React.FC = () => {
       </div>
 
       {/* Findings Table/Accordion List */}
-      <div className="findings-list animate-slide-up">
+      <div className="findings-list animate-slide-up stagger-children">
         {loading ? (
           <div className="findings-loading">
             <div className="spinner"></div>
@@ -385,7 +385,7 @@ const Findings: React.FC = () => {
                 </div>
 
                 {/* Expanded Details Body */}
-                <div className={`finding-body ${isExpanded ? 'show' : ''}`} onClick={(e) => e.stopPropagation()}>
+                <div className={`finding-body smooth-expand ${isExpanded ? 'show' : ''}`} onClick={(e) => e.stopPropagation()}>
                   <div className="details-section">
                     <h5>Description</h5>
                     <p className="desc-text">{finding.description}</p>
@@ -398,9 +398,17 @@ const Findings: React.FC = () => {
 
                   <div className="details-section">
                     <h5>Code Evidence</h5>
-                    <pre className="evidence-pre">
-                      <code>{finding.evidence}</code>
-                    </pre>
+                    <div className="console-window evidence-console">
+                      <div className="terminal-header">
+                        <span className="dot dot-red" style={{ background: '#ef4444', width: '8px', height: '8px', borderRadius: '50%' }}></span>
+                        <span className="dot dot-yellow" style={{ background: '#f59e0b', width: '8px', height: '8px', borderRadius: '50%' }}></span>
+                        <span className="dot dot-green" style={{ background: '#10b981', width: '8px', height: '8px', borderRadius: '50%' }}></span>
+                        <span className="terminal-title">evidence_inspect.log</span>
+                      </div>
+                      <pre className="evidence-pre">
+                        <code>{finding.evidence}</code>
+                      </pre>
+                    </div>
                   </div>
 
                   <div className="details-section">
