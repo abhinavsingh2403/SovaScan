@@ -14,7 +14,7 @@ import {
 } from 'recharts';
 import './Dashboard.css';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const SEVERITY_COLORS = {
   critical: '#dc2626',
@@ -421,6 +421,7 @@ const Dashboard: React.FC = () => {
                     <th>Type</th>
                     <th>Findings</th>
                     <th>Status</th>
+                    <th>Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -437,6 +438,20 @@ const Dashboard: React.FC = () => {
                         <span className={`status-badge ${scan.status}`}>
                           {scan.status}
                         </span>
+                      </td>
+                      <td>
+                        <Link
+                          to={`/report/${scan.id}`}
+                          className="settings__btn settings__btn--primary"
+                          style={{
+                            textDecoration: 'none',
+                            display: 'inline-block',
+                            fontSize: '11px',
+                            padding: '4px 8px',
+                          }}
+                        >
+                          Report
+                        </Link>
                       </td>
                     </tr>
                   ))}

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import { Finding } from '../types';
@@ -268,17 +268,40 @@ const Findings: React.FC = () => {
         <div className="dropdowns-wrap">
           <div className="filter-select">
             <label>Scan:</label>
-            <select
-              value={scanFilter}
-              onChange={(e) => setScanFilter(e.target.value)}
-            >
-              <option value="all">All Scans</option>
-              {scans.map((scan) => (
-                <option key={scan.id} value={scan.id}>
-                  {scan.target} ({new Date(scan.createdAt).toLocaleDateString()})
-                </option>
-              ))}
-            </select>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', width: '100%' }}>
+              <select
+                value={scanFilter}
+                onChange={(e) => setScanFilter(e.target.value)}
+                style={{ flex: 1 }}
+              >
+                <option value="all">All Scans</option>
+                {scans.map((scan) => (
+                  <option key={scan.id} value={scan.id}>
+                    {scan.target} ({new Date(scan.createdAt).toLocaleDateString()})
+                  </option>
+                ))}
+              </select>
+              {scanFilter !== 'all' && (
+                <Link
+                  to={`/report/${scanFilter}`}
+                  className="settings__btn settings__btn--secondary"
+                  style={{
+                    textDecoration: 'none',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    fontSize: '11px',
+                    padding: '8px 12px',
+                    height: '35px',
+                    boxSizing: 'border-box',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="View Scan Report"
+                >
+                  📄 Report
+                </Link>
+              )}
+            </div>
           </div>
 
           <div className="filter-select">

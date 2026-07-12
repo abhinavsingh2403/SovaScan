@@ -6,6 +6,7 @@ import Scan from './pages/Scan';
 import Compliance from './pages/Compliance';
 import Settings from './pages/Settings';
 import Profile from './pages/Profile';
+import Report from './pages/Report';
 
 function App() {
   return (
@@ -17,6 +18,8 @@ function App() {
         <Route path="/compliance" element={<Compliance />} />
         <Route path="/settings" element={<Settings />} />
         <Route path="/profile" element={<Profile />} />
+        <Route path="/report" element={<Report />} />
+        <Route path="/report/:scanId" element={<Report />} />
       </Routes>
     </Layout>
   );

@@ -117,3 +117,17 @@ export interface SovaNotification {
   timestamp: string;
   read: boolean;
 }
+
+export interface SBOMPackage {
+  name: string;
+  version: string;
+  ecosystem: string;
+  license: string | null;
+  purl: string | null;
+}
+
+export interface SBOMResponse {
+  format: string;
+  packages: SBOMPackage[];
+  generated_at: string;
+}

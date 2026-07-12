@@ -140,6 +140,7 @@ const navItems = [
   { path: '/findings', label: 'Findings', icon: '🔍' },
   { path: '/scan', label: 'New Scan', icon: '🚀' },
   { path: '/compliance', label: 'Compliance', icon: '📋' },
+  { path: '/report', label: 'Reports', icon: '📄' },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -148,6 +149,7 @@ const pageTitles: Record<string, string> = {
   '/scan': 'New Scan',
   '/compliance': 'Compliance Reports',
   '/settings': 'Settings',
+  '/report': 'Security Reports',
 };
 
 export default function Layout({ children }: LayoutProps) {
@@ -185,7 +187,7 @@ export default function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  const pageTitle = pageTitles[location.pathname] || 'SovaScan';
+  const pageTitle = location.pathname.startsWith('/report') ? 'Security Report' : (pageTitles[location.pathname] || 'SovaScan');
 
   return (
     <div className={`layout ${sidebarCollapsed ? 'layout--collapsed' : ''}`}>

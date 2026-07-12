@@ -64,6 +64,9 @@ export const api = {
   /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string) =>
     client.get(`/compliance/${framework}`),
+
+  /** GET /api/v1/scan/{scanId}/sbom — retrieve SBOM packages for a scan */
+  getSBOM: (scanId: string) => client.get(`/scan/${scanId}/sbom`),
 };
 
 /**
