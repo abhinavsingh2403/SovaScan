@@ -193,8 +193,9 @@ const Report: React.FC = () => {
   if (loading) {
     return (
       <div className="compliance-loading">
-        <div className="spinner"></div>
-        <p>Generating Post-Scan Security Report...</p>
+        <p className="animate-pulse" style={{ fontSize: '14px', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>
+          Generating Post-Scan Security Report...
+        </p>
       </div>
     );
   }
