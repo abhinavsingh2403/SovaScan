@@ -59,7 +59,7 @@ def test_get_scan(client: TestClient) -> None:
     """Test fetching scan status/details after completion."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     scan_data = _create_scan_and_wait(client, payload)
     scan_id = scan_data["id"]
@@ -75,7 +75,7 @@ def test_list_findings(client: TestClient) -> None:
     """Test listing scan findings after completed scan."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     scan_data = _create_scan_and_wait(client, payload)
     scan_id = scan_data["id"]
@@ -119,7 +119,7 @@ def test_dashboard_summary(client: TestClient) -> None:
     """Test dashboard stats aggregation."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     _create_scan_and_wait(client, payload)
 

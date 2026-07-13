@@ -183,35 +183,7 @@ export default function Layout({ children }: LayoutProps) {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  // Notifications & Profile states
-  const {
-    notifications,
-    markNotificationAsRead,
-    markAllNotificationsAsRead,
-    clearNotifications,
-  } = useStore();
 
-  const [notifOpen, setNotifOpen] = useState(false);
-  const [avatarOpen, setAvatarOpen] = useState(false);
-
-  const notifRef = useRef<HTMLDivElement>(null);
-  const avatarRef = useRef<HTMLDivElement>(null);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // Handle click outside dropdowns
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
-        setNotifOpen(false);
-      }
-      if (avatarRef.current && !avatarRef.current.contains(event.target as Node)) {
-        setAvatarOpen(false);
-      }
-    }
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, []);
 
   const pageTitle = location.pathname.startsWith('/report') ? 'Security Report' : (pageTitles[location.pathname] || 'SovaScan');
 

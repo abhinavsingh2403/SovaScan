@@ -11,6 +11,8 @@ import {
   Bar,
   Cell,
   CartesianGrid,
+  PieChart,
+  Pie,
 } from 'recharts';
 import './Dashboard.css';
 
