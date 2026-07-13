@@ -117,6 +117,15 @@ class SBOMResponse(BaseModel):
     generated_at: datetime
 
 
+class ComplianceControlResponse(BaseModel):
+    id: str
+    name: str
+    category: str
+    status: str
+    findings: list[str] = []
+    description: str = ""
+
+
 class ComplianceResponse(BaseModel):
     """Compliance check result against a specific framework."""
 
@@ -126,6 +135,7 @@ class ComplianceResponse(BaseModel):
     passed: int
     failed: int
     findings: list[FindingResponse]
+    controls: list[ComplianceControlResponse] = []
 
 
 class TrendDataPoint(BaseModel):
@@ -174,6 +184,8 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+    database: str
+    scanners: dict[str, bool]
     uptime: float
 
 

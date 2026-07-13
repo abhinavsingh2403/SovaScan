@@ -265,3 +265,19 @@ class SeverityScorer:
         if score >= 1.0:
             return Severity.LOW
         return Severity.INFO
+
+
+def normalize_severity(value: str | None) -> Severity:
+    """Normalizes a raw severity string into a valid Severity enum."""
+    if not value:
+        return Severity.INFO
+    val_clean = str(value).strip().lower()
+    if val_clean in ("critical", "crit"):
+        return Severity.CRITICAL
+    if val_clean in ("high", "h"):
+        return Severity.HIGH
+    if val_clean in ("medium", "med", "moderate"):
+        return Severity.MEDIUM
+    if val_clean in ("low", "l"):
+        return Severity.LOW
+    return Severity.INFO

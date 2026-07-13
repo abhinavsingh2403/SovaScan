@@ -55,210 +55,6 @@ def _clean_path(path_str: str, base_path: Path) -> str:
     return path_str
 
 
-def _map_semgrep_severity(sev: str) -> Severity:
-    return {
-        "ERROR": Severity.HIGH,
-        "WARNING": Severity.MEDIUM,
-        "INFO": Severity.LOW,
-    }.get(sev.upper(), Severity.LOW)
-
-
-def _map_bandit_severity(sev: str) -> Severity:
-    return {
-        "HIGH": Severity.HIGH,
-        "MEDIUM": Severity.MEDIUM,
-        "LOW": Severity.LOW,
-    }.get(sev.upper(), Severity.LOW)
-
-
-def _run_semgrep(target_path: Path) -> list[dict[str, Any]]:
-    """Run semgrep with the auto ruleset and return findings as dicts."""
-    try:
-        proc = subprocess.run(
-            ["semgrep", "scan", "--config", "auto", "--json", "--quiet", str(target_path)],
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except FileNotFoundError as exc:
-        logger.warning("semgrep binary not found: %s", exc)
-        return []
-    except Exception as exc:
-        logger.warning("semgrep failed: %s", exc)
-        return []
-
-    if proc.returncode != 0:
-        logger.warning("semgrep returned non-zero code %d", proc.returncode)
-        return []
-
-    try:
-        data = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        logger.warning("semgrep returned invalid JSON")
-        return []
-
-    findings: list[dict[str, Any]] = []
-    for result in data.get("results", []):
-        msg = result.get("extra", {}).get("message", "")
-        findings.append(
-            {
-                "rule_id": result.get("check_id", "semgrep-finding"),
-                "title": msg[:100] if len(msg) > 100 else msg,
-                "description": msg,
-                "severity": _map_semgrep_severity(result.get("extra", {}).get("severity", "WARNING")),
-                "category": "sast",
-                "file_path": result.get("path", ""),
-                "line_number": result.get("start", {}).get("line"),
-                "evidence": result.get("extra", {}).get("lines", ""),
-                "remediation": result.get("extra", {}).get("metadata", {}).get("remediation", ""),
-                "cve_id": None,
-                "cvss_score": None,
-            }
-        )
-    return findings
-
-
-def _run_bandit(target_path: Path) -> list[dict[str, Any]]:
-    """Run bandit against a Python target and return findings as dicts."""
-    try:
-        proc = subprocess.run(
-            ["bandit", "-r", str(target_path), "-f", "json"],
-            capture_output=True,
-            text=True,
-            timeout=300,
-        )
-    except FileNotFoundError as exc:
-        logger.warning("bandit binary not found: %s", exc)
-        return []
-    except subprocess.TimeoutExpired:
-        logger.warning("bandit timed out for target %s", target_path)
-        return []
-
-    # bandit exits non-zero when it finds issues, so don't gate on returncode
-    if not proc.stdout:
-        logger.warning("bandit produced no output (stderr: %s)", proc.stderr)
-        return []
-
-    try:
-        payload = json.loads(proc.stdout)
-    except json.JSONDecodeError:
-        logger.exception("Failed to parse bandit JSON output")
-        return []
-
-    findings: list[dict[str, Any]] = []
-    for result in payload.get("results", []):
-        findings.append(
-            {
-                "rule_id": result.get("test_id", "BANDIT-UNKNOWN"),
-                "title": result.get("test_name", "Bandit finding"),
-                "description": result.get("issue_text", ""),
-                "severity": _map_bandit_severity(result.get("issue_severity", "LOW")),
-                "category": "sast",
-                "file_path": result.get("filename", ""),
-                "line_number": result.get("line_number"),
-                "evidence": result.get("code", ""),
-                "remediation": f"See Bandit docs for {result.get('test_id', '')}: "
-                f"{result.get('more_info', '')}",
-                "cve_id": result.get("issue_cwe", {}).get("id") if result.get("issue_cwe") else None,
-                "cvss_score": None,
-            }
-        )
-    return findings
-
-
-def _run_scan_logic(target: str, scan_type: str, options: dict[str, Any] | None) -> None:
-    """Execute the core scan logic and return raw findings.
-
-    Delegates to the real ScanOrchestrator (discovery -> dependency
-    resolution -> CVE/misconfig/secret detection -> severity scoring),
-    then converts each ScoredFinding into the plain dict shape the
-    caller already inserts into the database.
-
-    Args:
-        target: Path to scan. (Remote URLs are not yet supported by the
-            orchestrator; see the 404 raised below.)
-        scan_type: Kind of scan (full, dependencies, secrets, misconfig).
-        options: Extra options forwarded to the engine (currently unused
-            by the orchestrator, but accepted for forward compatibility).
-
-    Returns:
-        A list of finding dicts ready for DB insertion.
-
-    Raises:
-        HTTPException: 400 if the target path does not exist, or the
-            scan otherwise fails to run.
-    """
-    temp_dir = None
-    try:
-        if target.startswith("http://") or target.startswith("https://"):
-            import tempfile
-            temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
-            target_path = Path(temp_dir.name)
-
-            proc = subprocess.run(
-                ["git", "clone", "--depth", "1", target, str(target_path)],
-                capture_output=True,
-                text=True,
-                timeout=180
-            )
-            if proc.returncode != 0:
-                raise HTTPException(
-                    status_code=400,
-                    detail=f"Git clone failed: {proc.stderr or proc.stdout}",
-                )
-        else:
-            target_path = Path(target)
-            if not target_path.exists():
-                raise HTTPException(status_code=400, detail=f"Target path does not exist: {target}")
-
-        orchestrator = ScanOrchestrator(target_path=target_path, scan_type=scan_type)
-
-        try:
-            result = orchestrator.run_scan()
-        except Exception as exc:
-            logger.exception("Orchestrator failed for target %s", target)
-            raise HTTPException(status_code=500, detail=f"Scan engine failed: {exc}") from exc
-
-        findings: list[dict[str, Any]] = []
-        for sf in result.findings:
-            findings.append(
-                {
-                    # ScoredFinding.id is a rule-style identifier (e.g.
-                    # "SOVA-MISC-001", "SECRET-HIGH-ENTROPY", or a CVE id) —
-                    # it maps directly onto Finding.rule_id.
-                    "rule_id": sf.id,
-                    "title": sf.title,
-                    "description": sf.description,
-                    "severity": Severity(sf.severity.value),
-                    "category": sf.category,
-                    "file_path": _clean_path(sf.file_path, target_path),
-                    "line_number": sf.line_number,
-                    "evidence": sf.evidence,
-                    "remediation": sf.remediation,
-                    "cve_id": sf.id if sf.category == "cve" else None,
-                    "cvss_score": sf.cvss_score or None,
-                }
-            )
-
-        # Run SAST tools along side the orchestrator for full scan types
-        if scan_type in ("full", "sast"):
-            findings.extend(_run_semgrep(target_path))
-            findings.extend(_run_bandit(target_path))
-
-            # Clean paths of SAST findings too
-            for f in findings:
-                if "file_path" in f:
-                    f["file_path"] = _clean_path(f["file_path"], target_path)
-
-        return findings
-    finally:
-        if temp_dir is not None:
-            try:
-                temp_dir.cleanup()
-            except Exception as cleanup_err:
-                logger.warning("Failed to clean up temporary directory: %s", cleanup_err)
-
-
 def _severity_to_field(severity: Severity) -> str:
     """Map a Severity enum to the corresponding count field name on Scan."""
     mapping = {
@@ -313,8 +109,13 @@ async def create_scan(
     progress updates.
     """
     # Validate target before creating DB record
-    target_is_url = request.target.startswith("http://") or request.target.startswith("https://")
-    if not target_is_url:
+    is_git = request.target.startswith("http://") or request.target.startswith("https://") or "://" in request.target or request.target.startswith("git@")
+    if is_git:
+        if not (request.target.startswith("https://") or request.target.startswith("http://")) or " " in request.target:
+            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+    else:
+        if "://" in request.target:
+            raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
         target_path = Path(request.target)
         if not target_path.exists():
             raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
@@ -500,6 +301,15 @@ def generate_sbom(
     scan = db.query(Scan).filter(Scan.id == scan_id).first()
     if scan is None:
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    # Check if we have cached SBOM in metadata_json
+    if scan.metadata_json:
+        try:
+            meta = json.loads(scan.metadata_json)
+            if "sbom" in meta and meta["sbom"]:
+                return meta["sbom"]
+        except Exception as e:
+            logger.warning(f"Failed to read cached SBOM from metadata_json: {e}")
 
     # Build packages from dependency-category findings
     packages: list[dict[str, Any]] = []
@@ -853,93 +663,107 @@ def fix_all_scan_findings(
 @router.get("/compliance/{framework}", response_model=ComplianceResponse)
 def compliance_report(
     framework: str,
+    scan_id: str | None = Query(default=None, description="Optional scan ID to scope compliance assessment"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
     """Generate a compliance report for the specified framework.
 
-    Evaluates all completed scan findings against a set of controls
-    defined for the chosen framework (e.g. SOC2, PCI-DSS, HIPAA).
+    Evaluates findings against controls defined for the chosen framework.
 
     Args:
         framework: Compliance framework identifier.
+        scan_id: Optional scan ID. If provided, uses findings only from that scan.
         db: Database session (injected).
 
     Returns:
-        Compliance scoring and mapped findings.
+        Compliance scoring, controls list, and mapped findings.
     """
-    supported_frameworks: dict[str, dict[str, Any]] = {
-        "nist-csf": {
-            "total_controls": 10,
-            "control_categories": ["identify", "protect", "detect", "respond", "recover"],
-        },
-        "soc2": {
-            "total_controls": 10,
-            "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
-        },
-        "soc-2": {
-            "total_controls": 10,
-            "control_categories": ["security", "availability", "processing_integrity", "confidentiality", "privacy"],
-        },
-        "owasp-10": {
-            "total_controls": 10,
-            "control_categories": [
-                "broken_access_control",
-                "cryptographic_failures",
-                "injection",
-                "insecure_design",
-                "security_misconfiguration",
-                "vulnerable_components",
-                "auth_failures",
-                "integrity_failures",
-                "logging_failures",
-                "ssrf",
-            ],
-        },
-        "owasp10": {
-            "total_controls": 10,
-            "control_categories": [
-                "broken_access_control",
-                "cryptographic_failures",
-                "injection",
-                "insecure_design",
-                "security_misconfiguration",
-                "vulnerable_components",
-                "auth_failures",
-                "integrity_failures",
-                "logging_failures",
-                "ssrf",
-            ],
-        },
-    }
-
-    fw_key = framework.lower()
+    fw_key = framework.lower().strip()
+    supported_frameworks = ("nist-csf", "nist", "soc2", "soc-2", "owasp-10", "owasp10")
     if fw_key not in supported_frameworks:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported framework: {framework}. Supported: {', '.join(supported_frameworks.keys())}",
+            detail=f"Unsupported framework: {framework}. Supported: nist-csf, soc-2, owasp-10",
         )
 
-    fw_info = supported_frameworks[fw_key]
-    total_controls: int = fw_info["total_controls"]
+    if scan_id:
+        scan = db.query(Scan).filter(Scan.id == scan_id).first()
+        if scan is None:
+            raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
 
-    # Gather all findings from completed scans
-    all_findings = (
-        db.query(Finding)
-        .join(Scan, Finding.scan_id == Scan.id)
-        .filter(Scan.status == ScanStatus.COMPLETED)
-        .all()
-    )
+    # Define control descriptors
+    controls_definitions = []
+    if fw_key in ("nist-csf", "nist"):
+        controls_definitions = [
+            {"id": "ID.AM", "name": "Asset Management", "category": "Identify", "description": "Identify assets to manage security risks.", "match_cat": "misconfig"},
+            {"id": "PR.AC", "name": "Access Control", "category": "Protect", "description": "Ensure access to assets is limited to authorized users.", "match_cat": "secret"},
+            {"id": "PR.DS", "name": "Data Security", "category": "Protect", "description": "Manage data consistent with the organization's risk strategy.", "match_cat": "cve"},
+            {"id": "PR.PT", "name": "Protective Technology", "category": "Protect", "description": "Manage security logs and protection systems.", "match_cat": "sast"},
+            {"id": "DE.AE", "name": "Security Monitoring & Detections", "category": "Detect", "description": "Detect anomalies and events to identify threats.", "match_cat": "sast"},
+            {"id": "RS.CO", "name": "Incident Response Communication", "category": "Respond", "description": "Manage response activities and coordination.", "match_cat": "drift"}
+        ]
+    elif fw_key in ("soc2", "soc-2"):
+        controls_definitions = [
+            {"id": "CC6.1", "name": "Logical Access Controls", "category": "Security", "description": "Restrict logical access to authorized endpoints.", "match_cat": "secret"},
+            {"id": "CC6.6", "name": "Transmission Integrity Protection", "category": "Security", "description": "Protect data transmission from tampering or leakage.", "match_cat": "secret"},
+            {"id": "CC7.1", "name": "Vulnerability & Threat Management", "category": "Security", "description": "Identify and evaluate system vulnerabilities.", "match_cat": "cve"},
+            {"id": "CC8.1", "name": "System Operation Controls", "category": "Security", "description": "Monitor system operations to detect anomalies.", "match_cat": "sast"},
+            {"id": "CC9.1", "name": "Business Risk Mitigation", "category": "Security", "description": "Manage vendor and operational risks.", "match_cat": "misconfig"}
+        ]
+    else:  # owasp-10
+        controls_definitions = [
+            {"id": "A01", "name": "Broken Access Control", "category": "Web Security", "description": "Prevent unauthorized privilege escalation and access.", "match_cat": "secret"},
+            {"id": "A02", "name": "Cryptographic Failures", "category": "Web Security", "description": "Ensure protection of sensitive data at rest and in transit.", "match_cat": "secret"},
+            {"id": "A03", "name": "Injection", "category": "Web Security", "description": "Prevent SQL, OS, or LDAP injection scripts.", "match_cat": "sast"},
+            {"id": "A05", "name": "Security Misconfiguration", "category": "Web Security", "description": "Enforce secure defaults and configuration hardening.", "match_cat": "misconfig"},
+            {"id": "A06", "name": "Vulnerable and Outdated Components", "category": "Web Security", "description": "Keep dependencies and software packages up to date.", "match_cat": "cve"},
+            {"id": "A07", "name": "Identification and Authentication Failures", "category": "Web Security", "description": "Enforce authentication and session management.", "match_cat": "secret"},
+            {"id": "A09", "name": "Security Logging and Monitoring Failures", "category": "Web Security", "description": "Record audit trails and monitor threats.", "match_cat": "sast"}
+        ]
 
-    # Map findings to failed controls (each unique rule_id = 1 failed control)
-    failed_rule_ids: set[str] = set()
-    compliance_findings: list[Finding] = []
-    for f in all_findings:
-        if f.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM):
-            failed_rule_ids.add(f.rule_id)
-            compliance_findings.append(f)
+    # Query findings
+    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id)
+    if scan_id:
+        query = query.filter(Finding.scan_id == scan_id)
+    else:
+        query = query.filter(Scan.status == ScanStatus.COMPLETED)
+    
+    findings = query.all()
 
-    failed = min(len(failed_rule_ids), total_controls)
-    passed = total_controls - failed
+    # Map findings to controls
+    response_controls = []
+    compliance_findings = []
+    seen_finding_ids = set()
+
+    for ctrl in controls_definitions:
+        matching_findings = [
+            f for f in findings
+            if f.category.lower() == ctrl["match_cat"]
+            and f.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM)
+        ]
+        
+        status = "passed"
+        finding_ids = []
+        if matching_findings:
+            status = "failed"
+            finding_ids = [str(f.id) for f in matching_findings]
+            for f in matching_findings:
+                if f.id not in seen_finding_ids:
+                    seen_finding_ids.add(f.id)
+                    compliance_findings.append(f)
+        
+        response_controls.append({
+            "id": ctrl["id"],
+            "name": ctrl["name"],
+            "category": ctrl["category"],
+            "status": status,
+            "findings": finding_ids,
+            "description": ctrl["description"]
+        })
+
+    total_controls = len(response_controls)
+    passed = sum(1 for c in response_controls if c["status"] == "passed")
+    failed = total_controls - passed
     score = round((passed / total_controls) * 100, 1) if total_controls > 0 else 100.0
 
     return {
@@ -949,6 +773,7 @@ def compliance_report(
         "passed": passed,
         "failed": failed,
         "findings": compliance_findings,
+        "controls": response_controls,
     }
 
 

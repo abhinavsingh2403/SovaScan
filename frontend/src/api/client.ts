@@ -62,8 +62,8 @@ export const api = {
   fixAllScan: (scanId: string) => client.post(`/scan/${scanId}/fix-all`),
 
   /** GET /api/v1/compliance/{framework} — compliance report */
-  getCompliance: (framework: string) =>
-    client.get(`/compliance/${framework}`),
+  getCompliance: (framework: string, scanId?: string) =>
+    client.get(`/compliance/${framework}`, { params: scanId ? { scan_id: scanId } : {} }),
 
   /** GET /api/v1/scan/{scanId}/sbom — retrieve SBOM packages for a scan */
   getSBOM: (scanId: string) => client.get(`/scan/${scanId}/sbom`),

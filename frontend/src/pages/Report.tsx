@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useStore } from '../store';
-import { Scan, Finding, SBOMResponse, ComplianceReport, ThreatIntelResponse, ThreatIntelRecord } from '../types';
+import { Scan, Finding, SBOMResponse, ComplianceReport, ComplianceControl, ThreatIntelResponse, ThreatIntelRecord } from '../types';
 import './Report.css';
 
 interface ComplianceMap {
@@ -92,6 +92,27 @@ const mapThreatIntel = (t: any): ThreatIntelResponse => ({
   records: (t.records || []).map(mapThreatRecord),
 });
 
+const mapComplianceControl = (c: any): ComplianceControl => ({
+  id: c.id,
+  name: c.name,
+  description: c.description ?? '',
+  status: c.status === 'failed' ? 'failed' : c.status === 'passed' ? 'passed' : 'not-applicable',
+  category: c.category ?? '',
+  findings: c.findings ?? [],
+});
+
+const mapCompliance = (c: any): ComplianceReport => ({
+  framework: c.framework,
+  frameworkFullName: c.framework === 'nist-csf' ? 'NIST Cybersecurity Framework' : c.framework === 'soc-2' ? 'SOC-2 Trust Criteria' : 'OWASP Top 10',
+  score: c.score ?? 100,
+  totalControls: c.total_controls ?? 0,
+  passed: c.passed ?? 0,
+  failed: c.failed ?? 0,
+  notApplicable: c.not_applicable ?? 0,
+  controls: (c.controls || []).map(mapComplianceControl),
+  lastAssessed: c.last_assessed ?? new Date().toISOString(),
+});
+
 const Report: React.FC = () => {
   const { scanId } = useParams<{ scanId: string }>();
   const { scans, fetchScans } = useStore();
@@ -138,14 +159,14 @@ const Report: React.FC = () => {
         // Fetch compliance reports
         try {
           const [nistRes, soc2Res, owasp10Res] = await Promise.all([
-            api.getCompliance('nist-csf'),
-            api.getCompliance('soc-2'),
-            api.getCompliance('owasp-10'),
+            api.getCompliance('nist-csf', scanId),
+            api.getCompliance('soc-2', scanId),
+            api.getCompliance('owasp-10', scanId),
           ]);
           setCompliance({
-            nist: nistRes.data,
-            soc2: soc2Res.data,
-            owasp10: owasp10Res.data,
+            nist: mapCompliance(nistRes.data),
+            soc2: mapCompliance(soc2Res.data),
+            owasp10: mapCompliance(owasp10Res.data),
           });
         } catch (err) {
           console.warn('[Report] Failed to fetch compliance reports:', err);

@@ -9,6 +9,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.core.sast_scanner import SASTScanner
+from sovascan.core.severity_scorer import normalize_severity
 from sovascan.models.base import SessionLocal
 from sovascan.models.finding import Finding as FindingModel
 from sovascan.models.finding import Severity
@@ -46,6 +48,11 @@ def _clean_path(path_str: str, base_path: Path) -> str:
     if path_str.startswith(base_str):
         return path_str[len(base_str):].lstrip("\\/")
     return path_str
+
+
+def is_allowed_git_url(target: str) -> bool:
+    """Helper to validate if git target URL protocol is secure and allowed."""
+    return target.startswith(("https://", "http://")) and " " not in target
 
 
 # ---------------------------------------------------------------------------
@@ -196,7 +203,11 @@ class ScanManager:
             )
 
             # -- Validate and Resolve Target ---------------------------------
-            if target.startswith("http://") or target.startswith("https://"):
+            is_git = target.startswith("http://") or target.startswith("https://") or "://" in target or target.startswith("git@")
+            if is_git:
+                if not is_allowed_git_url(target):
+                    raise ValueError("Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+                
                 import subprocess
                 import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
@@ -216,11 +227,13 @@ class ScanManager:
                     ["git", "clone", "--depth", "1", target, str(target_path)],
                     capture_output=True,
                     text=True,
-                    timeout=180
+                    timeout=60
                 )
                 if proc.returncode != 0:
                     raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
             else:
+                if "://" in target:
+                    raise ValueError("Invalid target syntax or unsupported URI protocol.")
                 target_path = Path(target)
                 if not target_path.exists():
                     raise FileNotFoundError(f"Target path does not exist: {target}")
@@ -254,8 +267,23 @@ class ScanManager:
                 "low_count": 0,
             }
 
+            seen_findings = set()
+
             for sf in result.findings:
-                sev = Severity(sf.severity.value)
+                sev = normalize_severity(sf.severity.value if hasattr(sf.severity, "value") else str(sf.severity))
+                clean_file_path = _clean_path(sf.file_path, target_path)
+                evidence_prefix = sf.evidence[:120] if sf.evidence else ""
+                
+                dedup_key = (
+                    sf.id,
+                    clean_file_path,
+                    sf.line_number or 0,
+                    evidence_prefix
+                )
+                if dedup_key in seen_findings:
+                    continue
+                seen_findings.add(dedup_key)
+
                 finding = FindingModel(
                     id=str(uuid.uuid4()),
                     scan_id=scan_id,
@@ -264,8 +292,8 @@ class ScanManager:
                     description=sf.description,
                     severity=sev,
                     category=sf.category,
-                    file_path=_clean_path(sf.file_path, target_path),
-                    line_number=sf.line_number,
+                    file_path=clean_file_path,
+                    line_number=sf.line_number or 0,
                     evidence=sf.evidence,
                     remediation=sf.remediation,
                     cve_id=sf.id if sf.category == "cve" else None,
@@ -310,7 +338,20 @@ class ScanManager:
                 )
                 sast = SASTScanner()
                 for sast_finding_dict in self._run_sast_to_dicts(sast, target_path):
-                    sev = sast_finding_dict["severity"]
+                    sev = normalize_severity(sast_finding_dict["severity"])
+                    clean_file_path = _clean_path(sast_finding_dict.get("file_path", ""), target_path)
+                    evidence_prefix = sast_finding_dict.get("evidence", "")[:120]
+                    
+                    dedup_key = (
+                        sast_finding_dict["rule_id"],
+                        clean_file_path,
+                        sast_finding_dict.get("line_number") or 0,
+                        evidence_prefix
+                    )
+                    if dedup_key in seen_findings:
+                        continue
+                    seen_findings.add(dedup_key)
+
                     f = FindingModel(
                         id=str(uuid.uuid4()),
                         scan_id=scan_id,
@@ -319,8 +360,8 @@ class ScanManager:
                         description=sast_finding_dict["description"],
                         severity=sev,
                         category=sast_finding_dict.get("category", "sast"),
-                        file_path=_clean_path(sast_finding_dict.get("file_path", ""), target_path),
-                        line_number=sast_finding_dict.get("line_number"),
+                        file_path=clean_file_path,
+                        line_number=sast_finding_dict.get("line_number") or 0,
                         evidence=sast_finding_dict.get("evidence", ""),
                         remediation=sast_finding_dict.get("remediation", ""),
                         cve_id=sast_finding_dict.get("cve_id"),
@@ -354,7 +395,20 @@ class ScanManager:
                 )
                 git_scanner = GitHistoryScanner(max_commits=max_commits)
                 for gf in git_scanner.scan(target_path):
-                    sev = Severity(gf.severity) if gf.severity in [s.value for s in Severity] else Severity.MEDIUM
+                    sev = normalize_severity(gf.severity)
+                    clean_file_path = _clean_path(gf.file_path, target_path)
+                    evidence_prefix = gf.evidence[:120] if gf.evidence else ""
+
+                    dedup_key = (
+                        gf.id,
+                        clean_file_path,
+                        gf.line_number or 0,
+                        evidence_prefix
+                    )
+                    if dedup_key in seen_findings:
+                        continue
+                    seen_findings.add(dedup_key)
+
                     f = FindingModel(
                         id=str(uuid.uuid4()),
                         scan_id=scan_id,
@@ -363,8 +417,8 @@ class ScanManager:
                         description=gf.description,
                         severity=sev,
                         category=gf.category,
-                        file_path=_clean_path(gf.file_path, target_path),
-                        line_number=gf.line_number,
+                        file_path=clean_file_path,
+                        line_number=gf.line_number or 0,
                         evidence=gf.evidence,
                         remediation=gf.remediation,
                     )
@@ -390,6 +444,17 @@ class ScanManager:
             scan.low_count = severity_counts["low_count"]
             scan.status = ScanStatus.COMPLETED
             scan.completed_at = datetime.now(UTC)
+
+            # Cache SBOM in metadata_json
+            metadata = {}
+            if scan.metadata_json:
+                try:
+                    metadata = json.loads(scan.metadata_json)
+                except Exception:
+                    pass
+            metadata["sbom"] = result.sbom
+            scan.metadata_json = json.dumps(metadata)
+
             db.commit()
 
             self._broadcast(
@@ -412,6 +477,17 @@ class ScanManager:
                 if scan_row:
                     scan_row.status = ScanStatus.FAILED
                     scan_row.completed_at = datetime.now(UTC)
+                    
+                    metadata = {}
+                    if scan_row.metadata_json:
+                        try:
+                            metadata = json.loads(scan_row.metadata_json)
+                        except Exception:
+                            pass
+                    metadata["error"] = str(exc)
+                    metadata["failed_at"] = datetime.now(UTC).isoformat()
+                    scan_row.metadata_json = json.dumps(metadata)
+
                     db.commit()
             except Exception:
                 logger.exception("Failed to update scan %s status to FAILED", scan_id)
