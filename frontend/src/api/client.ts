@@ -10,6 +10,18 @@ const client = axios.create({
 
 client.interceptors.request.use((config) => {
   let key = localStorage.getItem('sovascan-active-key');
+  
+  const oldKeys = [
+    'ss_live_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4',
+    'ss_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6'
+  ];
+  
+  if (key && oldKeys.includes(key)) {
+    localStorage.removeItem('sovascan-active-key');
+    localStorage.removeItem('sovascan-api-keys');
+    key = null;
+  }
+
   if (!key) {
     try {
       const stored = localStorage.getItem('sovascan-api-keys');
@@ -24,6 +36,11 @@ client.interceptors.request.use((config) => {
       // ignore
     }
   }
+  
+  if (key && oldKeys.includes(key)) {
+    key = null;
+  }
+
   if (!key) {
     key = 'ss_live_mock_local_dev_key_12345';
   }
