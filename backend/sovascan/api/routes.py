@@ -21,9 +21,11 @@ from sovascan.api.schemas import (
     SBOMResponse,
     ScanRequest,
     ScanResponse,
+    ThreatIntelScanResponse,
 )
 from sovascan.api.websocket import scan_manager
 from sovascan.core.orchestrator import ScanOrchestrator
+from sovascan.core.threat_intel import ThreatIntelEnricher, CVE_PATTERN
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
@@ -1066,3 +1068,107 @@ def dashboard_summary(
         "risk_score": risk_score,
         "trend_data": trend_data,
     }
+
+
+@router.get("/threat-intel/scan/{scan_id}", response_model=ThreatIntelScanResponse)
+def get_scan_threat_intel(
+    scan_id: str,
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """Retrieve threat intelligence exploitability enrichment for a specific scan."""
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if not scan:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    findings = db.query(Finding).filter(Finding.scan_id == scan_id).all()
+
+    # Extract all CVE IDs associated with findings from this scan
+    cve_ids = set()
+    cvss_scores = {}
+
+    for f in findings:
+        cves_found = []
+        if f.cve_id:
+            cves_found.append(f.cve_id)
+        if f.rule_id and CVE_PATTERN.match(f.rule_id):
+            cves_found.append(f.rule_id)
+
+        # Fallback to search text fields
+        for text_field in [f.title, f.description]:
+            if text_field:
+                cves_found.extend(CVE_PATTERN.findall(text_field))
+
+        for cve in cves_found:
+            cve_upper = cve.upper()
+            cve_ids.add(cve_upper)
+            if f.cvss_score is not None:
+                cvss_scores[cve_upper] = max(cvss_scores.get(cve_upper, 0.0), f.cvss_score)
+
+    if not cve_ids:
+        return {
+            "scan_id": scan_id,
+            "generated_at": datetime.now(UTC),
+            "total_cves": 0,
+            "known_exploited_count": 0,
+            "high_priority_count": 0,
+            "records": []
+        }
+
+    # Enrich extracted CVE list using threat intel sources
+    try:
+        enricher = ThreatIntelEnricher()
+        records_map = enricher.enrich_cves(list(cve_ids), cvss_scores)
+    except Exception as e:
+        logger.error(f"Failed to enrich CVEs for scan {scan_id}: {e}")
+        # Fallback behaviour: Return empty list on enricher failures to prevent reports from crashing
+        return {
+            "scan_id": scan_id,
+            "generated_at": datetime.now(UTC),
+            "total_cves": len(cve_ids),
+            "known_exploited_count": 0,
+            "high_priority_count": 0,
+            "records": [
+                {
+                    "cve_id": cve,
+                    "known_exploited": False,
+                    "epss_score": None,
+                    "epss_percentile": None,
+                    "priority": "monitor",
+                    "summary": "Threat intelligence unavailable.",
+                    "remediation_urgency": "Exploitability enrichment could not be refreshed.",
+                    "sources": []
+                }
+                for cve in cve_ids
+            ]
+        }
+
+    records_list = []
+    known_exploited_cnt = 0
+    high_priority_cnt = 0
+
+    for rec in records_map.values():
+        if rec.known_exploited:
+            known_exploited_cnt += 1
+        if rec.priority in ("immediate", "high"):
+            high_priority_cnt += 1
+
+        records_list.append({
+            "cve_id": rec.cve_id,
+            "known_exploited": rec.known_exploited,
+            "epss_score": rec.epss_score,
+            "epss_percentile": rec.epss_percentile,
+            "priority": rec.priority,
+            "summary": rec.summary,
+            "remediation_urgency": rec.remediation_urgency,
+            "sources": rec.sources
+        })
+
+    return {
+        "scan_id": scan_id,
+        "generated_at": datetime.now(UTC),
+        "total_cves": len(records_list),
+        "known_exploited_count": known_exploited_cnt,
+        "high_priority_count": high_priority_cnt,
+        "records": records_list
+    }
+

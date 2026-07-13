@@ -188,3 +188,23 @@ class ScanProgressEvent(BaseModel):
     status: str = ""
     error: str = ""
     timestamp: datetime | None = None
+
+
+class ThreatIntelRecordResponse(BaseModel):
+    cve_id: str
+    known_exploited: bool
+    epss_score: float | None = None
+    epss_percentile: float | None = None
+    priority: str
+    summary: str
+    remediation_urgency: str
+    sources: list[str] = Field(default_factory=list)
+
+
+class ThreatIntelScanResponse(BaseModel):
+    scan_id: str
+    generated_at: datetime
+    total_cves: int
+    known_exploited_count: int
+    high_priority_count: int
+    records: list[ThreatIntelRecordResponse]

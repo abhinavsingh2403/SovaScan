@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { api } from '../api/client';
 import { useStore } from '../store';
-import { Scan, Finding, SBOMResponse, ComplianceReport } from '../types';
+import { Scan, Finding, SBOMResponse, ComplianceReport, ThreatIntelResponse, ThreatIntelRecord } from '../types';
 import './Report.css';
 
 interface ComplianceMap {
@@ -72,6 +72,26 @@ const mapFinding = (f: any): Finding => ({
   createdAt: f.created_at ?? '',
 });
 
+const mapThreatRecord = (r: any): ThreatIntelRecord => ({
+  cveId: r.cve_id ?? '',
+  knownExploited: r.known_exploited ?? false,
+  epssScore: r.epss_score ?? null,
+  epssPercentile: r.epss_percentile ?? null,
+  priority: r.priority ?? 'monitor',
+  summary: r.summary ?? '',
+  remediationUrgency: r.remediation_urgency ?? '',
+  sources: r.sources ?? [],
+});
+
+const mapThreatIntel = (t: any): ThreatIntelResponse => ({
+  scanId: t.scan_id ?? '',
+  generatedAt: t.generated_at ?? '',
+  totalCves: t.total_cves ?? 0,
+  knownExploitedCount: t.known_exploited_count ?? 0,
+  highPriorityCount: t.high_priority_count ?? 0,
+  records: (t.records || []).map(mapThreatRecord),
+});
+
 const Report: React.FC = () => {
   const { scanId } = useParams<{ scanId: string }>();
   const { scans, fetchScans } = useStore();
@@ -83,6 +103,7 @@ const Report: React.FC = () => {
     soc2: null,
     owasp10: null,
   });
+  const [threatIntel, setThreatIntel] = useState<ThreatIntelResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [appendixSearch, setAppendixSearch] = useState('');
@@ -128,6 +149,14 @@ const Report: React.FC = () => {
           });
         } catch (err) {
           console.warn('[Report] Failed to fetch compliance reports:', err);
+        }
+
+        // Fetch threat intelligence (handles network/unavailability gracefully)
+        try {
+          const intelRes = await api.getThreatIntel(scanId);
+          setThreatIntel(mapThreatIntel(intelRes.data));
+        } catch (err) {
+          console.warn('[Report] Failed to fetch threat intelligence enrichment:', err);
         }
 
       } catch (err: any) {
@@ -272,10 +301,22 @@ const Report: React.FC = () => {
   }
 
   // --- 3. Sorting & Risk Cards ---
+  const getSortScore = (f: Finding) => {
+    let score = (severityRank[f.severity] || 0) * 10;
+    if (threatIntel && f.cveId) {
+      const record = threatIntel.records.find((r) => r.cveId.toUpperCase() === f.cveId!.toUpperCase());
+      if (record) {
+        if (record.knownExploited) score += 100;
+        if (record.priority === 'immediate') score += 80;
+        else if (record.priority === 'high') score += 50;
+        if (record.epssScore && record.epssScore >= 0.7) score += 40;
+      }
+    }
+    return score;
+  };
+
   const sortedFindings = [...findings].sort((a, b) => {
-    const rankA = severityRank[a.severity] || 0;
-    const rankB = severityRank[b.severity] || 0;
-    return rankB - rankA;
+    return getSortScore(b) - getSortScore(a);
   });
   const topRisks = sortedFindings.slice(0, 5);
 
@@ -334,6 +375,7 @@ const Report: React.FC = () => {
         lineNumber: f.lineNumber,
         isFixed: f.isFixed,
       })),
+      threat_intelligence: threatIntel,
     };
 
     const blob = new Blob([JSON.stringify(payload, null, 2)], {
@@ -576,6 +618,114 @@ const Report: React.FC = () => {
             </div>
           )}
         </div>
+      </div>
+
+      {/* THREAT INTELLIGENCE SECTION */}
+      <div className="report-section">
+        <h3>🛡️ Threat Intelligence</h3>
+        <p className="summary-text" style={{ marginBottom: '16px' }}>
+          Exploit Intelligence enriches detected CVEs using trusted public sources (CISA Known Exploited Vulnerabilities and FIRST EPSS probability scores). It helps prioritize remediation based on active exploitation and likelihood of future exploit campaigns.
+        </p>
+
+        {!threatIntel || threatIntel.totalCves === 0 ? (
+          <div className="list-card glassmorphism text-center" style={{ padding: '24px' }}>
+            <p className="muted" style={{ margin: 0 }}>
+              {!threatIntel 
+                ? "Threat intelligence sources are currently unavailable. Scan findings remain valid, but exploitability enrichment could not be refreshed." 
+                : "No CVE-backed findings were detected in this scan, so exploit intelligence enrichment was not required."}
+            </p>
+          </div>
+        ) : (
+          <>
+            {/* Intel Metrics Grid */}
+            <div className="report-metrics-grid" style={{ marginBottom: '20px' }}>
+              <div className="list-card glassmorphism report-metric-card" style={{ borderLeft: '3px solid var(--critical)' }}>
+                <div className="report-metric-value font-red">{threatIntel.knownExploitedCount}</div>
+                <div className="report-metric-label">Known Exploited (CISA KEV)</div>
+              </div>
+              <div className="list-card glassmorphism report-metric-card" style={{ borderLeft: '3px solid var(--warning)' }}>
+                <div className="report-metric-value font-orange">{threatIntel.highPriorityCount}</div>
+                <div className="report-metric-label">High Priority CVEs</div>
+              </div>
+              <div className="list-card glassmorphism report-metric-card">
+                <div className="report-metric-value text-info">
+                  {Math.max(...threatIntel.records.map(r => r.epssScore || 0)) > 0 
+                    ? `${(Math.max(...threatIntel.records.map(r => r.epssScore || 0)) * 100).toFixed(1)}%`
+                    : '0.0%'}
+                </div>
+                <div className="report-metric-label">EPSS Max Probability</div>
+              </div>
+              <div className="list-card glassmorphism report-metric-card">
+                <div className="report-metric-value text-success">{threatIntel.totalCves}</div>
+                <div className="report-metric-label">Total CVEs Enriched</div>
+              </div>
+            </div>
+
+            {/* Enriched CVE records table */}
+            <div className="list-card glassmorphism console-window" style={{ padding: 0 }}>
+              <div className="terminal-header">
+                <span className="terminal-title">threat_intel_enrichment_manifest.json</span>
+              </div>
+              <div className="table-responsive">
+                <table className="recent-scans-table">
+                  <thead>
+                    <tr>
+                      <th>CVE ID</th>
+                      <th>Exploit Priority</th>
+                      <th>Known Exploited</th>
+                      <th>EPSS Score</th>
+                      <th>Percentile</th>
+                      <th>Patch Urgency</th>
+                      <th>Verified Sources</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {threatIntel.records.map((rec) => (
+                      <React.Fragment key={rec.cveId}>
+                        <tr>
+                          <td style={{ fontWeight: 600 }} className="monospace-td">{rec.cveId}</td>
+                          <td>
+                            <span className={`severity-badge-lbl ${rec.priority === 'immediate' ? 'critical' : rec.priority === 'high' ? 'high' : rec.priority === 'scheduled' ? 'medium' : 'info'}`}>
+                              {rec.priority}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`status-badge ${rec.knownExploited ? 'failed' : 'completed'}`} style={{ textTransform: 'uppercase', fontSize: '10px' }}>
+                              {rec.knownExploited ? 'YES (KEV)' : 'NO'}
+                            </span>
+                          </td>
+                          <td className="monospace-td">
+                            {rec.epssScore !== null ? `${(rec.epssScore * 100).toFixed(3)}%` : 'N/A'}
+                          </td>
+                          <td className="monospace-td">
+                            {rec.epssPercentile !== null ? `${(rec.epssPercentile * 100).toFixed(2)}%` : 'N/A'}
+                          </td>
+                          <td style={{ fontSize: '12px' }}>{rec.remediationUrgency}</td>
+                          <td>
+                            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                              {rec.sources.map((src, sIdx) => (
+                                <span key={sIdx} className="badge-type" style={{ fontSize: '9px', padding: '2px 6px' }}>{src}</span>
+                              ))}
+                            </div>
+                          </td>
+                        </tr>
+                        {rec.summary && (
+                          <tr className="threat-summary-row">
+                            <td colSpan={7} style={{ padding: '8px 16px', background: 'rgba(255,255,255,0.01)', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
+                              <div style={{ fontSize: '11px', color: 'var(--text-muted)' }}>
+                                <strong>Advisory Summary:</strong> {rec.summary}
+                              </div>
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {/* 5. REMEDIATION PLAN */}

@@ -131,3 +131,25 @@ export interface SBOMResponse {
   packages: SBOMPackage[];
   generated_at: string;
 }
+
+export type ThreatPriority = 'immediate' | 'high' | 'scheduled' | 'monitor';
+
+export interface ThreatIntelRecord {
+  cveId: string;
+  knownExploited: boolean;
+  epssScore: number | null;
+  epssPercentile: number | null;
+  priority: ThreatPriority;
+  summary: string;
+  remediationUrgency: string;
+  sources: string[];
+}
+
+export interface ThreatIntelResponse {
+  scanId: string;
+  generatedAt: string;
+  totalCves: number;
+  knownExploitedCount: number;
+  highPriorityCount: number;
+  records: ThreatIntelRecord[];
+}

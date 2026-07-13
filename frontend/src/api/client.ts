@@ -67,6 +67,9 @@ export const api = {
 
   /** GET /api/v1/scan/{scanId}/sbom — retrieve SBOM packages for a scan */
   getSBOM: (scanId: string) => client.get(`/scan/${scanId}/sbom`),
+
+  /** GET /api/v1/threat-intel/scan/{scanId} — retrieve threat intelligence statistics */
+  getThreatIntel: (scanId: string) => client.get(`/threat-intel/scan/${scanId}`),
 };
 
 /**
