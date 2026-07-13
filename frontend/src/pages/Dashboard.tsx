@@ -55,7 +55,6 @@ const CustomTooltip = ({ active, payload, label }: any) => {
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
-  const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -70,16 +69,6 @@ const Dashboard: React.FC = () => {
       </div>
     );
   }
-
-  // Format data for severity pie chart
-  const pieData = Object.entries(dashboardSummary.severityDistribution).map(
-    ([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: `url(#grad-${name})`,
-      rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
-    })
-  );
 
   // Format data for vertical threat columns chart
   const barData = ['critical', 'high', 'medium', 'low', 'info'].map((name) => ({
@@ -219,119 +208,73 @@ const Dashboard: React.FC = () => {
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
           <div className="chart-wrapper side-by-side-chart">
-            <div className="donut-chart-container-left">
+            <div className="bar-chart-container-left">
               <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
+                <BarChart
+                  data={barData}
+                  margin={{ top: 15, right: 10, left: 15, bottom: 5 }}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
                   <defs>
-                    <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#7f1d1d" />
-                      <stop offset="100%" stopColor="#f43f5e" />
+                    <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff453a" />
+                      <stop offset="100%" stopColor="#ff2d55" />
                     </linearGradient>
-                    <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#7c2d12" />
-                      <stop offset="100%" stopColor="#fb923c" />
+                    <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff9f0a" />
+                      <stop offset="100%" stopColor="#ff7b00" />
                     </linearGradient>
-                    <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#1e3a8a" />
-                      <stop offset="100%" stopColor="#60a5fa" />
+                    <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" />
+                      <stop offset="100%" stopColor="#3b82f6" />
                     </linearGradient>
-                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#4c1d95" />
-                      <stop offset="100%" stopColor="#c084fc" />
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#af52de" />
+                      <stop offset="100%" stopColor="#8b5cf6" />
                     </linearGradient>
-                    <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#1e293b" />
+                    <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#94a3b8" />
                       <stop offset="100%" stopColor="#64748b" />
                     </linearGradient>
+                    
+                    {/* Glow filter for hovered bar */}
+                    <filter id="glow-effect" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
                   </defs>
-
-                  {/* Outer dotted scanning arc */}
-                  <Pie
-                    data={[{ value: 100 }]}
-                    cx="50%"
-                    cy="75%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={93}
-                    outerRadius={94}
-                    dataKey="value"
-                    isAnimationActive={false}
-                    fill="none"
-                    stroke="rgba(99, 102, 241, 0.12)"
-                    strokeWidth="1"
-                    strokeDasharray="4 4"
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600, fontFamily: 'Outfit' }}
                   />
-                  {/* Outer border arc */}
-                  <Pie
-                    data={[{ value: 100 }]}
-                    cx="50%"
-                    cy="75%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={97}
-                    outerRadius={98}
+                  <YAxis axisLine={false} tickLine={false} hide />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.015)' }} />
+                  <Bar
                     dataKey="value"
-                    isAnimationActive={false}
-                    fill="none"
-                    stroke="rgba(255, 255, 255, 0.02)"
-                    strokeWidth="1"
-                  />
-
-                  {/* Background Track Arc */}
-                  <Pie
-                    data={[{ value: 100 }]}
-                    cx="50%"
-                    cy="75%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={70}
-                    outerRadius={90}
-                    dataKey="value"
-                    isAnimationActive={false}
-                    fill="rgba(255, 255, 255, 0.03)"
-                  />
-
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="75%"
-                    startAngle={180}
-                    endAngle={0}
-                    innerRadius={70}
-                    outerRadius={90}
-                    paddingAngle={2}
-                    dataKey="value"
+                    radius={6}
+                    barSize={24}
+                    background={{ fill: 'rgba(255, 255, 255, 0.02)', radius: 6 }}
                   >
-                    {pieData.map((entry, index) => {
-                      const isHovered = hoveredSeverity
-                        ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
-                        : true;
+                    {barData.map((entry, index) => {
+                      const isHovered = activeIndex === index;
+                      const isDimmed = activeIndex !== null && !isHovered;
                       return (
                         <Cell
                           key={`cell-${index}`}
                           fill={entry.color}
-                          opacity={isHovered ? 1 : 0.15}
-                          style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredSeverity(entry.name.toLowerCase())}
-                          onMouseLeave={() => setHoveredSeverity(null)}
+                          opacity={isDimmed ? 0.35 : 1}
+                          filter={isHovered ? 'url(#glow-effect)' : 'none'}
+                          style={{ transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)', cursor: 'pointer' }}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onMouseLeave={() => setActiveIndex(null)}
                         />
                       );
                     })}
-                  </Pie>
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
-              <div className="donut-center-text gauge-center-text">
-                <div className="donut-center-card">
-                  <span className="donut-center-num">
-                    {hoveredSeverity
-                      ? (dashboardSummary.severityDistribution[hoveredSeverity as keyof typeof SEVERITY_COLORS] || 0)
-                      : dashboardSummary.totalFindings}
-                  </span>
-                  <span className="donut-center-label">
-                    {hoveredSeverity ? hoveredSeverity : 'Findings'}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Premium Vertical Progress List */}
@@ -383,12 +326,13 @@ const Dashboard: React.FC = () => {
                   );
                 }
 
+                const isRowActive = activeIndex === index;
                 return (
                   <div
                     key={sevKey}
-                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${hoveredSeverity === sevKey ? 'hovered' : ''}`}
-                    onMouseEnter={() => count > 0 && setHoveredSeverity(sevKey)}
-                    onMouseLeave={() => setHoveredSeverity(null)}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${isRowActive ? 'hovered' : ''}`}
+                    onMouseEnter={() => count > 0 && setActiveIndex(index)}
+                    onMouseLeave={() => setActiveIndex(null)}
                   >
                     <div className="sev-info-section">
                       <div className="sev-label-row">
