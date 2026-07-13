@@ -272,7 +272,20 @@ class ScanManager:
             for sf in result.findings:
                 sev = normalize_severity(sf.severity.value if hasattr(sf.severity, "value") else str(sf.severity))
                 clean_file_path = _clean_path(sf.file_path, target_path)
-                evidence_prefix = sf.evidence[:120] if sf.evidence else ""
+                
+                evidence = sf.evidence or ""
+                if not evidence or evidence.strip() == "requires login":
+                    try:
+                        file_path_obj = Path(target_path) / clean_file_path
+                        if file_path_obj.exists() and file_path_obj.is_file():
+                            all_lines = file_path_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
+                            line_num = sf.line_number
+                            if line_num and 1 <= line_num <= len(all_lines):
+                                evidence = all_lines[line_num - 1]
+                    except Exception as e:
+                        logger.warning("Failed to fallback evidence reading: %s", e)
+
+                evidence_prefix = evidence[:120]
                 
                 dedup_key = (
                     sf.id,
@@ -294,7 +307,7 @@ class ScanManager:
                     category=sf.category,
                     file_path=clean_file_path,
                     line_number=sf.line_number or 0,
-                    evidence=sf.evidence,
+                    evidence=evidence,
                     remediation=sf.remediation,
                     cve_id=sf.id if sf.category == "cve" else None,
                     cvss_score=sf.cvss_score or None,
@@ -340,7 +353,20 @@ class ScanManager:
                 for sast_finding_dict in self._run_sast_to_dicts(sast, target_path):
                     sev = normalize_severity(sast_finding_dict["severity"])
                     clean_file_path = _clean_path(sast_finding_dict.get("file_path", ""), target_path)
-                    evidence_prefix = sast_finding_dict.get("evidence", "")[:120]
+                    
+                    evidence = sast_finding_dict.get("evidence", "") or ""
+                    if not evidence or evidence.strip() == "requires login":
+                        try:
+                            file_path_obj = Path(target_path) / clean_file_path
+                            if file_path_obj.exists() and file_path_obj.is_file():
+                                all_lines = file_path_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
+                                line_num = sast_finding_dict.get("line_number")
+                                if line_num and 1 <= line_num <= len(all_lines):
+                                    evidence = all_lines[line_num - 1]
+                        except Exception as e:
+                            logger.warning("Failed to fallback evidence reading: %s", e)
+
+                    evidence_prefix = evidence[:120]
                     
                     dedup_key = (
                         sast_finding_dict["rule_id"],
@@ -362,7 +388,7 @@ class ScanManager:
                         category=sast_finding_dict.get("category", "sast"),
                         file_path=clean_file_path,
                         line_number=sast_finding_dict.get("line_number") or 0,
-                        evidence=sast_finding_dict.get("evidence", ""),
+                        evidence=evidence,
                         remediation=sast_finding_dict.get("remediation", ""),
                         cve_id=sast_finding_dict.get("cve_id"),
                         cvss_score=sast_finding_dict.get("cvss_score"),
