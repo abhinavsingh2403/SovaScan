@@ -8,6 +8,31 @@ const client = axios.create({
   },
 });
 
+client.interceptors.request.use((config) => {
+  let key = localStorage.getItem('sovascan-active-key');
+  if (!key) {
+    try {
+      const stored = localStorage.getItem('sovascan-api-keys');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          key = parsed[0].key;
+          localStorage.setItem('sovascan-active-key', key as string);
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }
+  if (!key) {
+    key = 'ss_live_mock_local_dev_key_12345';
+  }
+  if (key) {
+    config.headers['X-API-Key'] = key;
+  }
+  return config;
+});
+
 client.interceptors.response.use(
   (response) => response,
   (error) => {
@@ -99,6 +124,15 @@ export const api = {
       context_start_line: startLine,
       context_end_line: endLine,
     }),
+
+  /** GET /api/v1/auth/api-keys — list metadata of API keys */
+  getApiKeys: () => client.get('/auth/api-keys'),
+
+  /** POST /api/v1/auth/api-keys — generate new API key */
+  createApiKey: (name: string) => client.post('/auth/api-keys', { name }),
+
+  /** DELETE /api/v1/auth/api-keys/{keyId} — revoke API key */
+  deleteApiKey: (keyId: string) => client.delete(`/auth/api-keys/${keyId}`),
 };
 
 /**

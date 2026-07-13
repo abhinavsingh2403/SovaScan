@@ -30,10 +30,11 @@ from sovascan.core.threat_intel import ThreatIntelEnricher, CVE_PATTERN
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
+from sovascan.api.auth import verify_api_key
 
 logger = logging.getLogger("sovascan.api")
 
-router = APIRouter(tags=["sovascan"])
+router = APIRouter(tags=["sovascan"], dependencies=[Depends(verify_api_key)])
 
 
 # ---------------------------------------------------------------------------
@@ -1329,4 +1330,75 @@ def get_scan_threat_intel(
         "high_priority_count": high_priority_cnt,
         "records": records_list
     }
+
+
+@router.get("/auth/api-keys", response_model=list[dict[str, Any]])
+def get_api_keys(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Retrieve metadata of all active API Keys."""
+    from sovascan.models.api_key import ApiKey
+    keys = db.query(ApiKey).all()
+    return [
+        {
+            "id": k.id,
+            "name": k.name,
+            "created_at": k.created_at.isoformat() + "Z" if k.created_at else None,
+            "last_used": k.last_used.isoformat() + "Z" if k.last_used else "Never",
+            "is_active": k.is_active,
+        }
+        for k in keys
+    ]
+
+
+@router.post("/auth/api-keys", response_model=dict[str, Any])
+def create_api_key(
+    request_data: dict[str, str],
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """Generate a new secure API Key, store its hash, and return the plaintext key once."""
+    from sovascan.models.api_key import ApiKey
+    import secrets
+    import hashlib
+
+    name = request_data.get("name")
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="API Key name is required.")
+
+    # Generate a random hex string prefix with ss_live_
+    plaintext_key = f"ss_live_{secrets.token_hex(16)}"
+    key_hash = hashlib.sha256(plaintext_key.encode("utf-8")).hexdigest()
+
+    new_key = ApiKey(
+        id=str(uuid.uuid4()),
+        name=name.strip(),
+        key_hash=key_hash,
+        is_active=True
+    )
+    db.add(new_key)
+    db.commit()
+
+    return {
+        "id": new_key.id,
+        "name": new_key.name,
+        "key": plaintext_key,  # Returned only once to the client
+        "created_at": new_key.created_at.isoformat() + "Z" if new_key.created_at else None,
+        "last_used": "Never",
+        "is_active": True
+    }
+
+
+@router.delete("/auth/api-keys/{key_id}", response_model=dict[str, Any])
+def delete_api_key(
+    key_id: str,
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """Revokes/deletes an API Key by setting is_active = False or deleting from database."""
+    from sovascan.models.api_key import ApiKey
+    key_entry = db.query(ApiKey).filter(ApiKey.id == key_id).first()
+    if not key_entry:
+        raise HTTPException(status_code=404, detail="API Key not found.")
+
+    db.delete(key_entry)
+    db.commit()
+
+    return {"detail": "API Key revoked and deleted successfully."}
 
