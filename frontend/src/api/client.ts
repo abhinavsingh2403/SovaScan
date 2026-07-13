@@ -49,10 +49,21 @@ export const api = {
   }) => client.get('/findings', { params }),
 
   /** POST /api/v1/fix/{findingId} — generate or apply an auto-fix */
-  applyFix: (findingId: string, autoApply: boolean = true) =>
+  applyFix: (
+    findingId: string, 
+    autoApply: boolean = true, 
+    customReplacement?: string,
+    contextReplacement?: string,
+    contextStartLine?: number,
+    contextEndLine?: number
+  ) =>
     client.post(`/fix/${findingId}`, {
       finding_id: findingId,
       auto_apply: autoApply,
+      custom_replacement: customReplacement,
+      context_replacement: contextReplacement,
+      context_start_line: contextStartLine,
+      context_end_line: contextEndLine,
     }),
 
   /** POST /api/v1/fix/all — bulk fix all findings */
@@ -61,7 +72,6 @@ export const api = {
   /** POST /api/v1/scan/{scanId}/fix-all — bulk fix all findings in a scan */
   fixAllScan: (scanId: string) => client.post(`/scan/${scanId}/fix-all`),
 
-  /** GET /api/v1/compliance/{framework} — compliance report */
   getCompliance: (framework: string, scanId?: string) =>
     client.get(`/compliance/${framework}`, { params: scanId ? { scan_id: scanId } : {} }),
 
@@ -70,6 +80,25 @@ export const api = {
 
   /** GET /api/v1/threat-intel/scan/{scanId} — retrieve threat intelligence statistics */
   getThreatIntel: (scanId: string) => client.get(`/threat-intel/scan/${scanId}`),
+
+  /** GET /api/v1/findings/{findingId}/context — surrounding code context */
+  getFindingContext: (findingId: string) =>
+    client.get(`/findings/${findingId}/context`),
+
+  /** POST /api/v1/findings/{findingId}/revert — revert applied fix */
+  revertFix: (
+    findingId: string,
+    backupText: string,
+    startLine: number,
+    endLine: number
+  ) =>
+    client.post(`/findings/${findingId}/revert`, {
+      finding_id: findingId,
+      auto_apply: true,
+      context_replacement: backupText,
+      context_start_line: startLine,
+      context_end_line: endLine,
+    }),
 };
 
 /**

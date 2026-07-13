@@ -742,3 +742,4 @@ export const useStore = create<SovaState>((set, get) => ({
     saveNotifications([]);
   },
 }));
+

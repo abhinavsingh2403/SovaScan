@@ -42,6 +42,22 @@ class FixRequest(BaseModel):
         default=False,
         description="Whether to automatically apply the fix",
     )
+    custom_replacement: str | None = Field(
+        default=None,
+        description="Optional custom code replacement text provided by the user via the sandbox editor",
+    )
+    context_replacement: str | None = Field(
+        default=None,
+        description="The full edited block of 10-15 lines of context from the frontend sandbox",
+    )
+    context_start_line: int | None = Field(
+        default=None,
+        description="The 1-based start line of the context block in the original file",
+    )
+    context_end_line: int | None = Field(
+        default=None,
+        description="The 1-based end line of the context block in the original file",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -220,3 +236,14 @@ class ThreatIntelScanResponse(BaseModel):
     known_exploited_count: int
     high_priority_count: int
     records: list[ThreatIntelRecordResponse]
+
+
+class FindingContextResponse(BaseModel):
+    """Response schema for file context around a finding."""
+
+    finding_id: str
+    file_path: str
+    start_line: int
+    end_line: int
+    target_line: int
+    lines: list[dict[str, str | int]]

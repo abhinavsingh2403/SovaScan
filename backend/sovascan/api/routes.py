@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 from sovascan.api.schemas import (
     ComplianceResponse,
     DashboardSummary,
+    FindingContextResponse,
     FindingsListResponse,
     FixRequest,
     FixResponse,
@@ -362,7 +363,54 @@ def generate_sbom(
     }
 
 
-def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None) -> bool:
+def _apply_context_replacement_on_disk(
+    finding: Finding,
+    context_replacement: str,
+    start_line: int,
+    end_line: int,
+    target_path: str | None = None,
+) -> bool:
+    """Replaces a specific line block range in a file with a full context replacement block."""
+    try:
+        from pathlib import Path as _Path
+        file_path_obj = _Path(finding.file_path)
+        if not file_path_obj.is_absolute():
+            target = target_path or (finding.scan.target if finding.scan else None)
+            if target:
+                file_path_obj = _Path(target) / finding.file_path
+        file_path_obj = file_path_obj.resolve()
+
+        if not file_path_obj.exists() or not file_path_obj.is_file():
+            return False
+
+        # Read original file contents
+        content = file_path_obj.read_text(encoding="utf-8")
+        lines = content.splitlines(keepends=True)
+
+        # Split replacement block into lines
+        replacement_lines = context_replacement.splitlines(keepends=True)
+        # Add newlines if they are missing at the end of replacement lines
+        if replacement_lines and not replacement_lines[-1].endswith('\n') and (len(lines) >= end_line and lines[end_line - 1].endswith('\n')):
+            replacement_lines[-1] = replacement_lines[-1] + '\n'
+
+        # Slice original file and substitute replacement block
+        # start_line is 1-based index (e.g. line 5 -> index 4).
+        # end_line is 1-based index (inclusive, e.g. line 15 -> index 14).
+        new_lines = lines[:start_line - 1] + replacement_lines + lines[end_line:]
+
+        # Write content back to file
+        file_path_obj.write_text("".join(new_lines), encoding="utf-8")
+        return True
+    except Exception as e:
+        print(f"Error applying context replacement on disk: {e}")
+        return False
+
+
+def _apply_finding_fix_on_disk(
+    finding: Finding,
+    target_path: str | None = None,
+    custom_replacement: str | None = None,
+) -> bool:
     """Physically applies a patch to the file on disk for a given finding."""
     try:
         from pathlib import Path
@@ -380,9 +428,66 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
             line_idx = finding.line_number - 1 if finding.line_number else None
             applied = False
 
-            if finding.category == "secret" and line_idx is not None and 0 <= line_idx < len(lines):
+            if custom_replacement is not None:
+                if line_idx is not None and 0 <= line_idx < len(lines):
+                    old_line = lines[line_idx]
+                    new_val = custom_replacement
+                    if old_line.endswith("\n") and not new_val.endswith("\n"):
+                        new_val += "\n"
+                    lines[line_idx] = new_val
+                    applied = True
+                else:
+                    evidence = finding.evidence or ""
+                    if evidence:
+                        content_str = "".join(lines)
+                        if evidence in content_str:
+                            content_str = content_str.replace(evidence, custom_replacement, 1)
+                            lines = [content_str]
+                            applied = True
+            elif finding.category == "secret" and line_idx is not None and 0 <= line_idx < len(lines):
                 old_line = lines[line_idx]
-                new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                suffix = file_path_obj.suffix.lower()
+                env_var = finding.rule_id.replace("-", "_").upper()
+                
+                if suffix == ".py":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= __import__('os').environ.get('{env_var}')"
+                    else:
+                        new_val = f"__import__('os').environ.get('{env_var}')"
+                elif suffix == ".env":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}=your_{lhs.strip().lower()}_here"
+                    else:
+                        new_val = f"{finding.rule_id}=your_secret_here"
+                elif suffix in (".json", ".yml", ".yaml", ".conf", ".ini", ".properties"):
+                    if ":" in old_line:
+                        lhs, rhs = old_line.split(":", 1)
+                        new_val = f'{lhs}: "PLACEHOLDER_{env_var}"'
+                    elif "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f'{lhs}=PLACEHOLDER_{env_var}'
+                    else:
+                        new_val = f"PLACEHOLDER_{env_var}"
+                elif suffix in (".js", ".ts", ".jsx", ".tsx"):
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= process.env.{env_var}"
+                    elif ":" in old_line:
+                        lhs, rhs = old_line.split(":", 1)
+                        new_val = f"{lhs}: process.env.{env_var}"
+                    else:
+                        new_val = f"process.env.{env_var}"
+                elif suffix == ".java":
+                    if "=" in old_line:
+                        lhs, rhs = old_line.split("=", 1)
+                        new_val = f"{lhs}= System.getenv(\"{env_var}\")"
+                    else:
+                        new_val = f"System.getenv(\"{env_var}\")"
+                else:
+                    new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+                
                 # preserve trailing newline if present
                 if old_line.endswith("\n"):
                     new_val += "\n"
@@ -417,8 +522,22 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
                     lines[line_idx] = new_line
                     applied = True
                 elif finding.rule_id == "SOVA-WEB-003":
-                    new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
-                    if old_line.endswith("\n"):
+                    suffix = file_path_obj.suffix.lower()
+                    if suffix in (".conf", ".nginx") or "add_header" in old_line:
+                        if "add_header" in old_line:
+                            new_line = old_line.replace("'*'", "'https://yourdomain.com'").replace('"*"', "'https://yourdomain.com'")
+                        else:
+                            new_line = "    add_header 'Access-Control-Allow-Origin' 'https://yourdomain.com';"
+                    else:
+                        if ":" in old_line:
+                            lhs, rhs = old_line.split(":", 1)
+                            new_line = f'{lhs}: "https://yourdomain.com"'
+                        elif "=" in old_line:
+                            lhs, rhs = old_line.split("=", 1)
+                            new_line = f'{lhs}= "https://yourdomain.com"'
+                        else:
+                            new_line = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
+                    if old_line.endswith("\n") and not new_line.endswith("\n"):
                         new_line += "\n"
                     lines[line_idx] = new_line
                     applied = True
@@ -436,6 +555,79 @@ def _apply_finding_fix_on_disk(finding: Finding, target_path: str | None = None)
     except Exception as write_err:
         logger.exception("Failed to physically apply auto-fix: %s", write_err)
     return False
+
+
+@router.get("/findings/{finding_id}/context", response_model=FindingContextResponse)
+def get_finding_context(
+    finding_id: str,
+    db: Session = Depends(get_db),
+) -> dict:
+    """Retrieve surrounding code context for a finding.
+
+    Returns ~15 lines of source code around the vulnerable line,
+    with line numbers, so the frontend can display inline context.
+
+    Args:
+        finding_id: UUID of the finding.
+        db: Database session (injected).
+
+    Returns:
+        File context including lines, start/end line numbers, and target line.
+
+    Raises:
+        HTTPException: 404 if finding not found, 404 if file not readable.
+    """
+    from pathlib import Path as _Path
+
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if finding is None:
+        raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
+
+    # Resolve the file path
+    file_path_obj = _Path(finding.file_path)
+    if not file_path_obj.is_absolute():
+        target_path = finding.scan.target if finding.scan else None
+        if target_path:
+            file_path_obj = _Path(target_path) / finding.file_path
+        elif finding.scan:
+            file_path_obj = _Path(finding.scan.target) / finding.file_path
+    file_path_obj = file_path_obj.resolve()
+
+    if not file_path_obj.exists() or not file_path_obj.is_file():
+        raise HTTPException(
+            status_code=404,
+            detail=f"Source file not found on disk: {file_path_obj}",
+        )
+
+    try:
+        content = file_path_obj.read_text(encoding="utf-8")
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to read source file: {exc}",
+        )
+
+    all_lines = content.splitlines()
+    target_line = finding.line_number or 1
+    context_radius = 7
+    start_line = max(1, target_line - context_radius)
+    end_line = min(len(all_lines), target_line + context_radius)
+
+    lines_data = []
+    for i in range(start_line, end_line + 1):
+        lines_data.append({
+            "num": i,
+            "content": all_lines[i - 1] if i <= len(all_lines) else "",
+        })
+
+    return {
+        "finding_id": finding_id,
+        "file_path": str(finding.file_path),
+        "start_line": start_line,
+        "end_line": end_line,
+        "target_line": target_line,
+        "lines": lines_data,
+    }
 
 
 @router.post("/fix/{finding_id}", response_model=FixResponse)
@@ -469,17 +661,77 @@ def generate_fix(
     patch_lines: list[str] = []
     description = ""
 
+    # Try to load the original line from disk to show a precise and valid patch
+    real_old_line = None
+    if finding.file_path:
+        try:
+            from pathlib import Path
+            file_path_obj = Path(finding.file_path)
+            if not file_path_obj.is_absolute() and finding.scan:
+                file_path_obj = Path(finding.scan.target) / finding.file_path
+            
+            if file_path_obj.exists() and file_path_obj.is_file():
+                file_lines = file_path_obj.read_text(encoding="utf-8").splitlines()
+                if finding.line_number and 0 < finding.line_number <= len(file_lines):
+                    real_old_line = file_lines[finding.line_number - 1]
+        except Exception:
+            pass
+
+    old_line_val = real_old_line if real_old_line is not None else finding.evidence or ""
+
     if finding.category == "secret":
+        suffix = Path(finding.file_path).suffix.lower() if finding.file_path else ""
+        env_var = finding.rule_id.replace("-", "_").upper()
+        
+        if suffix == ".py":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= __import__('os').environ.get('{env_var}')"
+            else:
+                new_val = f"__import__('os').environ.get('{env_var}')"
+        elif suffix == ".env":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}=your_{lhs.strip().lower()}_here"
+            else:
+                new_val = f"{finding.rule_id}=your_secret_here"
+        elif suffix in (".json", ".yml", ".yaml", ".conf", ".ini", ".properties"):
+            if old_line_val and ":" in old_line_val:
+                lhs, rhs = old_line_val.split(":", 1)
+                new_val = f'{lhs}: "PLACEHOLDER_{env_var}"'
+            elif old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f'{lhs}=PLACEHOLDER_{env_var}'
+            else:
+                new_val = f"PLACEHOLDER_{env_var}"
+        elif suffix in (".js", ".ts", ".jsx", ".tsx"):
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= process.env.{env_var}"
+            elif old_line_val and ":" in old_line_val:
+                lhs, rhs = old_line_val.split(":", 1)
+                new_val = f"{lhs}: process.env.{env_var}"
+            else:
+                new_val = f"process.env.{env_var}"
+        elif suffix == ".java":
+            if old_line_val and "=" in old_line_val:
+                lhs, rhs = old_line_val.split("=", 1)
+                new_val = f"{lhs}= System.getenv(\"{env_var}\")"
+            else:
+                new_val = f"System.getenv(\"{env_var}\")"
+        else:
+            new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
+
         patch_lines = [
             f"--- a/{finding.file_path}",
             f"+++ b/{finding.file_path}",
             f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-            f"-{finding.evidence}",
-            f'+{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}',
+            f"-{old_line_val.rstrip()}",
+            f"+{new_val.rstrip()}",
         ]
         description = (
             f"Replace the hardcoded secret at {finding.file_path}:{finding.line_number} "
-            "with an environment variable reference. Remember to rotate the exposed credential."
+            "with an environment variable reference or safe configuration placeholder."
         )
     elif finding.category == "cve":
         old_dep = finding.evidence or ""
@@ -513,12 +765,27 @@ def generate_fix(
                 f"in {finding.file_path} after the base image is defined."
             )
         elif finding.rule_id == "SOVA-WEB-003":
+            suffix = Path(finding.file_path).suffix.lower() if finding.file_path else ""
+            if suffix in (".conf", ".nginx") or (old_line_val and "add_header" in old_line_val):
+                if old_line_val and "add_header" in old_line_val:
+                    new_val = old_line_val.replace("'*'", "'https://yourdomain.com'").replace('"*"', "'https://yourdomain.com'")
+                else:
+                    new_val = "    add_header 'Access-Control-Allow-Origin' 'https://yourdomain.com';"
+            else:
+                if old_line_val and ":" in old_line_val:
+                    lhs, rhs = old_line_val.split(":", 1)
+                    new_val = f'{lhs}: "https://yourdomain.com"'
+                elif old_line_val and "=" in old_line_val:
+                    lhs, rhs = old_line_val.split("=", 1)
+                    new_val = f'{lhs}= "https://yourdomain.com"'
+                else:
+                    new_val = 'Access-Control-Allow-Origin = "https://yourdomain.com"'
             patch_lines = [
                 f"--- a/{finding.file_path}",
                 f"+++ b/{finding.file_path}",
                 f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
-                f"-{finding.evidence}",
-                '+Access-Control-Allow-Origin = "https://yourdomain.com"',
+                f"-{old_line_val.rstrip()}",
+                f"+{new_val.rstrip()}",
             ]
             description = (
                 f"Specify exact allowed domains in {finding.file_path} "
@@ -542,11 +809,33 @@ def generate_fix(
 
     patch = "\n".join(patch_lines)
 
+    if request.custom_replacement is not None:
+        patch = "\n".join([
+            f"--- a/{finding.file_path}",
+            f"+++ b/{finding.file_path}",
+            f"@@ -{finding.line_number or 1},1 +{finding.line_number or 1},1 @@",
+            f"-{finding.evidence}",
+            f"+{request.custom_replacement}",
+        ])
+
     status = "applied" if request.auto_apply else "suggested"
 
     if request.auto_apply:
         target_path = finding.scan.target if finding.scan else None
-        success = _apply_finding_fix_on_disk(finding, target_path=target_path)
+        if request.context_replacement is not None and request.context_start_line is not None and request.context_end_line is not None:
+            success = _apply_context_replacement_on_disk(
+                finding,
+                request.context_replacement,
+                request.context_start_line,
+                request.context_end_line,
+                target_path=target_path,
+            )
+        else:
+            success = _apply_finding_fix_on_disk(
+                finding,
+                target_path=target_path,
+                custom_replacement=request.custom_replacement,
+            )
         if not success:
             raise HTTPException(
                 status_code=500,
@@ -560,6 +849,50 @@ def generate_fix(
         "status": status,
         "patch": patch,
         "description": description,
+    }
+
+
+@router.post("/findings/{finding_id}/revert", response_model=dict[str, Any])
+def revert_finding_fix(
+    finding_id: str,
+    request: FixRequest,
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Reverts an applied fix on disk by writing the backup original context block,
+    and resets the finding's is_fixed status to False.
+    """
+    finding = db.query(Finding).filter(Finding.id == finding_id).first()
+    if finding is None:
+        raise HTTPException(status_code=404, detail=f"Finding {finding_id} not found")
+
+    if not request.context_replacement or request.context_start_line is None or request.context_end_line is None:
+        raise HTTPException(
+            status_code=400,
+            detail="To revert, you must provide context_replacement (backup text), context_start_line, and context_end_line."
+        )
+
+    target_path = finding.scan.target if finding.scan else None
+    success = _apply_context_replacement_on_disk(
+        finding,
+        request.context_replacement,
+        request.context_start_line,
+        request.context_end_line,
+        target_path=target_path,
+    )
+
+    if not success:
+        raise HTTPException(
+            status_code=500,
+            detail="Failed to physically revert file content on disk."
+        )
+
+    finding.is_fixed = False
+    db.commit()
+
+    return {
+        "finding_id": finding_id,
+        "status": "reverted",
+        "description": "Finding fix successfully reverted and file restored to original content."
     }
 
 

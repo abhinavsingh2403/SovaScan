@@ -435,6 +435,7 @@
   color: var(--text-muted);
 }
 
+
 /* ---- Notifications Dropdown ---- */
 .topbar__notif-container {
   position: relative;
@@ -605,6 +606,7 @@
 
 /* ---- Content ---- */
 .content {
+
   flex: 1;
   padding: 28px;
   animation: fadeIn 0.3s ease;

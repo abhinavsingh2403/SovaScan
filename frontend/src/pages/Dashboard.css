@@ -401,6 +401,48 @@
   width: 100%;
 }
 
+.donut-chart-container-left .donut-center-text {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%); /* perfectly centered */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+
+.donut-chart-container-left .gauge-center-text {
+  position: absolute;
+  top: unset;
+  bottom: 8px;
+  left: 50%;
+  transform: translate(-50%, 0);
+}
+
+.donut-center-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+
+.donut-center-num {
+  font-size: 34px;
+  font-weight: 800;
+  color: var(--text-primary);
+  line-height: 1;
+}
+
+.donut-center-label {
+  font-size: 10px;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  font-weight: 600;
+  margin-top: 6px;
+}
 /* Side-by-side Layout Grid */
 .side-by-side-chart {
   display: grid;

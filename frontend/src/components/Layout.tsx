@@ -156,6 +156,32 @@ export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [notifOpen, setNotifOpen] = useState(false);
+  const notifRef = useRef<HTMLDivElement>(null);
+  const [avatarOpen, setAvatarOpen] = useState(false);
+  const avatarRef = useRef<HTMLDivElement>(null);
+
+  const {
+    notifications,
+    markNotificationAsRead,
+    markAllNotificationsAsRead,
+    clearNotifications,
+  } = useStore();
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
+        setNotifOpen(false);
+      }
+      if (avatarRef.current && !avatarRef.current.contains(event.target as Node)) {
+        setAvatarOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Notifications & Profile states
   const {
@@ -316,7 +342,6 @@ export default function Layout({ children }: LayoutProps) {
                 </div>
               )}
             </div>
-
             <div className="topbar__avatar-container" ref={avatarRef}>
               <button
                 className="topbar__avatar-btn"
