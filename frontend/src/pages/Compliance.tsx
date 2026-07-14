@@ -5,7 +5,18 @@ import './Compliance.css';
 
 const Compliance: React.FC = () => {
   const { getComplianceReport, fetchComplianceReport, findings } = useStore();
-  const [selectedFramework, setSelectedFramework] = useState('NIST-CSF');
+  const [selectedFramework, setSelectedFramework] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.defaultFramework || 'NIST-CSF';
+      }
+    } catch {
+      // ignore
+    }
+    return 'NIST-CSF';
+  });
   const [expandedControlId, setExpandedControlId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -88,23 +99,55 @@ const Compliance: React.FC = () => {
             Last assessed: {new Date(report.lastAssessed).toLocaleString()}
           </span>
 
-          <div className="gauge-outer-wrap">
+          <div className="gauge-outer-wrap animate-scan-glow">
             <div className="compliance-gauge">
-              <svg viewBox="0 0 36 36" className="circular-gauge">
+              <svg viewBox="0 0 36 36" className="circular-gauge speedometer-dial">
+                <defs>
+                  <linearGradient id="comp-grad-green" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#10b981" />
+                    <stop offset="100%" stopColor="#059669" />
+                  </linearGradient>
+                  <linearGradient id="comp-grad-orange" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#f59e0b" />
+                    <stop offset="100%" stopColor="#d97706" />
+                  </linearGradient>
+                  <linearGradient id="comp-grad-red" x1="0" y1="1" x2="1" y2="0">
+                    <stop offset="0%" stopColor="#ef4444" />
+                    <stop offset="100%" stopColor="#dc2626" />
+                  </linearGradient>
+                  <filter id="glow-comp">
+                    <feGaussianBlur stdDeviation="0.8" result="blur"/>
+                    <feMerge>
+                      <feMergeNode in="blur"/>
+                      <feMergeNode in="SourceGraphic"/>
+                    </feMerge>
+                  </filter>
+                </defs>
                 <path
                   className="gauge-bg"
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  strokeDasharray="75, 100"
+                  strokeLinecap="round"
+                  d="M18 3 a 15 15 0 1 1 0 30 a 15 15 0 1 1 0 -30"
+                  fill="none"
+                  stroke="rgba(255, 255, 255, 0.03)"
+                  strokeWidth="2.5"
+                  transform="rotate(-135 18 18)"
                 />
                 <path
                   className="gauge-fill"
-                  strokeDasharray={`${report.score}, 100`}
-                  stroke={report.score > 80 ? '#10b981' : report.score > 60 ? '#f59e0b' : '#ef4444'}
-                  d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                  strokeDasharray={`${report.score * 0.75}, 100`}
+                  stroke={report.score > 80 ? 'url(#comp-grad-green)' : report.score > 60 ? 'url(#comp-grad-orange)' : 'url(#comp-grad-red)'}
+                  strokeWidth="2.5"
+                  strokeLinecap="round"
+                  filter="url(#glow-comp)"
+                  d="M18 3 a 15 15 0 1 1 0 30 a 15 15 0 1 1 0 -30"
+                  fill="none"
+                  transform="rotate(-135 18 18)"
                 />
               </svg>
               <div className="gauge-inner-value">
                 <span className="gauge-score">{report.score}%</span>
-                <span className="gauge-label">Compliance</span>
+                <span className="gauge-label">Alignment</span>
               </div>
             </div>
           </div>
@@ -141,7 +184,7 @@ const Compliance: React.FC = () => {
             <span className="checklist-count-tag">{report.totalControls} Controls Total</span>
           </div>
           
-          <div className="controls-list">
+          <div className="controls-list stagger-children">
             {report.controls.map((control) => {
               const controlFindings = getControlFindings(control.findings);
               const isExpanded = expandedControlId === control.id;

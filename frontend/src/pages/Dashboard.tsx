@@ -7,22 +7,31 @@ import {
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  BarChart,
+  Bar,
+  Cell,
+  CartesianGrid,
   PieChart,
   Pie,
-  Cell,
-  Legend,
-  CartesianGrid,
 } from 'recharts';
 import './Dashboard.css';
 
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 
 const SEVERITY_COLORS = {
-  critical: '#dc2626',
-  high: '#ea580c',
-  medium: '#2563eb',
-  low: '#8b5cf6',
+  critical: '#f43f5e',
+  high: '#fb923c',
+  medium: '#60a5fa',
+  low: '#c084fc',
   info: '#64748b',
+};
+
+const SEVERITY_RGBS = {
+  critical: '220, 38, 38',
+  high: '234, 88, 12',
+  medium: '37, 99, 235',
+  low: '139, 92, 246',
+  info: '100, 116, 139',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -43,10 +52,9 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
-
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
-  const [hoveredSeverity, setHoveredSeverity] = useState<string | null>(null);
+  const [activeIndex, setActiveIndex] = useState<number | null>(null);
   const navigate = useNavigate();
 
   useEffect(() => {
@@ -62,15 +70,14 @@ const Dashboard: React.FC = () => {
     );
   }
 
-  // Format data for severity pie chart
-  const pieData = Object.entries(dashboardSummary.severityDistribution).map(
-    ([name, value]) => ({
-      name: name.charAt(0).toUpperCase() + name.slice(1),
-      value,
-      color: `url(#grad-${name})`,
-      rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
-    })
-  );
+  // Format data for vertical threat columns chart
+  const barData = ['critical', 'high', 'medium', 'low', 'info'].map((name) => ({
+    name: name.charAt(0).toUpperCase() + name.slice(1),
+    value: dashboardSummary.severityDistribution[name as keyof typeof SEVERITY_COLORS] || 0,
+    color: `url(#grad-${name})`,
+    rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
+    sevKey: name,
+  }));
 
   // Preprocess trend data to display slope/area line properly even with a single point
   let trendData = [...dashboardSummary.trendData];
@@ -103,22 +110,58 @@ const Dashboard: React.FC = () => {
   return (
     <div className="dashboard-container">
       {/* Top Stats Cards */}
-      <div className="stats-grid animate-fade-in">
-        <div className="stat-card glassmorphism risk-card">
+      <div className="stats-grid animate-fade-in stagger-children">
+        <div className="stat-card glassmorphism risk-card animate-scan-glow">
           <div className="risk-score-circle">
-            <svg viewBox="0 0 36 36" className="circular-chart">
-              <path
+            <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
+              <defs>
+                <linearGradient id="risk-grad" x1="0" y1="1" x2="1" y2="0">
+                  <stop offset="0%" stopColor="#8b5cf6" />
+                  <stop offset="50%" stopColor="#ea580c" />
+                  <stop offset="100%" stopColor="#dc2626" />
+                </linearGradient>
+                <filter id="glow-filter">
+                  <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                  <feMerge>
+                    <feMergeNode in="coloredBlur"/>
+                    <feMergeNode in="SourceGraphic"/>
+                  </feMerge>
+                </filter>
+              </defs>
+              <circle
+                className="hud-outer-ring animate-radar-spin"
+                cx="18"
+                cy="18"
+                r="17"
+                stroke="rgba(99, 102, 241, 0.25)"
+                strokeWidth="0.5"
+                strokeDasharray="4, 2"
+                fill="none"
+              />
+              <circle
                 className="circle-bg"
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                cx="18"
+                cy="18"
+                r="14"
+                stroke="rgba(255, 255, 255, 0.03)"
+                strokeWidth="2.5"
+                fill="none"
               />
               <path
-                className="circle"
+                className="circle progress-path"
                 strokeDasharray={`${dashboardSummary.riskScore}, 100`}
-                stroke={dashboardSummary.riskScore > 70 ? '#dc2626' : '#ea580c'}
-                d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                stroke="url(#risk-grad)"
+                strokeWidth="2.5"
+                strokeLinecap="round"
+                filter="url(#glow-filter)"
+                d="M18 4 a 14 14 0 1 1 0 28 a 14 14 0 1 1 0 -28"
+                fill="none"
               />
-              <text x="18" y="20.35" className="percentage">
+              <text x="18" y="18.5" className="percentage">
                 {dashboardSummary.riskScore}
+              </text>
+              <text x="18" y="25" className="hud-label">
+                {dashboardSummary.riskScore > 75 ? 'CRITICAL' : dashboardSummary.riskScore > 40 ? 'WARNING' : 'SECURE'}
               </text>
             </svg>
           </div>
@@ -165,75 +208,78 @@ const Dashboard: React.FC = () => {
         <div className="chart-card glassmorphism">
           <h2>Findings by Severity</h2>
           <div className="chart-wrapper side-by-side-chart">
-            <div className="donut-chart-container-left">
+            <div className="bar-chart-container-left">
               <ResponsiveContainer width="100%" height={220}>
-                <PieChart>
+                <BarChart
+                  data={barData}
+                  margin={{ top: 15, right: 10, left: 15, bottom: 5 }}
+                  onMouseLeave={() => setActiveIndex(null)}
+                >
                   <defs>
-                    <linearGradient id="grad-critical" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#dc2626" />
-                      <stop offset="100%" stopColor="#ef4444" />
+                    <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff453a" />
+                      <stop offset="100%" stopColor="#ff2d55" />
                     </linearGradient>
-                    <linearGradient id="grad-high" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#ea580c" />
-                      <stop offset="100%" stopColor="#f97316" />
+                    <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#ff9f0a" />
+                      <stop offset="100%" stopColor="#ff7b00" />
                     </linearGradient>
-                    <linearGradient id="grad-medium" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#2563eb" />
+                    <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#6366f1" />
                       <stop offset="100%" stopColor="#3b82f6" />
                     </linearGradient>
-                    <linearGradient id="grad-low" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" />
-                      <stop offset="100%" stopColor="#a78bfa" />
+                    <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#af52de" />
+                      <stop offset="100%" stopColor="#8b5cf6" />
                     </linearGradient>
-                    <linearGradient id="grad-info" x1="0" y1="0" x2="1" y2="1">
-                      <stop offset="0%" stopColor="#64748b" />
-                      <stop offset="100%" stopColor="#94a3b8" />
+                    <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#94a3b8" />
+                      <stop offset="100%" stopColor="#64748b" />
                     </linearGradient>
+                    
+                    {/* Glow filter for hovered bar */}
+                    <filter id="glow-effect" x="-20%" y="-20%" width="140%" height="140%">
+                      <feGaussianBlur stdDeviation="3" result="blur" />
+                      <feComposite in="SourceGraphic" in2="blur" operator="over" />
+                    </filter>
                   </defs>
-                  <Pie
-                    data={pieData}
-                    cx="50%"
-                    cy="50%"
-                    innerRadius={65}
-                    outerRadius={85}
-                    paddingAngle={3}
+                  <XAxis
+                    dataKey="name"
+                    axisLine={false}
+                    tickLine={false}
+                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600, fontFamily: 'Outfit' }}
+                  />
+                  <YAxis axisLine={false} tickLine={false} hide />
+                  <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.015)' }} />
+                  <Bar
                     dataKey="value"
+                    radius={6}
+                    barSize={24}
+                    background={{ fill: 'rgba(255, 255, 255, 0.02)', radius: 6 }}
                   >
-                    {pieData.map((entry, index) => {
-                      const isHovered = hoveredSeverity
-                        ? entry.name.toLowerCase() === hoveredSeverity.toLowerCase()
-                        : true;
+                    {barData.map((entry, index) => {
+                      const isHovered = activeIndex === index;
+                      const isDimmed = activeIndex !== null && !isHovered;
                       return (
                         <Cell
                           key={`cell-${index}`}
                           fill={entry.color}
-                          opacity={isHovered ? 1 : 0.15}
-                          style={{ transition: 'opacity 0.2s ease', cursor: 'pointer' }}
-                          onMouseEnter={() => setHoveredSeverity(entry.name.toLowerCase())}
-                          onMouseLeave={() => setHoveredSeverity(null)}
+                          opacity={isDimmed ? 0.35 : 1}
+                          filter={isHovered ? 'url(#glow-effect)' : 'none'}
+                          style={{ transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)', cursor: 'pointer' }}
+                          onMouseEnter={() => setActiveIndex(index)}
+                          onMouseLeave={() => setActiveIndex(null)}
                         />
                       );
                     })}
-                  </Pie>
-                </PieChart>
+                  </Bar>
+                </BarChart>
               </ResponsiveContainer>
-              <div className="donut-center-text">
-                <div className="donut-center-card">
-                  <span className="donut-center-num">
-                    {hoveredSeverity
-                      ? (dashboardSummary.severityDistribution[hoveredSeverity as keyof typeof SEVERITY_COLORS] || 0)
-                      : dashboardSummary.totalFindings}
-                  </span>
-                  <span className="donut-center-label">
-                    {hoveredSeverity ? hoveredSeverity : 'Findings'}
-                  </span>
-                </div>
-              </div>
             </div>
 
             {/* Premium Vertical Progress List */}
             <div className="severity-progress-list">
-              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey) => {
+              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey, index) => {
                 const count = dashboardSummary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
                 const total = dashboardSummary.totalFindings || 1;
                 const percentage = Math.round((count / total) * 100);
@@ -280,12 +326,13 @@ const Dashboard: React.FC = () => {
                   );
                 }
 
+                const isRowActive = activeIndex === index;
                 return (
                   <div
                     key={sevKey}
-                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${hoveredSeverity === sevKey ? 'hovered' : ''}`}
-                    onMouseEnter={() => count > 0 && setHoveredSeverity(sevKey)}
-                    onMouseLeave={() => setHoveredSeverity(null)}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${isRowActive ? 'hovered' : ''}`}
+                    onMouseEnter={() => count > 0 && setActiveIndex(index)}
+                    onMouseLeave={() => setActiveIndex(null)}
                   >
                     <div className="sev-info-section">
                       <div className="sev-label-row">
@@ -364,39 +411,62 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* Bottom Grid: Recent Scans & Top Vulnerabilities */}
-      <div className="bottom-grid animate-slide-up">
+      <div className="bottom-grid animate-slide-up stagger-children">
         {/* Recent Scans Table */}
-        <div className="list-card glassmorphism table-section">
-          <h2>Recent Scans</h2>
-          <div className="table-responsive">
-            <table className="recent-scans-table">
-              <thead>
-                <tr>
-                  <th>Target Directory</th>
-                  <th>Type</th>
-                  <th>Findings</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {dashboardSummary.recentScans.map((scan) => (
-                  <tr key={scan.id}>
-                    <td className="monospace-td">{scan.target}</td>
-                    <td><span className="badge-type">{scan.scanType}</span></td>
-                    <td>
-                      <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                      <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                      <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                    </td>
-                    <td>
-                      <span className={`status-badge ${scan.status}`}>
-                        {scan.status}
-                      </span>
-                    </td>
+        <div className="list-card glassmorphism table-section console-window">
+          <div className="terminal-header">
+            <span className="dot dot-red"></span>
+            <span className="dot dot-yellow"></span>
+            <span className="dot dot-green"></span>
+            <span className="terminal-title">sovascan@history:~</span>
+          </div>
+          <div className="console-body">
+            <h2>Recent Scans</h2>
+            <div className="table-responsive">
+              <table className="recent-scans-table">
+                <thead>
+                  <tr>
+                    <th>Target Directory</th>
+                    <th>Type</th>
+                    <th>Findings</th>
+                    <th>Status</th>
+                    <th>Action</th>
                   </tr>
-                ))}
-              </tbody>
-            </table>
+                </thead>
+                <tbody>
+                  {dashboardSummary.recentScans.map((scan) => (
+                    <tr key={scan.id}>
+                      <td className="monospace-td" title={scan.target}>{scan.target}</td>
+                      <td><span className="badge-type">{scan.scanType}</span></td>
+                      <td>
+                        <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
+                        <span className="scan-count-tag orange-tag">{scan.highCount}</span>
+                        <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
+                      </td>
+                      <td>
+                        <span className={`status-badge ${scan.status}`}>
+                          {scan.status}
+                        </span>
+                      </td>
+                      <td>
+                        <Link
+                          to={`/report/${scan.id}`}
+                          className="settings__btn settings__btn--primary"
+                          style={{
+                            textDecoration: 'none',
+                            display: 'inline-block',
+                            fontSize: '11px',
+                            padding: '4px 8px',
+                          }}
+                        >
+                          Report
+                        </Link>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
 

@@ -46,9 +46,11 @@
 }
 
 .fw-tab.active {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08) 0%, rgba(139, 92, 246, 0.08) 100%);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.1) 0%, rgba(139, 92, 246, 0.1) 100%);
   border-color: var(--accent-primary);
-  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.12);
+  box-shadow: 0 4px 16px rgba(99, 102, 241, 0.15),
+              0 0 25px rgba(99, 102, 241, 0.06);
+  transform: translateY(-1px);
 }
 
 .fw-icon-badge {
@@ -158,23 +160,28 @@
   height: 145px;
 }
 
-.circular-gauge {
+.speedometer-dial {
   width: 100%;
   height: 100%;
-  filter: drop-shadow(0 0 6px rgba(16, 185, 129, 0.15));
+  filter: drop-shadow(0 0 10px rgba(16, 185, 129, 0.15));
 }
 
 .gauge-bg {
   fill: none;
-  stroke: rgba(255, 255, 255, 0.04);
-  stroke-width: 3.2;
+  stroke-width: 2.5;
 }
 
 .gauge-fill {
   fill: none;
-  stroke-width: 3.2;
-  stroke-linecap: round;
-  transition: stroke-dasharray 1s ease;
+  stroke-width: 2.5;
+  transition: stroke-dasharray 1.2s cubic-bezier(0.25, 0.8, 0.25, 1);
+  animation: gauge-sweep 1.4s cubic-bezier(0.25, 0.8, 0.25, 1) forwards;
+  stroke-dasharray: 0, 100;
+}
+
+@keyframes gauge-sweep {
+  from { stroke-dasharray: 0, 100; opacity: 0.5; }
+  to { opacity: 1; }
 }
 
 .gauge-inner-value {
@@ -309,9 +316,10 @@
 }
 
 .control-item-row:hover {
-  transform: translateY(-1px);
-  background: rgba(255, 255, 255, 0.02);
-  border-color: rgba(255, 255, 255, 0.08);
+  transform: translateY(-2px);
+  background: rgba(255, 255, 255, 0.025);
+  border-color: rgba(99, 102, 241, 0.12);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.1);
 }
 
 /* Expanded glow status highlights */
