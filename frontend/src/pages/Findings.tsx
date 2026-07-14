@@ -625,6 +625,8 @@ const Findings: React.FC = () => {
         ) : (
           filteredFindings.map((finding) => {
             const isExpanded = expandedId === finding.id;
+            const scan = scans.find((s) => s.id === finding.scanId);
+            const isRemote = scan ? (scan.target.startsWith('http://') || scan.target.startsWith('https://') || scan.target.startsWith('git://') || scan.target.startsWith('git@') || scan.target.includes('://')) : false;
             return (
               <div
                 key={finding.id}
@@ -702,13 +704,22 @@ const Findings: React.FC = () => {
                     )}
                     
                     <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px' }}>
-                      <a
-                        className="editor-link-btn"
-                        href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        🖥️ Open in Editor (VS Code / Antigravity)
-                      </a>
+                      {isRemote ? (
+                        <span 
+                          className="editor-link-btn-disabled" 
+                          title="Opening in local editor is not supported because this scan was run on a remote Git repository."
+                        >
+                          🌐 Remote Repository File
+                        </span>
+                      ) : (
+                        <a
+                          className="editor-link-btn"
+                          href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          🖥️ Open in Editor (VS Code / Antigravity)
+                        </a>
+                      )}
 
                       {finding.isFixed ? (
                         <>
