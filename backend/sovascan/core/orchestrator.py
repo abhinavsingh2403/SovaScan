@@ -5,7 +5,7 @@ and produces structured outputs.
 """
 
 from __future__ import annotations
-
+from sovascan.core.threat_intel import ThreatIntelScanner
 import logging
 import time
 from collections.abc import Callable
@@ -158,6 +158,15 @@ class ScanOrchestrator:
                 raw_findings.extend(git_scanner.scan(self.target_path))
             except Exception as exc:
                 logger.error("Git history scan failed: %s", exc)
+
+        # 3.7 Threat Intel enrichment (OSV live lookup per dependency)
+        if self.scan_type in ("full", "dependencies") and dependencies:
+            self._update_progress("Enriching dependencies with live OSV threat intel", 65.0)
+            threat_intel_scanner = ThreatIntelScanner()
+            try:
+                raw_findings.extend(threat_intel_scanner.scan(dependencies))
+            except Exception as exc:
+                logger.error("Threat intel enrichment failed: %s", exc)
 
         # Phase 4: Severity Scoring
         self._update_progress("Applying contextual severity scoring", 80.0)
