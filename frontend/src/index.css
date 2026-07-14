@@ -735,6 +735,46 @@ tbody td {
 .console-window .console-body {
   padding: 24px;
 }
+/* GPU-Accelerated page entry transitions */
+.dashboard-container,
+.findings-container,
+.scan-container,
+.compliance-container,
+.settings-container,
+.profile-container,
+.report-page {
+  animation: smoothPageEntry 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  will-change: transform, opacity;
+  transform: translate3d(0, 0, 0); /* Force GPU layer creation */
+}
+
+@keyframes smoothPageEntry {
+  from {
+    opacity: 0;
+    transform: translate3d(0, 8px, 0);
+  }
+  to {
+    opacity: 1;
+    transform: translate3d(0, 0, 0);
+  }
+}
+
+/* Optimize scroll and hover transitions */
+.card,
+.stat-card,
+.list-card,
+.glassmorphism {
+  will-change: transform, border-color, box-shadow;
+  transition: border-color var(--transition-base),
+              box-shadow var(--transition-base),
+              transform 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.card-interactive:hover,
+.stat-card:hover {
+  transform: translate3d(0, -3px, 0) !important;
+  box-shadow: var(--shadow-lg), var(--shadow-glow) !important;
+}
 
 /* Global Print Hardening Overrides to override glassmorphism screen styles during print */
 @media print {
