@@ -8,11 +8,11 @@ from sovascan.models.scan import Scan, ScanStatus
 from sovascan.models.finding import Finding
 
 def test_git_url_protocol_validation():
-    # Valid HTTP/HTTPS protocols
+    # Valid HTTPS protocols
     assert is_allowed_git_url("https://github.com/abhinavsingh2403/SovaScan") is True
-    assert is_allowed_git_url("http://github.com/abhinavsingh2403/SovaScan") is True
 
     # Disallowed protocols or formats
+    assert is_allowed_git_url("http://github.com/abhinavsingh2403/SovaScan") is False
     assert is_allowed_git_url("file:///etc/passwd") is False
     assert is_allowed_git_url("ssh://git@github.com/user/repo") is False
     assert is_allowed_git_url("git@github.com:user/repo.git") is False

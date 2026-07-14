@@ -11,13 +11,15 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import hashlib
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
+from sovascan.models.api_key import ApiKey
 
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
@@ -52,7 +54,7 @@ def _clean_path(path_str: str, base_path: Path) -> str:
 
 def is_allowed_git_url(target: str) -> bool:
     """Helper to validate if git target URL protocol is secure and allowed."""
-    return target.startswith(("https://", "http://")) and " " not in target
+    return target.startswith("https://") and " " not in target
 
 
 # ---------------------------------------------------------------------------
@@ -593,8 +595,34 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
     Clients connect to ``/api/v1/scan/{scan_id}/ws`` and receive
     JSON-encoded :class:`ScanProgressEvent` messages in real time.
     """
+    api_key_str = websocket.query_params.get("api_key")
+    db = SessionMaker()
+    try:
+        if not api_key_str:
+            await websocket.accept()
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing API key")
+            return
+
+        key_hash = hashlib.sha256(api_key_str.encode("utf-8")).hexdigest()
+        db_key = db.query(ApiKey).filter(
+            ApiKey.key_hash == key_hash,
+            ApiKey.is_active == True
+        ).first()
+
+        if not db_key:
+            await websocket.accept()
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid API key")
+            return
+    except Exception as exc:
+        logger.error("WebSocket auth error: %s", exc)
+        await websocket.accept()
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return
+    finally:
+        db.close()
+
     await websocket.accept()
-    logger.info("WS client connected for scan %s", scan_id)
+    logger.info("WS client authenticated and connected for scan %s", scan_id)
 
     # Send current scan status as the first message
     db = SessionMaker()

@@ -113,8 +113,8 @@ async def create_scan(
     # Validate target before creating DB record
     is_git = request.target.startswith("http://") or request.target.startswith("https://") or "://" in request.target or request.target.startswith("git@")
     if is_git:
-        if not (request.target.startswith("https://") or request.target.startswith("http://")) or " " in request.target:
-            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+        if not request.target.startswith("https://") or " " in request.target:
+            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only secure HTTPS protocol is allowed for remote scans.")
     else:
         if "://" in request.target:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")

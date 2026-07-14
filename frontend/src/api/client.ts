@@ -161,7 +161,8 @@ export const api = {
 export function createScanWebSocket(scanId: string): WebSocket {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   const host = window.location.host;
-  const url = `${protocol}//${host}/api/v1/scan/${scanId}/ws`;
+  const key = localStorage.getItem('sovascan-active-key') || 'ss_live_mock_local_dev_key_12345';
+  const url = `${protocol}//${host}/api/v1/scan/${scanId}/ws?api_key=${encodeURIComponent(key)}`;
   return new WebSocket(url);
 }
 

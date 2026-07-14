@@ -342,7 +342,7 @@ def test_websocket_connection(client: TestClient) -> None:
     scan_id = resp.json()["id"]
 
     # Open WebSocket connection using FastAPI TestClient
-    with client.websocket_connect(f"/api/v1/scan/{scan_id}/ws") as ws:
+    with client.websocket_connect(f"/api/v1/scan/{scan_id}/ws?api_key=ss_live_mock_local_dev_key_12345") as ws:
         # First message is status_change event
         msg = ws.receive_json()
         assert msg["scan_id"] == scan_id
