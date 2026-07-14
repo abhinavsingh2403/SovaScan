@@ -55,6 +55,75 @@ def is_allowed_git_url(target: str) -> bool:
     return target.startswith(("https://", "http://")) and " " not in target
 
 
+def resolve_git_url_and_branch(target: str, options: dict[str, Any] | None = None) -> tuple[str, str | None, str | None]:
+    """Parse a git target URL to extract the repository URL, branch name, and optional subpath.
+
+    Returns:
+        tuple: (repo_url, branch_name, subpath)
+    """
+    branch = options.get("branch") if options else None
+    repo_url = target
+    subpath = None
+
+    for marker in ("/-/tree/", "/tree/", "/src/"):
+        if marker in target:
+            parts = target.split(marker, 1)
+            repo_url = parts[0]
+            if not repo_url.endswith(".git"):
+                repo_url += ".git"
+
+            rest = parts[1].strip("/")
+            if branch:
+                # If branch is explicitly provided in options, the rest is treated as subpath.
+                # If rest starts with the branch name, strip it to get the relative subpath.
+                if rest == branch:
+                    subpath = None
+                elif rest.startswith(branch + "/"):
+                    subpath = rest[len(branch):].strip("/")
+                else:
+                    subpath = rest
+            else:
+                # Distinguish between branch name and subpath dynamically
+                try:
+                    import subprocess
+                    proc = subprocess.run(
+                        ["git", "ls-remote", "--heads", repo_url],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if proc.returncode == 0:
+                        branches = []
+                        for line in proc.stdout.splitlines():
+                            if "\trefs/heads/" in line:
+                                branches.append(line.split("\trefs/heads/")[1])
+
+                        # Match the longest branch name prefix first
+                        branches.sort(key=len, reverse=True)
+                        matched_branch = None
+                        for b in branches:
+                            if rest == b:
+                                matched_branch = b
+                                break
+                            elif rest.startswith(b + "/"):
+                                matched_branch = b
+                                subpath = rest[len(b):].strip("/")
+                                break
+
+                        if matched_branch:
+                            branch = matched_branch
+                        else:
+                            branch = rest
+                    else:
+                        branch = rest
+                except Exception:
+                    branch = rest
+            break
+
+    return repo_url, branch, subpath
+
+
+
 # ---------------------------------------------------------------------------
 # Event schema
 # ---------------------------------------------------------------------------
@@ -200,37 +269,50 @@ class ScanManager:
             self._broadcast(
                 scan_id,
                 self._make_event(scan_id, type="status_change", status="running", percent=0.0),
-            )
-
-            # -- Validate and Resolve Target ---------------------------------
+            )            # -- Validate and Resolve Target ---------------------------------
             is_git = target.startswith("http://") or target.startswith("https://") or "://" in target or target.startswith("git@")
             if is_git:
                 if not is_allowed_git_url(target):
                     raise ValueError("Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
                 
+                repo_url, branch, subpath = resolve_git_url_and_branch(target, options)
+                
                 import subprocess
                 import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
-                target_path = Path(temp_dir.name)
+                clone_path = Path(temp_dir.name)
 
                 self._broadcast(
                     scan_id,
                     self._make_event(
                         scan_id,
                         type="progress",
-                        phase="Cloning remote git repository...",
+                        phase=f"Cloning remote git repository branch '{branch or 'default'}'..." if branch else "Cloning remote git repository...",
                         percent=10.0,
                         findings_count=findings_count,
                     ),
                 )
+                
+                clone_cmd = ["git", "clone", "--depth", "1"]
+                if branch:
+                    clone_cmd.extend(["--branch", branch])
+                clone_cmd.extend([repo_url, str(clone_path)])
+                
                 proc = subprocess.run(
-                    ["git", "clone", "--depth", "1", target, str(target_path)],
+                    clone_cmd,
                     capture_output=True,
                     text=True,
                     timeout=60
                 )
                 if proc.returncode != 0:
                     raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
+                
+                if subpath:
+                    target_path = clone_path / subpath
+                    if not target_path.exists():
+                        raise ValueError(f"Subpath '{subpath}' does not exist in branch '{branch or 'default'}' of repository.")
+                else:
+                    target_path = clone_path
             else:
                 if "://" in target:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")

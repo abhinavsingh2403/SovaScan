@@ -536,3 +536,76 @@
   font-weight: 700;
   color: var(--text-primary);
 }
+
+
+/* Report Tabs */
+.report-tabs-bar {
+  display: flex;
+  gap: 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 12px;
+}
+
+.report-tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 14px;
+  font-weight: 600;
+  padding: 8px 16px;
+  cursor: pointer;
+  border-radius: var(--radius-md);
+  transition: all 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.report-tab-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.report-tab-btn.active {
+  color: var(--text-primary);
+  background: rgba(99, 102, 241, 0.15);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+}
+
+/* JSON Code Syntax Highlighting */
+.json-syntax-highlight {
+  font-family: 'Fira Code', 'Courier New', Courier, monospace;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #abb2bf;
+  background: #0d0e12;
+  padding: 24px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  overflow-x: auto;
+  margin: 0;
+}
+
+.json-key {
+  color: #e06c75; /* light red/coral */
+  font-weight: 600;
+}
+
+.json-string {
+  color: #98c379; /* soft green */
+}
+
+.json-number {
+  color: #d19a66; /* orange */
+}
+
+.json-boolean {
+  color: #56b6c2; /* cyan */
+  font-weight: bold;
+}
+
+.json-null {
+  color: #c678dd; /* purple */
+  font-weight: bold;
+}
+

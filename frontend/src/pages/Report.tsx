@@ -11,6 +11,44 @@ interface ComplianceMap {
   owasp10: ComplianceReport | null;
 }
 
+
+const SyntaxHighlightedJSON: React.FC<{ data: any }> = ({ data }) => {
+  const jsonString = JSON.stringify(data, null, 2);
+
+  const highlight = (json: string) => {
+    let htmlStr = json
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;');
+
+    const regex = /("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+-]?\d+)?)/g;
+
+    return htmlStr.replace(regex, (match) => {
+      let cls = 'json-number';
+      if (/^"/.test(match)) {
+        if (/:$/.test(match)) {
+          cls = 'json-key';
+        } else {
+          cls = 'json-string';
+        }
+      } else if (/true|false/.test(match)) {
+        cls = 'json-boolean';
+      } else if (/null/.test(match)) {
+        cls = 'json-null';
+      }
+      return `<span class="${cls}">${match}</span>`;
+    });
+  };
+
+  return (
+    <pre 
+      className="json-syntax-highlight"
+      dangerouslySetInnerHTML={{ __html: highlight(jsonString) }}
+    />
+  );
+};
+
+
 const severityRank: Record<string, number> = {
   critical: 5,
   high: 4,
@@ -129,6 +167,120 @@ const Report: React.FC = () => {
   const [error, setError] = useState<string | null>(null);
   const [appendixSearch, setAppendixSearch] = useState('');
   const [appendixSeverity, setAppendixSeverity] = useState('all');
+  const [activeTab, setActiveTab] = useState<'visual' | 'json'>('visual');
+
+  const reportPayload = React.useMemo(() => {
+    if (!scan) return null;
+    return {
+      scan_metadata: {
+        id: scan.id,
+        target: scan.target,
+        type: scan.scanType,
+        status: scan.status,
+        startedAt: scan.startedAt,
+        completedAt: scan.completedAt,
+      },
+      metrics: {
+        total_findings: findings.length,
+        critical: findings.filter((f) => f.severity === 'critical').length,
+        high: findings.filter((f) => f.severity === 'high').length,
+        medium: findings.filter((f) => f.severity === 'medium').length,
+        low: findings.filter((f) => f.severity === 'low').length,
+        risk_score: Math.min(
+          findings.filter((f) => f.severity === 'critical').length * 25 +
+          findings.filter((f) => f.severity === 'high').length * 15 +
+          findings.filter((f) => f.severity === 'medium').length * 7 +
+          findings.filter((f) => f.severity === 'low').length * 2,
+          100
+        ),
+        risk_label: Math.min(
+          findings.filter((f) => f.severity === 'critical').length * 25 +
+          findings.filter((f) => f.severity === 'high').length * 15 +
+          findings.filter((f) => f.severity === 'medium').length * 7 +
+          findings.filter((f) => f.severity === 'low').length * 2,
+          100
+        ) > 80 ? 'Critical' : Math.min(
+          findings.filter((f) => f.severity === 'critical').length * 25 +
+          findings.filter((f) => f.severity === 'high').length * 15 +
+          findings.filter((f) => f.severity === 'medium').length * 7 +
+          findings.filter((f) => f.severity === 'low').length * 2,
+          100
+        ) > 50 ? 'High' : Math.min(
+          findings.filter((f) => f.severity === 'critical').length * 25 +
+          findings.filter((f) => f.severity === 'high').length * 15 +
+          findings.filter((f) => f.severity === 'medium').length * 7 +
+          findings.filter((f) => f.severity === 'low').length * 2,
+          100
+        ) > 20 ? 'Moderate' : 'Low',
+      },
+      summary: (() => {
+        const crit = findings.filter((f) => f.severity === 'critical').length;
+        const hg = findings.filter((f) => f.severity === 'high').length;
+        const cats = Array.from(new Set(findings.map((f) => f.category.toLowerCase())));
+        const paras: string[] = [];
+        if (findings.length === 0) {
+          paras.push('No active findings were detected in the scanned target. The application satisfies all primary SovaScan vulnerability checks.');
+        } else {
+          if (crit > 0 || hg > 0) {
+            paras.push(`This scan identified ${crit + hg} high-priority security risks that should be reviewed before release.`);
+          }
+          if (cats.includes('secret')) {
+            paras.push('Credential exposure risk was detected in source or configuration files. Exposed tokens represent immediate access hazards.');
+          }
+          if (cats.includes('cve')) {
+            paras.push('Known vulnerable dependencies were found in project manifests. Legacy packages should be updated to address known exploits.');
+          }
+          if (cats.includes('misconfig')) {
+            paras.push('Configuration weaknesses may increase production exposure. Review deployment baselines to prevent environment leakage.');
+          }
+        }
+        return paras.join(' ');
+      })(),
+      top_findings: [...findings]
+        .sort((a, b) => {
+          const getScore = (f: Finding) => {
+            let score = (severityRank[f.severity] || 0) * 10;
+            if (threatIntel && f.cveId) {
+              const rec = threatIntel.records.find((r) => r.cveId.toUpperCase() === f.cveId!.toUpperCase());
+              if (rec) {
+                if (rec.knownExploited) score += 100;
+                if (rec.priority === 'immediate') score += 80;
+                else if (rec.priority === 'high') score += 50;
+                if (rec.epssScore && rec.epssScore >= 0.7) score += 40;
+              }
+            }
+            return score;
+          };
+          return getScore(b) - getScore(a);
+        })
+        .slice(0, 5)
+        .map((f) => ({
+          title: f.title,
+          severity: f.severity,
+          category: f.category,
+          filePath: f.filePath,
+          lineNumber: f.lineNumber,
+          evidence: f.evidence,
+          remediation: f.remediation,
+        })),
+      compliance_alignments: {
+        nist: compliance.nist ? { score: compliance.nist.score, passed: compliance.nist.passed, failed: compliance.nist.failed } : null,
+        soc2: compliance.soc2 ? { score: compliance.soc2.score, passed: compliance.soc2.passed, failed: compliance.soc2.failed } : null,
+        owasp10: compliance.owasp10 ? { score: compliance.owasp10.score, passed: compliance.owasp10.passed, failed: compliance.owasp10.failed } : null,
+      },
+      sbom_preview: sbom ? sbom.packages.slice(0, 8) : [],
+      all_findings: findings.map((f) => ({
+        id: f.id,
+        title: f.title,
+        severity: f.severity,
+        category: f.category,
+        filePath: f.filePath,
+        lineNumber: f.lineNumber,
+        isFixed: f.isFixed,
+      })),
+      threat_intelligence: threatIntel,
+    };
+  }, [scan, findings, compliance, sbom, threatIntel]);
 
   useEffect(() => {
     if (!scanId) {
@@ -352,54 +504,10 @@ const Report: React.FC = () => {
   };
 
   // --- 5. Export JSON Action ---
-  const handleExportJSON = () => {
-    const payload = {
-      scan_metadata: {
-        id: scan.id,
-        target: scan.target,
-        type: scan.scanType,
-        status: scan.status,
-        startedAt: scan.startedAt,
-        completedAt: scan.completedAt,
-      },
-      metrics: {
-        total_findings: totalFindingsCount,
-        critical,
-        high,
-        medium,
-        low,
-        risk_score: riskScore,
-        risk_label: riskLabel,
-      },
-      summary: summaryParagraphs.join(' '),
-      top_findings: topRisks.map((f) => ({
-        title: f.title,
-        severity: f.severity,
-        category: f.category,
-        filePath: f.filePath,
-        lineNumber: f.lineNumber,
-        evidence: f.evidence,
-        remediation: f.remediation,
-      })),
-      compliance_alignments: {
-        nist: compliance.nist ? { score: compliance.nist.score, passed: compliance.nist.passed, failed: compliance.nist.failed } : null,
-        soc2: compliance.soc2 ? { score: compliance.soc2.score, passed: compliance.soc2.passed, failed: compliance.soc2.failed } : null,
-        owasp10: compliance.owasp10 ? { score: compliance.owasp10.score, passed: compliance.owasp10.passed, failed: compliance.owasp10.failed } : null,
-      },
-      sbom_preview: sbom ? sbom.packages.slice(0, 8) : [],
-      all_findings: findings.map((f) => ({
-        id: f.id,
-        title: f.title,
-        severity: f.severity,
-        category: f.category,
-        filePath: f.filePath,
-        lineNumber: f.lineNumber,
-        isFixed: f.isFixed,
-      })),
-      threat_intelligence: threatIntel,
-    };
 
-    const blob = new Blob([JSON.stringify(payload, null, 2)], {
+  const handleExportJSON = () => {
+    if (!reportPayload) return;
+    const blob = new Blob([JSON.stringify(reportPayload, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
@@ -409,7 +517,7 @@ const Report: React.FC = () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   const handleExportSBOM = () => {
@@ -424,7 +532,7 @@ const Report: React.FC = () => {
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 100);
   };
 
   // --- 6. Compliance Status helpers ---
@@ -479,8 +587,36 @@ const Report: React.FC = () => {
         </div>
       </div>
 
-      {/* 2. RISK OVERVIEW */}
-      <div className="report-metrics-grid">
+      {/* Tab controls */}
+      <div className="report-tabs-bar">
+        <button 
+          className={`report-tab-btn ${activeTab === 'visual' ? 'active' : ''}`}
+          onClick={() => setActiveTab('visual')}
+        >
+          📊 Visual Report
+        </button>
+        <button 
+          className={`report-tab-btn ${activeTab === 'json' ? 'active' : ''}`}
+          onClick={() => setActiveTab('json')}
+        >
+          ⚙️ JSON Payload View
+        </button>
+      </div>
+
+      {activeTab === 'json' ? (
+        <div className="list-card glassmorphism" style={{ padding: '24px' }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }} className="sbom-header-row">
+            <h3 style={{ margin: 0 }}>⚙️ JSON Payload Output</h3>
+            <button className="settings__btn settings__btn--primary report-actions" onClick={handleExportJSON}>
+              📥 Download JSON Report
+            </button>
+          </div>
+          <SyntaxHighlightedJSON data={reportPayload} />
+        </div>
+      ) : (
+        <>
+          {/* 2. RISK OVERVIEW */}
+          <div className="report-metrics-grid">
         <div className="list-card glassmorphism report-metric-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px' }}>
           <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <svg width="80" height="80" viewBox="0 0 80 80">
@@ -984,6 +1120,8 @@ const Report: React.FC = () => {
           </div>
         </div>
       </div>
+        </>
+      )}
     </div>
   );
 };

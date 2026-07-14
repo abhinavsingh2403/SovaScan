@@ -122,3 +122,48 @@ def test_finding_deduplication_and_sbom_cache(mock_run_scan, client, db_session)
     meta = json.loads(scan.metadata_json)
     assert "sbom" in meta
     assert meta["sbom"]["packages"][0]["name"] == "fastapi"
+
+
+@patch("subprocess.run")
+def test_git_branch_resolution(mock_run):
+    from sovascan.api.websocket import resolve_git_url_and_branch
+
+    # Mock git ls-remote output
+    mock_stdout = "43d610bc\trefs/heads/Abhinav-v1\n944d2c20\trefs/heads/Abhinav-v2\n43d610bc\trefs/heads/Abhinav-v3\n12345678\trefs/heads/feature/branch-with-slash\n"
+    mock_run.return_value = MagicMock(returncode=0, stdout=mock_stdout, stderr="")
+
+    # 1. Standard repo URL without tree marker
+    url = "https://github.com/abhinavsingh2403/SovaScan"
+    repo, branch, subpath = resolve_git_url_and_branch(url)
+    assert repo == url
+    assert branch is None
+    assert subpath is None
+
+    # 2. Simple branch tree URL
+    url = "https://github.com/abhinavsingh2403/SovaScan/tree/Abhinav-v3"
+    repo, branch, subpath = resolve_git_url_and_branch(url)
+    assert repo == "https://github.com/abhinavsingh2403/SovaScan.git"
+    assert branch == "Abhinav-v3"
+    assert subpath is None
+
+    # 3. Branch tree URL with subdirectory subpath
+    url = "https://github.com/abhinavsingh2403/SovaScan/tree/Abhinav-v3/backend/sovascan"
+    repo, branch, subpath = resolve_git_url_and_branch(url)
+    assert repo == "https://github.com/abhinavsingh2403/SovaScan.git"
+    assert branch == "Abhinav-v3"
+    assert subpath == "backend/sovascan"
+
+    # 4. Branch containing slashes with subdirectory subpath
+    url = "https://github.com/abhinavsingh2403/SovaScan/tree/feature/branch-with-slash/frontend/src"
+    repo, branch, subpath = resolve_git_url_and_branch(url)
+    assert repo == "https://github.com/abhinavsingh2403/SovaScan.git"
+    assert branch == "feature/branch-with-slash"
+    assert subpath == "frontend/src"
+
+    # 5. Overriding branch from options
+    url = "https://github.com/abhinavsingh2403/SovaScan/tree/Abhinav-v3/backend"
+    repo, branch, subpath = resolve_git_url_and_branch(url, options={"branch": "Abhinav-v3"})
+    assert repo == "https://github.com/abhinavsingh2403/SovaScan.git"
+    assert branch == "Abhinav-v3"
+    assert subpath == "backend"
+
