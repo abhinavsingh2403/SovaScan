@@ -37,50 +37,135 @@ SovaScan is an enterprise-grade security scanner designed to find, score, and re
 
 ## 🏗️ System Architecture
 
+SovaScan's system architecture is partitioned into two granular structural diagrams representing the High-Level logical boundaries and the Low-Level modular execution pipeline.
+
+### 1. High-Level Architecture (Boundary & Component Flow)
+
+This diagram outlines the macro-boundaries between SovaScan's user space interface, gateway security layers, orchestrator workers, data store, and threat intelligence providers.
+
 ```mermaid
-graph TD
-    subgraph "Frontend (React + TypeScript)"
-        UI["Dashboard & Pages"]
-        Store["Zustand Store"]
-        Client["Axios API Client"]
+flowchart TB
+    %% Class Styles
+    classDef client fill:#0f172a,stroke:#3b82f6,stroke-width:2px,color:#f8fafc;
+    classDef gateway fill:#1e1b4b,stroke:#6366f1,stroke-width:2px,color:#f8fafc;
+    classDef worker fill:#311042,stroke:#a855f7,stroke-width:2px,color:#f8fafc;
+    classDef storage fill:#064e3b,stroke:#10b981,stroke-width:2px,color:#f8fafc;
+    classDef external fill:#7c2d12,stroke:#f97316,stroke-width:2px,color:#f8fafc;
+
+    subgraph UserSpace ["User Workspace & Client Space"]
+        UI["React SPA Dashboard<br/>(Dashboard.tsx / Scan.tsx)"]:::client
+        Store["Zustand State Store<br/>(store/index.ts)"]:::client
+        Client["Axios HTTP Client<br/>(api/client.ts)"]:::client
+        
         UI --> Store
         Store --> Client
     end
 
-    subgraph "Backend (FastAPI + Python)"
-        API["FastAPI Endpoints"]
-        Orch["Scan Orchestrator"]
-        DB[("SQLite / PostgreSQL")]
+    subgraph APIBoundary ["API Gateway & Control Plane"]
+        API["FastAPI App Route Gateway<br/>(server.py)"]:::gateway
+        Auth["verify_api_key Dependency<br/>(api/auth.py)"]:::gateway
         
-        Client -->|HTTP Requests| API
-        API -->|Starts Scan| Orch
-        API -->|Read/Write| DB
-        
-        subgraph "Scanning Engine"
-            Dep["Dependency Resolver"]
-            CVE["CVE Scanner"]
-            Sec["Secret Scanner"]
-            Mis["Misconfig Detector"]
-            Drift["Config Drift Analyzer"]
-            SAST["SAST Scanner (Bandit + Semgrep)"]
-            GitHist["Git History Scanner"]
-            Scorer["Severity Scorer"]
-            
-            Orch --> Dep
-            Orch --> CVE
-            Orch --> Sec
-            Orch --> Mis
-            Orch --> Drift
-            Orch --> SAST
-            Orch --> GitHist
-            Orch --> Scorer
-        end
+        Client -->|REST Requests & WebSocket| API
+        API -.->|Validates X-API-Key| Auth
     end
 
-    subgraph "External"
-        OSV["OSV.dev API"]
-        CVE -->|Queries Package CVEs| OSV
+    subgraph ProcessingCore ["Background Worker & Scanning Core"]
+        ScanMgr["ScanManager Thread Orchestrator<br/>(api/websocket.py)"]:::worker
+        Orch["ScanOrchestrator Lifecycle<br/>(core/orchestrator.py)"]:::worker
+        Engine["Multi-Phase Scanning Engine<br/>(SAST / Dependency / Secrets)"]:::worker
+        
+        API -->|Dispatches Async Job| ScanMgr
+        ScanMgr -->|Triggers Scan| Orch
+        Orch -->|Executes Scanners| Engine
     end
+
+    subgraph StorageLayer ["Persistence & Cache Store"]
+        DB[("SQLite Database<br/>(sovascan.db)")]:::storage
+        SBOMCache["scan.metadata_json<br/>(SBOM Cache / Failure Log)"]:::storage
+        
+        API -->|Read/Write Records| DB
+        Orch -->|Stores Findings| DB
+        ScanMgr -->|Caches SBOM Payload| DB
+        DB -.->|Contains| SBOMCache
+    end
+
+    subgraph ThreatIntel ["External Threat Intel APIs"]
+        OSV["OSV.dev API<br/>(Vulnerability Index)"]:::external
+        EPSS["FIRST EPSS API<br/>(Exploit Prediction)"]:::external
+        CISA["CISA KEV Feed<br/>(Active Exploits)"]:::external
+        
+        Engine -->|Queries Dependency CVEs| OSV
+        API -->|Enriches CVE priority stats| EPSS
+        API -->|Checks KEV active status| CISA
+    end
+
+    %% Edge styling
+    linkStyle default stroke:#64748b,stroke-width:1px;
+```
+
+### 2. Low-Level Architecture (Granular Modular Execution Flow)
+
+This diagram details the step-by-step modular pipeline executed when a scan request is dispatched, processed, audited, normalized, and streamed:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Developer as React Client Dashboard
+    participant API as api/routes.py
+    participant Auth as api/auth.py
+    participant ScanMgr as api/websocket.py (ScanManager)
+    participant Orch as core/orchestrator.py (ScanOrchestrator)
+    participant Scanners as core/* (Scanners)
+    participant Scorer as core/severity_scorer.py
+    participant DB as SQLite DB (models/*)
+
+    Developer->>API: POST /api/v1/scan {target, scan_type, options}
+    activate API
+    API->>Auth: verify_api_key(X-API-Key)
+    activate Auth
+    Auth-->>API: ApiKey validated
+    deactivate Auth
+
+    Note over API: Protocol Check:<br/>Enforce Secure HTTPS-only clone<br/>via is_allowed_git_url()
+
+    API->>DB: Create Scan Record (status = PENDING)
+    API->>ScanMgr: start_scan(scan_id, target, scan_type)
+    API-->>Developer: 202 Accepted {scan_id}
+    deactivate API
+
+    Developer->>ScanMgr: WebSocket connect /ws/scan/{scan_id}?api_key=...
+    activate ScanMgr
+    Note over ScanMgr: Verify handshake key in query parameters
+    ScanMgr-->>Developer: Handshake Established (accept connection)
+
+    activate Orch
+    ScanMgr->>Orch: _execute_scan_sync()
+    
+    Note over Orch: Secure Temp Workspace:<br/>Clones remote target via git clone --depth 1<br/>(Timeout = 60s)
+    
+    Orch->>Scanners: Run Scanner Loop (Dependency, Secrets, SAST, Git History, Drift)
+    activate Scanners
+    Scanners->>Scanners: Run Semgrep & Bandit subprocesses
+    
+    Note over Scanners: requires login Fallback:<br/>If Semgrep requires login, reads actual source lines<br/>from local disk as evidence
+    
+    Scanners-->>Orch: Return Raw Findings list
+    deactivate Scanners
+
+    Orch->>Scorer: normalize_severity() & contextual scoring
+    activate Scorer
+    Note over Scorer: Apply banking rules:<br/>Boost score for banking/auth paths,<br/>Reduce score for test directories
+    Scorer-->>Orch: Normalized Findings list
+    deactivate Scorer
+
+    Note over Orch: Deduplication Process:<br/>Filter matches via composite key<br/>(rule_id, file_path, line_number, evidence_prefix)
+
+    Orch->>DB: Save deduplicated findings (Scan.status = COMPLETED)
+    Orch->>DB: Cache SBOM packages list & logs in scan.metadata_json
+    deactivate Orch
+
+    ScanMgr->>Developer: Stream WS Event (type = scan_complete)
+    deactivate ScanMgr
 ```
 
 ---
