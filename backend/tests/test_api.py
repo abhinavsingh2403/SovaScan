@@ -59,7 +59,7 @@ def test_get_scan(client: TestClient) -> None:
     """Test fetching scan status/details after completion."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     scan_data = _create_scan_and_wait(client, payload)
     scan_id = scan_data["id"]
@@ -75,7 +75,7 @@ def test_list_findings(client: TestClient) -> None:
     """Test listing scan findings after completed scan."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     scan_data = _create_scan_and_wait(client, payload)
     scan_id = scan_data["id"]
@@ -119,7 +119,7 @@ def test_dashboard_summary(client: TestClient) -> None:
     """Test dashboard stats aggregation."""
     payload = {
         "target": SCAN_TARGET,
-        "scan_type": "full"
+        "scan_type": "secrets"
     }
     _create_scan_and_wait(client, payload)
 
@@ -188,6 +188,104 @@ def test_apply_fix_updates_file(client: TestClient, tmp_path: Path) -> None:
     # 5. Verify the file contents changed on disk
     updated_content = config_file.read_text(encoding="utf-8")
     assert "DEBUG = False" in updated_content
+
+
+def test_apply_fix_custom_replacement(client: TestClient, tmp_path: Path) -> None:
+    """Test that a custom_replacement value is applied on disk and reflected in the patch."""
+    # 1. Create a config file with a misconfiguration
+    config_file = tmp_path / "settings.conf"
+    config_file.write_text("DEBUG = True\n", encoding="utf-8")
+
+    # 2. Trigger a misconfig scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+    assert len(findings) > 0
+
+    misconfig_finding = findings[0]
+    finding_id = misconfig_finding["id"]
+
+    # 4. Apply fix with custom_replacement
+    fix_payload = {
+        "finding_id": finding_id,
+        "auto_apply": True,
+        "custom_replacement": "DEBUG = False  # Custom Fix Applied",
+    }
+    fix_resp = client.post(f"/api/v1/fix/{finding_id}", json=fix_payload)
+    assert fix_resp.status_code == 200
+    fix_data = fix_resp.json()
+    assert fix_data["status"] == "applied"
+    assert "DEBUG = False  # Custom Fix Applied" in fix_data["patch"]
+
+    # 5. Verify the file on disk contains the custom text
+    updated_content = config_file.read_text(encoding="utf-8")
+    assert "DEBUG = False  # Custom Fix Applied" in updated_content
+
+
+def test_apply_fix_context_replacement(client: TestClient, tmp_path: Path) -> None:
+    """Test that applying a fix with context_replacement updates the file block on disk."""
+    # 1. Create a config file with a multi-line settings content
+    config_file = tmp_path / "settings.conf"
+    original_lines = [
+        "PORT = 8080\n",
+        "DEBUG = True\n",
+        "CORS = '*'\n"
+    ]
+    config_file.write_text("".join(original_lines), encoding="utf-8")
+
+    # 2. Trigger a misconfig scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+    assert len(findings) > 0
+    
+    # Find a debug-mode finding (SOVA-WEB-001)
+    target_finding = None
+    for f in findings:
+        if f["rule_id"] == "SOVA-WEB-001":
+            target_finding = f
+            break
+    assert target_finding is not None
+    finding_id = target_finding["id"]
+
+    # 4. Fetch context first to get start/end lines
+    context_resp = client.get(f"/api/v1/findings/{finding_id}/context")
+    assert context_resp.status_code == 200
+    context_data = context_resp.json()
+    start_line = context_data["start_line"]
+    end_line = context_data["end_line"]
+
+    # 5. Apply context replacement
+    replacement_text = "PORT = 8080\nDEBUG = False  # Changed Context\nCORS = '*'\n"
+    fix_payload = {
+        "finding_id": finding_id,
+        "auto_apply": True,
+        "context_replacement": replacement_text,
+        "context_start_line": start_line,
+        "context_end_line": end_line
+    }
+    fix_resp = client.post(f"/api/v1/fix/{finding_id}", json=fix_payload)
+    assert fix_resp.status_code == 200
+
+    # 6. Verify the file contents changed on disk to our custom block
+    updated_content = config_file.read_text(encoding="utf-8")
+    assert "DEBUG = False  # Changed Context" in updated_content
 
 
 def test_bulk_fix_endpoints(client: TestClient, tmp_path: Path) -> None:
@@ -267,3 +365,66 @@ def test_websocket_connection(client: TestClient) -> None:
         if not completed:
             db_resp = client.get(f"/api/v1/scan/{scan_id}")
             assert db_resp.json()["status"] in ("completed", "failed")
+
+
+def test_ast_visitor_ignores_comments(client: TestClient, tmp_path: Path) -> None:
+    """Verify that comments and logs are ignored by the Python AST scanner."""
+    # 1. Create a dummy python file with comments and print logs that would trigger regex
+    dummy_code = (
+        "# DEBUG = True\n"
+        "# hashlib.md5()\n"
+        "print('DEBUG = True')\n"
+        "print('hashlib.md5()')\n"
+    )
+    python_file = tmp_path / "test_comments.py"
+    python_file.write_text(dummy_code, encoding="utf-8")
+
+    # 2. Trigger scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings and assert there are 0 findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+    # Check specifically for SOVA-WEB-001 or SOVA-CRYPTO-001
+    bad_findings = [f for f in findings if f["rule_id"] in ("SOVA-WEB-001", "SOVA-CRYPTO-001")]
+    assert len(bad_findings) == 0
+
+
+def test_ast_visitor_detects_real_issues(client: TestClient, tmp_path: Path) -> None:
+    """Verify that actual configuration vulnerabilities in Python files are detected structurally."""
+    # 1. Create a python file with actual vulnerabilities
+    dummy_code = (
+        "import hashlib\n"
+        "import ssl\n"
+        "DEBUG = True\n"
+        "h = hashlib.md5()\n"
+        "tls_version = ssl.PROTOCOL_SSLv3\n"
+    )
+    python_file = tmp_path / "test_vulnerable.py"
+    python_file.write_text(dummy_code, encoding="utf-8")
+
+    # 2. Trigger scan
+    payload = {
+        "target": str(tmp_path),
+        "scan_type": "misconfig"
+    }
+    scan_data = _create_scan_and_wait(client, payload)
+    scan_id = scan_data["id"]
+
+    # 3. Retrieve findings
+    findings_resp = client.get(f"/api/v1/scan/{scan_id}/findings")
+    assert findings_resp.status_code == 200
+    findings = findings_resp.json()["findings"]
+
+    # We expect three distinct findings: debug mode, weak hashing, and legacy ssl/tls version
+    rule_ids = {f["rule_id"] for f in findings}
+    assert "SOVA-WEB-001" in rule_ids
+    assert "SOVA-CRYPTO-001" in rule_ids
+    assert "SOVA-CRYPTO-005" in rule_ids
+

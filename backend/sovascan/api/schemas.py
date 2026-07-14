@@ -42,6 +42,22 @@ class FixRequest(BaseModel):
         default=False,
         description="Whether to automatically apply the fix",
     )
+    custom_replacement: str | None = Field(
+        default=None,
+        description="Optional custom code replacement text provided by the user via the sandbox editor",
+    )
+    context_replacement: str | None = Field(
+        default=None,
+        description="The full edited block of 10-15 lines of context from the frontend sandbox",
+    )
+    context_start_line: int | None = Field(
+        default=None,
+        description="The 1-based start line of the context block in the original file",
+    )
+    context_end_line: int | None = Field(
+        default=None,
+        description="The 1-based end line of the context block in the original file",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -117,6 +133,15 @@ class SBOMResponse(BaseModel):
     generated_at: datetime
 
 
+class ComplianceControlResponse(BaseModel):
+    id: str
+    name: str
+    category: str
+    status: str
+    findings: list[str] = []
+    description: str = ""
+
+
 class ComplianceResponse(BaseModel):
     """Compliance check result against a specific framework."""
 
@@ -126,6 +151,7 @@ class ComplianceResponse(BaseModel):
     passed: int
     failed: int
     findings: list[FindingResponse]
+    controls: list[ComplianceControlResponse] = []
 
 
 class TrendDataPoint(BaseModel):
@@ -174,6 +200,8 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+    database: str
+    scanners: dict[str, bool]
     uptime: float
 
 
@@ -188,3 +216,34 @@ class ScanProgressEvent(BaseModel):
     status: str = ""
     error: str = ""
     timestamp: datetime | None = None
+
+
+class ThreatIntelRecordResponse(BaseModel):
+    cve_id: str
+    known_exploited: bool
+    epss_score: float | None = None
+    epss_percentile: float | None = None
+    priority: str
+    summary: str
+    remediation_urgency: str
+    sources: list[str] = Field(default_factory=list)
+
+
+class ThreatIntelScanResponse(BaseModel):
+    scan_id: str
+    generated_at: datetime
+    total_cves: int
+    known_exploited_count: int
+    high_priority_count: int
+    records: list[ThreatIntelRecordResponse]
+
+
+class FindingContextResponse(BaseModel):
+    """Response schema for file context around a finding."""
+
+    finding_id: str
+    file_path: str
+    start_line: int
+    end_line: int
+    target_line: int
+    lines: list[dict[str, str | int]]

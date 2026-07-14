@@ -108,3 +108,48 @@ export interface ScanProgressEvent {
   error: string;
   timestamp: string;
 }
+
+export interface SovaNotification {
+  id: string;
+  type: 'info' | 'success' | 'warning' | 'error';
+  title: string;
+  message: string;
+  timestamp: string;
+  read: boolean;
+}
+
+export interface SBOMPackage {
+  name: string;
+  version: string;
+  ecosystem: string;
+  license: string | null;
+  purl: string | null;
+}
+
+export interface SBOMResponse {
+  format: string;
+  packages: SBOMPackage[];
+  generated_at: string;
+}
+
+export type ThreatPriority = 'immediate' | 'high' | 'scheduled' | 'monitor';
+
+export interface ThreatIntelRecord {
+  cveId: string;
+  knownExploited: boolean;
+  epssScore: number | null;
+  epssPercentile: number | null;
+  priority: ThreatPriority;
+  summary: string;
+  remediationUrgency: string;
+  sources: string[];
+}
+
+export interface ThreatIntelResponse {
+  scanId: string;
+  generatedAt: string;
+  totalCves: number;
+  knownExploitedCount: number;
+  highPriorityCount: number;
+  records: ThreatIntelRecord[];
+}

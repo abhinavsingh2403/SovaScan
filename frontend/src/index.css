@@ -637,3 +637,101 @@ tbody td {
 .animate-scan-glow {
   animation: scan-glow 3s ease-in-out infinite;
 }
+
+
+/* Staggered card animation delays */
+.stats-grid > div:nth-child(1) { animation-delay: 0.05s; }
+.stats-grid > div:nth-child(2) { animation-delay: 0.1s; }
+.stats-grid > div:nth-child(3) { animation-delay: 0.15s; }
+.stats-grid > div:nth-child(4) { animation-delay: 0.2s; }
+
+.charts-grid > div:nth-child(1) { animation-delay: 0.25s; }
+.charts-grid > div:nth-child(2) { animation-delay: 0.3s; }
+
+.bottom-grid > div:nth-child(1) { animation-delay: 0.35s; }
+.bottom-grid > div:nth-child(2) { animation-delay: 0.4s; }
+
+/* Stagger delays for child card animations */
+.stagger-children > *:nth-child(1) { animation-delay: 0.05s; }
+.stagger-children > *:nth-child(2) { animation-delay: 0.1s; }
+.stagger-children > *:nth-child(3) { animation-delay: 0.15s; }
+.stagger-children > *:nth-child(4) { animation-delay: 0.2s; }
+.stagger-children > *:nth-child(5) { animation-delay: 0.25s; }
+.stagger-children > *:nth-child(6) { animation-delay: 0.3s; }
+.stagger-children > *:nth-child(7) { animation-delay: 0.35s; }
+.stagger-children > *:nth-child(8) { animation-delay: 0.4s; }
+.stagger-children > *:nth-child(9) { animation-delay: 0.45s; }
+.stagger-children > *:nth-child(10) { animation-delay: 0.5s; }
+
+/* Enhanced card hover micro-interaction */
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+              box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(0, 0, 0, 0.15),
+              0 0 15px rgba(99, 102, 241, 0.06);
+}
+
+/* Glow pulse for CTA buttons */
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 5px rgba(99, 102, 241, 0.3), 0 0 15px rgba(99, 102, 241, 0.1); }
+  50% { box-shadow: 0 0 10px rgba(99, 102, 241, 0.5), 0 0 30px rgba(99, 102, 241, 0.2); }
+}
+.glow-cta {
+  animation: glow-pulse 2.5s ease-in-out infinite;
+}
+.glow-cta:hover {
+  animation: none;
+  box-shadow: 0 0 15px rgba(99, 102, 241, 0.6), 0 0 40px rgba(99, 102, 241, 0.25);
+}
+
+/* Smooth expand/collapse */
+.smooth-expand {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  transition: max-height 0.4s cubic-bezier(0.25, 0.8, 0.25, 1),
+              opacity 0.3s ease,
+              padding 0.3s ease;
+}
+.smooth-expand.show {
+  max-height: 2000px;
+  opacity: 1;
+}
+
+/* Hybrid Console Window */
+.console-window {
+  padding: 0 !important;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.08) !important;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.45) !important;
+}
+
+.console-window .terminal-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  background: rgba(12, 15, 23, 0.6);
+  padding: 10px 20px;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.console-window .terminal-header .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.console-window .terminal-title {
+  margin-left: 8px;
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.5px;
+}
+
+.console-window .console-body {
+  padding: 24px;
+}

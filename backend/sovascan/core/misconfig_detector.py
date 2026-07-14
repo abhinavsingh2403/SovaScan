@@ -6,6 +6,7 @@ matching against configuration files to detect security misconfigurations.
 
 from __future__ import annotations
 
+import ast
 import fnmatch
 import logging
 import re
@@ -21,6 +22,7 @@ logger = logging.getLogger(__name__)
 CONFIG_EXTENSIONS = {
     ".yml", ".yaml", ".json", ".xml", ".properties",
     ".ini", ".cfg", ".conf", ".toml", ".env",
+    ".py", ".java", ".js", ".ts",
 }
 
 CONFIG_FILENAMES = {
@@ -59,6 +61,136 @@ class MisconfigRule:
                 logger.error("Invalid regex in rule %s: %s", self.id, exc)
                 self._compiled = re.compile(r"(?!)")  # never-match pattern
         return self._compiled
+
+
+class PythonASTVisitor(ast.NodeVisitor):
+    """AST visitor to check Python configuration and security issues structurally."""
+
+    def __init__(self, file_path: str) -> None:
+        self.file_path = file_path
+        self.findings_data: list[dict[str, Any]] = []
+
+    def visit_Assign(self, node: ast.Assign) -> None:
+        # Check variable assignments (e.g. DEBUG = True, allow_origins = ["*"])
+        for target in node.targets:
+            if isinstance(target, ast.Name):
+                self._check_assignment(target.id, node.value, node.lineno)
+            elif isinstance(target, (ast.Tuple, ast.List)):
+                for elt in target.elts:
+                    if isinstance(elt, ast.Name):
+                        self._check_assignment(elt.id, node.value, node.lineno)
+        self.generic_visit(node)
+
+    def _check_assignment(self, var_name: str, value_node: ast.AST, lineno: int) -> None:
+        name_lower = var_name.lower()
+
+        # 1. SOVA-WEB-001: Debug Mode Enabled
+        if name_lower in ("debug", "dev_mode"):
+            is_true = False
+            if isinstance(value_node, ast.Constant) and value_node.value in (True, 1, "on", "yes"):
+                is_true = True
+            elif isinstance(value_node, ast.Name) and value_node.id == "True":
+                is_true = True
+
+            if is_true:
+                self.findings_data.append({
+                    "rule_id": "SOVA-WEB-001",
+                    "title": "Debug Mode Enabled in Web Configuration",
+                    "description": "Running web frameworks in debug/development mode leaks stack traces, environment variables, and system details",
+                    "severity": "critical",
+                    "line_number": lineno,
+                    "evidence": f"{var_name} = {ast.unparse(value_node) if hasattr(ast, 'unparse') else 'True'}",
+                    "remediation": "Set DEBUG=False or equivalent in production environments.",
+                    "category": "web",
+                    "references": ["https://cwe.mitre.org/data/definitions/489.html"],
+                    "tags": ["web", "debug", "disclosure"]
+                })
+
+        # 2. SOVA-WEB-003: CORS Wildcard Origin Allowed
+        elif name_lower in ("allow_origins", "cors_origins", "access_control_allow_origin", "cors_origin"):
+            is_wildcard = False
+            evidence_str = ""
+            if isinstance(value_node, ast.Constant) and value_node.value == "*":
+                is_wildcard = True
+                evidence_str = f"{var_name} = '*'"
+            elif isinstance(value_node, ast.List):
+                for elt in value_node.elts:
+                    if isinstance(elt, ast.Constant) and elt.value == "*":
+                        is_wildcard = True
+                        if hasattr(ast, "unparse"):
+                            val_str = ast.unparse(value_node)
+                        else:
+                            val_str = '["*"]'
+                        evidence_str = f"{var_name} = {val_str}"
+                        break
+
+            if is_wildcard:
+                self.findings_data.append({
+                    "rule_id": "SOVA-WEB-003",
+                    "title": "CORS Wildcard Origin Allowed",
+                    "description": "Wildcard Access-Control-Allow-Origin header allows any site to access client API responses",
+                    "severity": "high",
+                    "line_number": lineno,
+                    "evidence": evidence_str,
+                    "remediation": "Specify exact allowed domains in the Access-Control-Allow-Origin configuration instead of using wildcard '*'.",
+                    "category": "web",
+                    "references": ["https://cwe.mitre.org/data/definitions/942.html"],
+                    "tags": ["web", "cors", "network"]
+                })
+
+    def visit_Call(self, node: ast.Call) -> None:
+        # 3. SOVA-CRYPTO-001: Weak Hashing Algorithm (md5, sha1 calls)
+        if isinstance(node.func, ast.Attribute):
+            if isinstance(node.func.value, ast.Name) and node.func.value.id == "hashlib":
+                method = node.func.attr
+                if method in ("md5", "sha1"):
+                    self.findings_data.append({
+                        "rule_id": "SOVA-CRYPTO-001",
+                        "title": "Weak Hashing Algorithm Detected",
+                        "description": "Use of MD5 or SHA-1 for cryptographic purposes is insecure",
+                        "severity": "high",
+                        "line_number": node.lineno,
+                        "evidence": f"hashlib.{method}()",
+                        "remediation": "Replace with SHA-256 or stronger hashing algorithm (SHA-384, SHA-512, bcrypt for passwords)",
+                        "category": "cryptographic",
+                        "references": ["https://cwe.mitre.org/data/definitions/328.html"],
+                        "tags": ["crypto", "hashing", "banking"]
+                    })
+        elif isinstance(node.func, ast.Name):
+            func_name = node.func.id
+            if func_name in ("md5", "sha1"):
+                self.findings_data.append({
+                    "rule_id": "SOVA-CRYPTO-001",
+                    "title": "Weak Hashing Algorithm Detected",
+                    "description": "Use of MD5 or SHA-1 for cryptographic purposes is insecure",
+                    "severity": "high",
+                    "line_number": node.lineno,
+                    "evidence": f"{func_name}()",
+                    "remediation": "Replace with SHA-256 or stronger hashing algorithm (SHA-384, SHA-512, bcrypt for passwords)",
+                    "category": "cryptographic",
+                    "references": ["https://cwe.mitre.org/data/definitions/328.html"],
+                    "tags": ["crypto", "hashing", "banking"]
+                })
+        self.generic_visit(node)
+
+    def visit_Attribute(self, node: ast.Attribute) -> None:
+        # 4. SOVA-CRYPTO-005: Insecure TLS/SSL Protocol Version
+        if isinstance(node.value, ast.Name) and node.value.id == "ssl":
+            attr_name = node.attr
+            if attr_name in ("PROTOCOL_SSLv2", "PROTOCOL_SSLv3", "PROTOCOL_TLSv1", "PROTOCOL_TLSv1_1"):
+                self.findings_data.append({
+                    "rule_id": "SOVA-CRYPTO-005",
+                    "title": "Insecure TLS/SSL Protocol Version",
+                    "description": "Legacy TLS/SSL protocols (TLS 1.0, 1.1, SSLv2, SSLv3) are vulnerable to various attacks",
+                    "severity": "high",
+                    "line_number": node.lineno,
+                    "evidence": f"ssl.{attr_name}",
+                    "remediation": "Upgrade configuration to require TLS 1.2 or TLS 1.3 (e.g., tls_version = TLSv1_2 or similar)",
+                    "category": "cryptographic",
+                    "references": ["https://cwe.mitre.org/data/definitions/327.html"],
+                    "tags": ["crypto", "tls", "security"]
+                })
+        self.generic_visit(node)
 
 
 class MisconfigDetector:
@@ -210,7 +342,18 @@ class MisconfigDetector:
             logger.warning("Cannot read file %s: %s", file_path, exc)
             return findings
 
+        # Run AST scanning for Python files to avoid false positives in comments/logs
+        is_python_file = file_path.suffix.lower() == ".py"
+        if is_python_file:
+            findings.extend(self._scan_python_ast(file_path, content))
+
+        AST_HANDLED_RULES = {"SOVA-WEB-001", "SOVA-WEB-003", "SOVA-CRYPTO-001", "SOVA-CRYPTO-005"}
+
         for rule in rules:
+            if is_python_file and rule.id in AST_HANDLED_RULES:
+                # Handled cleanly by AST visitor
+                continue
+
             if not self._file_matches_rule(file_path, rule):
                 continue
 
@@ -235,6 +378,43 @@ class MisconfigDetector:
                         },
                     )
                 )
+
+        return findings
+
+    def _scan_python_ast(self, file_path: Path, content: str) -> list:
+        """Scan a Python file using AST parser to prevent false positives in comments/logs."""
+        from sovascan.core.cve_scanner import Finding
+        findings: list[Finding] = []
+
+        try:
+            tree = ast.parse(content, filename=str(file_path))
+            visitor = PythonASTVisitor(str(file_path))
+            visitor.visit(tree)
+
+            for f_data in visitor.findings_data:
+                findings.append(
+                    Finding(
+                        id=f_data["rule_id"],
+                        title=f_data["title"],
+                        description=f_data["description"],
+                        severity=f_data["severity"],
+                        category="misconfig",
+                        file_path=str(file_path),
+                        line_number=f_data["line_number"],
+                        evidence=f_data["evidence"],
+                        remediation=f_data["remediation"],
+                        references=f_data["references"],
+                        tags=f_data["tags"],
+                        metadata={
+                            "rule_category": f_data["category"],
+                            "context": f_data["evidence"],
+                        },
+                    )
+                )
+        except SyntaxError as exc:
+            logger.warning("AST parsing failed due to SyntaxError in %s: %s", file_path, exc)
+        except Exception as exc:
+            logger.error("AST scanning encountered an unexpected error in %s: %s", file_path, exc)
 
         return findings
 

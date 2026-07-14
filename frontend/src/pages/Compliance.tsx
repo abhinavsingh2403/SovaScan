@@ -5,7 +5,18 @@ import './Compliance.css';
 
 const Compliance: React.FC = () => {
   const { getComplianceReport, fetchComplianceReport, findings } = useStore();
-  const [selectedFramework, setSelectedFramework] = useState('NIST-CSF');
+  const [selectedFramework, setSelectedFramework] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.defaultFramework || 'NIST-CSF';
+      }
+    } catch {
+      // ignore
+    }
+    return 'NIST-CSF';
+  });
   const [expandedControlId, setExpandedControlId] = useState<string | null>(null);
   const navigate = useNavigate();
 
@@ -173,7 +184,7 @@ const Compliance: React.FC = () => {
             <span className="checklist-count-tag">{report.totalControls} Controls Total</span>
           </div>
           
-          <div className="controls-list">
+          <div className="controls-list stagger-children">
             {report.controls.map((control) => {
               const controlFindings = getControlFindings(control.findings);
               const isExpanded = expandedControlId === control.id;

@@ -9,6 +9,7 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import json
 import logging
 import uuid
 from datetime import UTC, datetime
@@ -21,6 +22,7 @@ from pydantic import BaseModel
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.core.sast_scanner import SASTScanner
+from sovascan.core.severity_scorer import normalize_severity
 from sovascan.models.base import SessionLocal
 from sovascan.models.finding import Finding as FindingModel
 from sovascan.models.finding import Severity
@@ -40,12 +42,86 @@ def _clean_path(path_str: str, base_path: Path) -> str:
         p = Path(path_str)
         if p.is_absolute():
             return str(p.relative_to(base_path))
-    except Exception:
+    except Exception:  # noqa: S110
         pass
     base_str = str(base_path)
     if path_str.startswith(base_str):
         return path_str[len(base_str):].lstrip("\\/")
     return path_str
+
+
+def is_allowed_git_url(target: str) -> bool:
+    """Helper to validate if git target URL protocol is secure and allowed."""
+    return target.startswith(("https://", "http://")) and " " not in target
+
+
+def resolve_git_url_and_branch(target: str, options: dict[str, Any] | None = None) -> tuple[str, str | None, str | None]:
+    """Parse a git target URL to extract the repository URL, branch name, and optional subpath.
+
+    Returns:
+        tuple: (repo_url, branch_name, subpath)
+    """
+    branch = options.get("branch") if options else None
+    repo_url = target
+    subpath = None
+
+    for marker in ("/-/tree/", "/tree/", "/src/"):
+        if marker in target:
+            parts = target.split(marker, 1)
+            repo_url = parts[0]
+            if not repo_url.endswith(".git"):
+                repo_url += ".git"
+
+            rest = parts[1].strip("/")
+            if branch:
+                # If branch is explicitly provided in options, the rest is treated as subpath.
+                # If rest starts with the branch name, strip it to get the relative subpath.
+                if rest == branch:
+                    subpath = None
+                elif rest.startswith(branch + "/"):
+                    subpath = rest[len(branch):].strip("/")
+                else:
+                    subpath = rest
+            else:
+                # Distinguish between branch name and subpath dynamically
+                try:
+                    import subprocess
+                    proc = subprocess.run(
+                        ["git", "ls-remote", "--heads", repo_url],
+                        capture_output=True,
+                        text=True,
+                        timeout=10
+                    )
+                    if proc.returncode == 0:
+                        branches = []
+                        for line in proc.stdout.splitlines():
+                            if "\trefs/heads/" in line:
+                                branches.append(line.split("\trefs/heads/")[1])
+
+                        # Match the longest branch name prefix first
+                        branches.sort(key=len, reverse=True)
+                        matched_branch = None
+                        for b in branches:
+                            if rest == b:
+                                matched_branch = b
+                                break
+                            elif rest.startswith(b + "/"):
+                                matched_branch = b
+                                subpath = rest[len(b):].strip("/")
+                                break
+
+                        if matched_branch:
+                            branch = matched_branch
+                        else:
+                            branch = rest
+                    else:
+                        branch = rest
+                except Exception:
+                    branch = rest
+            break
+
+    return repo_url, branch, subpath
+
 
 
 # ---------------------------------------------------------------------------
@@ -194,33 +270,52 @@ class ScanManager:
                 scan_id,
                 self._make_event(scan_id, type="status_change", status="running", percent=0.0),
             )
-
             # -- Validate and Resolve Target ---------------------------------
-            if target.startswith("http://") or target.startswith("https://"):
+            is_git = target.startswith("http://") or target.startswith("https://") or "://" in target or target.startswith("git@")
+            if is_git:
+                if not is_allowed_git_url(target):
+                    raise ValueError("Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+                
+                repo_url, branch, subpath = resolve_git_url_and_branch(target, options)
+                
                 import subprocess
                 import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
-                target_path = Path(temp_dir.name)
+                clone_path = Path(temp_dir.name)
 
                 self._broadcast(
                     scan_id,
                     self._make_event(
                         scan_id,
                         type="progress",
-                        phase="Cloning remote git repository...",
+                        phase=f"Cloning remote git repository branch '{branch or 'default'}'..." if branch else "Cloning remote git repository...",
                         percent=10.0,
                         findings_count=findings_count,
                     ),
                 )
+                clone_cmd = ["git", "clone", "--depth", "1"]
+                if branch:
+                    clone_cmd.extend(["--branch", branch])
+                clone_cmd.extend([repo_url, str(clone_path)])
+                
                 proc = subprocess.run(
-                    ["git", "clone", "--depth", "1", target, str(target_path)],
+                    clone_cmd,
                     capture_output=True,
                     text=True,
-                    timeout=180
+                    timeout=60
                 )
                 if proc.returncode != 0:
                     raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
+                
+                if subpath:
+                    target_path = clone_path / subpath
+                    if not target_path.exists():
+                        raise ValueError(f"Subpath '{subpath}' does not exist in branch '{branch or 'default'}' of repository.")
+                else:
+                    target_path = clone_path
             else:
+                if "://" in target:
+                    raise ValueError("Invalid target syntax or unsupported URI protocol.")
                 target_path = Path(target)
                 if not target_path.exists():
                     raise FileNotFoundError(f"Target path does not exist: {target}")
@@ -254,8 +349,36 @@ class ScanManager:
                 "low_count": 0,
             }
 
+            seen_findings = set()
+
             for sf in result.findings:
-                sev = Severity(sf.severity.value)
+                sev = normalize_severity(sf.severity.value if hasattr(sf.severity, "value") else str(sf.severity))
+                clean_file_path = _clean_path(sf.file_path, target_path)
+                
+                evidence = sf.evidence or ""
+                if not evidence or evidence.strip() == "requires login":
+                    try:
+                        file_path_obj = Path(target_path) / clean_file_path
+                        if file_path_obj.exists() and file_path_obj.is_file():
+                            all_lines = file_path_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
+                            line_num = sf.line_number
+                            if line_num and 1 <= line_num <= len(all_lines):
+                                evidence = all_lines[line_num - 1]
+                    except Exception as e:
+                        logger.warning("Failed to fallback evidence reading: %s", e)
+
+                evidence_prefix = evidence[:120]
+                
+                dedup_key = (
+                    sf.id,
+                    clean_file_path,
+                    sf.line_number or 0,
+                    evidence_prefix
+                )
+                if dedup_key in seen_findings:
+                    continue
+                seen_findings.add(dedup_key)
+
                 finding = FindingModel(
                     id=str(uuid.uuid4()),
                     scan_id=scan_id,
@@ -264,9 +387,9 @@ class ScanManager:
                     description=sf.description,
                     severity=sev,
                     category=sf.category,
-                    file_path=_clean_path(sf.file_path, target_path),
-                    line_number=sf.line_number,
-                    evidence=sf.evidence,
+                    file_path=clean_file_path,
+                    line_number=sf.line_number or 0,
+                    evidence=evidence,
                     remediation=sf.remediation,
                     cve_id=sf.id if sf.category == "cve" else None,
                     cvss_score=sf.cvss_score or None,
@@ -310,7 +433,33 @@ class ScanManager:
                 )
                 sast = SASTScanner()
                 for sast_finding_dict in self._run_sast_to_dicts(sast, target_path):
-                    sev = sast_finding_dict["severity"]
+                    sev = normalize_severity(sast_finding_dict["severity"])
+                    clean_file_path = _clean_path(sast_finding_dict.get("file_path", ""), target_path)
+                    
+                    evidence = sast_finding_dict.get("evidence", "") or ""
+                    if not evidence or evidence.strip() == "requires login":
+                        try:
+                            file_path_obj = Path(target_path) / clean_file_path
+                            if file_path_obj.exists() and file_path_obj.is_file():
+                                all_lines = file_path_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
+                                line_num = sast_finding_dict.get("line_number")
+                                if line_num and 1 <= line_num <= len(all_lines):
+                                    evidence = all_lines[line_num - 1]
+                        except Exception as e:
+                            logger.warning("Failed to fallback evidence reading: %s", e)
+
+                    evidence_prefix = evidence[:120]
+                    
+                    dedup_key = (
+                        sast_finding_dict["rule_id"],
+                        clean_file_path,
+                        sast_finding_dict.get("line_number") or 0,
+                        evidence_prefix
+                    )
+                    if dedup_key in seen_findings:
+                        continue
+                    seen_findings.add(dedup_key)
+
                     f = FindingModel(
                         id=str(uuid.uuid4()),
                         scan_id=scan_id,
@@ -319,9 +468,9 @@ class ScanManager:
                         description=sast_finding_dict["description"],
                         severity=sev,
                         category=sast_finding_dict.get("category", "sast"),
-                        file_path=_clean_path(sast_finding_dict.get("file_path", ""), target_path),
-                        line_number=sast_finding_dict.get("line_number"),
-                        evidence=sast_finding_dict.get("evidence", ""),
+                        file_path=clean_file_path,
+                        line_number=sast_finding_dict.get("line_number") or 0,
+                        evidence=evidence,
                         remediation=sast_finding_dict.get("remediation", ""),
                         cve_id=sast_finding_dict.get("cve_id"),
                         cvss_score=sast_finding_dict.get("cvss_score"),
@@ -354,7 +503,20 @@ class ScanManager:
                 )
                 git_scanner = GitHistoryScanner(max_commits=max_commits)
                 for gf in git_scanner.scan(target_path):
-                    sev = Severity(gf.severity) if gf.severity in [s.value for s in Severity] else Severity.MEDIUM
+                    sev = normalize_severity(gf.severity)
+                    clean_file_path = _clean_path(gf.file_path, target_path)
+                    evidence_prefix = gf.evidence[:120] if gf.evidence else ""
+
+                    dedup_key = (
+                        gf.id,
+                        clean_file_path,
+                        gf.line_number or 0,
+                        evidence_prefix
+                    )
+                    if dedup_key in seen_findings:
+                        continue
+                    seen_findings.add(dedup_key)
+
                     f = FindingModel(
                         id=str(uuid.uuid4()),
                         scan_id=scan_id,
@@ -363,8 +525,8 @@ class ScanManager:
                         description=gf.description,
                         severity=sev,
                         category=gf.category,
-                        file_path=_clean_path(gf.file_path, target_path),
-                        line_number=gf.line_number,
+                        file_path=clean_file_path,
+                        line_number=gf.line_number or 0,
                         evidence=gf.evidence,
                         remediation=gf.remediation,
                     )
@@ -390,6 +552,17 @@ class ScanManager:
             scan.low_count = severity_counts["low_count"]
             scan.status = ScanStatus.COMPLETED
             scan.completed_at = datetime.now(UTC)
+
+            # Cache SBOM in metadata_json
+            metadata = {}
+            if scan.metadata_json:
+                try:
+                    metadata = json.loads(scan.metadata_json)
+                except Exception:
+                    pass
+            metadata["sbom"] = result.sbom
+            scan.metadata_json = json.dumps(metadata)
+
             db.commit()
 
             self._broadcast(
@@ -412,6 +585,17 @@ class ScanManager:
                 if scan_row:
                     scan_row.status = ScanStatus.FAILED
                     scan_row.completed_at = datetime.now(UTC)
+                    
+                    metadata = {}
+                    if scan_row.metadata_json:
+                        try:
+                            metadata = json.loads(scan_row.metadata_json)
+                        except Exception:
+                            pass
+                    metadata["error"] = str(exc)
+                    metadata["failed_at"] = datetime.now(UTC).isoformat()
+                    scan_row.metadata_json = json.dumps(metadata)
+
                     db.commit()
             except Exception:
                 logger.exception("Failed to update scan %s status to FAILED", scan_id)
@@ -543,5 +727,5 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
         scan_manager.unsubscribe(scan_id, queue)
         try:
             await websocket.close()
-        except Exception:
+        except Exception:  # noqa: S110
             pass

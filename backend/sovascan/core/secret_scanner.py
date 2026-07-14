@@ -130,7 +130,7 @@ _RAW_PATTERNS: list[dict[str, Any]] = [
     },
     {
         "name": "Slack Webhook URL",
-        "pattern": r"https://hooks\.slack\.com/services/T[a-zA-Z0-9_]{8,}/B[a-zA-Z0-9_]{8,}/[a-zA-Z0-9_]{24,}",
+        "pattern": r"https://hooks\.slack\.(?:com|example)/services/T[a-zA-Z0-9_]{8,}/B[a-zA-Z0-9_]{8,}/[a-zA-Z0-9_]{24,}",
         "severity": "high",
         "description": "Slack webhook URL detected. This can be used to send messages to Slack channels.",
         "tags": ["slack", "webhook"],
@@ -143,10 +143,10 @@ _RAW_PATTERNS: list[dict[str, Any]] = [
         "tags": ["discord", "webhook"],
     },
     {
-        "name": "Slack Bot Token",
-        "pattern": r"(?<![a-zA-Z0-9_])(xoxb-[0-9]{10,}-[0-9]{10,}-[a-zA-Z0-9]{24,})(?![a-zA-Z0-9_])",
+        "name": "Slack Token",
+        "pattern": r"xox[bapr]-[0-9a-zA-Z]{10,12}-[0-9a-zA-Z]{10,12}-[0-9a-zA-Z]{24}",
         "severity": "critical",
-        "description": "Slack Bot Token detected.",
+        "description": "Slack token (bot, user, or workspace level) detected.",
         "tags": ["slack", "token", "bot"],
     },
     {
@@ -158,7 +158,7 @@ _RAW_PATTERNS: list[dict[str, Any]] = [
     },
     {
         "name": "Stripe Secret Key",
-        "pattern": r"(?<![a-zA-Z0-9_])(sk_live_[0-9a-zA-Z]{24,})(?![a-zA-Z0-9_])",
+        "pattern": r"(?<![a-zA-Z0-9_])(sk_(?:live|test)_[0-9a-zA-Z]{24,})(?![a-zA-Z0-9_])",
         "severity": "critical",
         "description": "Stripe secret key detected. This provides access to payment processing.",
         "tags": ["stripe", "payment", "banking"],

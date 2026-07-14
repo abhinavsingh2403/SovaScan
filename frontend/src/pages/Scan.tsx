@@ -5,7 +5,18 @@ import './Scan.css';
 const Scan: React.FC = () => {
   const { startScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
-  const [scanType, setScanType] = useState('full');
+  const [scanType, setScanType] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.defaultScanType || 'full';
+      }
+    } catch {
+      // ignore
+    }
+    return 'full';
+  });
   const [frameworks, setFrameworks] = useState<string[]>(['NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
@@ -233,7 +244,7 @@ const Scan: React.FC = () => {
 
             <button
               type="submit"
-              className="submit-scan-btn"
+              className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() ? 'glow-cta' : ''}`}
               disabled={scanProgress.running || !targetPath.trim()}
             >
               {scanProgress.running ? 'Scanning Execution in Progress...' : '🦉 Launch SovaScan'}
@@ -292,7 +303,11 @@ const Scan: React.FC = () => {
             </div>
           ) : (
             <div className="progress-idle-state">
-              <div className="owl-mascot animate-radar-pulse">🦉</div>
+              <div className="idle-reticle-container">
+                <div className="idle-reticle-ring-1 animate-radar-spin"></div>
+                <div className="idle-reticle-ring-2"></div>
+                <div className="owl-mascot">🦉</div>
+              </div>
               <h3>Scan Engine Idle</h3>
               <p>Configure parameters on the left and start the analyzer to view live results.</p>
             </div>
@@ -301,47 +316,55 @@ const Scan: React.FC = () => {
       </div>
 
       {/* History section */}
-      <div className="scan-history-section glassmorphism animate-slide-up">
-        <h2>Scan Run History</h2>
-        <div className="table-responsive">
-          <table className="scan-history-table">
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Type</th>
-                <th>Run Date</th>
-                <th>Findings Count</th>
-                <th>Duration</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.slice(0, 10).map((scan) => (
-                <tr key={scan.id}>
-                  <td className="monospace-td">{scan.target}</td>
-                  <td><span className="badge-type">{scan.scanType}</span></td>
-                  <td>{new Date(scan.createdAt).toLocaleString()}</td>
-                  <td>
-                    <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                    <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                    <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                  </td>
-                  <td>
-                    {scan.completedAt
-                      ? `${Math.round(
-                          (new Date(scan.completedAt).getTime() -
-                            new Date(scan.startedAt).getTime()) /
-                            1000
-                        )}s`
-                      : '-'}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${scan.status}`}>{scan.status}</span>
-                  </td>
+      <div className="scan-history-section glassmorphism animate-slide-up console-window">
+        <div className="terminal-header">
+          <span className="dot dot-red"></span>
+          <span className="dot dot-yellow"></span>
+          <span className="dot dot-green"></span>
+          <span className="terminal-title">sovascan@history:~</span>
+        </div>
+        <div className="console-body">
+          <h2>Scan Run History</h2>
+          <div className="table-responsive">
+            <table className="scan-history-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Type</th>
+                  <th>Run Date</th>
+                  <th>Findings Count</th>
+                  <th>Duration</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {scans.slice(0, 10).map((scan) => (
+                  <tr key={scan.id}>
+                    <td className="monospace-td" title={scan.target}>{scan.target}</td>
+                    <td><span className="badge-type">{scan.scanType}</span></td>
+                    <td>{new Date(scan.createdAt).toLocaleString()}</td>
+                    <td>
+                      <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
+                      <span className="scan-count-tag orange-tag">{scan.highCount}</span>
+                      <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
+                    </td>
+                    <td>
+                      {scan.completedAt
+                        ? `${Math.round(
+                            (new Date(scan.completedAt).getTime() -
+                              new Date(scan.startedAt).getTime()) /
+                              1000
+                          )}s`
+                        : '-'}
+                    </td>
+                    <td>
+                      <span className={`status-badge ${scan.status}`}>{scan.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>
