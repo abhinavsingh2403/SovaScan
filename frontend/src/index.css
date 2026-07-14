@@ -735,3 +735,474 @@ tbody td {
 .console-window .console-body {
   padding: 24px;
 }
+
+/* Global Print Hardening Overrides to override glassmorphism screen styles during print */
+@media print {
+  .report-page .glassmorphism,
+  .report-page .list-card,
+  .report-page .summary-panel,
+  .report-page .report-header-panel,
+  .report-page .report-metric-card,
+  .report-page .report-risk-card,
+  .report-page .remediation-col,
+  .report-page .compliance-report-card,
+  .report-page .console-window {
+    background: transparent !important;
+    background-color: transparent !important;
+    color: #111111 !important;
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    filter: none !important;
+    transition: none !important;
+    padding: 0 !important;
+    margin-bottom: 25px !important;
+  }
+
+  .report-page .report-metric-card {
+    border-left: 3px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    padding: 10px 15px !important;
+  }
+
+  .report-page .report-risk-card {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 20px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .report-page .compliance-report-card {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 15px !important;
+    margin-bottom: 15px !important;
+  }
+
+  .report-page .remediation-col {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 15px !important;
+    margin-bottom: 15px !important;
+  }
+
+  .report-page .evidence-console {
+    border-left: 3px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    padding: 10px 15px !important;
+  }
+}
+
+/* Screen mode: Hide print-only cover page */
+.print-only {
+  display: none;
+}
+
+/* Formal Audit Print overrides to deliver publication-quality reports */
+@media print {
+  .screen-only {
+    display: none !important;
+  }
+
+  .print-only {
+    display: block !important;
+    background: #ffffff !important;
+    color: #1e293b !important;
+    font-family: Georgia, Cambria, "Times New Roman", Times, serif !important;
+    font-size: 10pt !important;
+    line-height: 1.5 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* Force headers and specific text to sans-serif */
+  h1, h2, h3, h4, h5, h6, th, td, 
+  .audit-cover-logo-placeholder, 
+  .audit-cover-ref,
+  .audit-metric-val, 
+  .audit-metric-lbl, 
+  .toc-page,
+  .audit-badge-lbl,
+  .audit-page-header,
+  .audit-page-footer {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+  }
+
+  /* Page Break Styling */
+  .audit-page {
+    page-break-after: always !important;
+    page-break-inside: avoid !important;
+    height: 96vh !important;
+    position: relative !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: flex-start !important;
+    box-sizing: border-box !important;
+    padding: 20px 0 !important;
+    background: #ffffff !important;
+  }
+
+  /* Header & Footer on every audit page */
+  .audit-page-header {
+    display: flex !important;
+    justify-content: flex-end !important;
+    font-size: 8.5pt !important;
+    font-weight: 600 !important;
+    color: #64748b !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding-bottom: 6px !important;
+    margin-bottom: 30px !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .audit-page-footer {
+    position: absolute !important;
+    bottom: 10px !important;
+    left: 0 !important;
+    right: 0 !important;
+    display: flex !important;
+    justify-content: center !important;
+    font-size: 8.5pt !important;
+    color: #64748b !important;
+    border-top: 1px solid #cbd5e1 !important;
+    padding-top: 8px !important;
+  }
+
+  /* Cover Page specific styles */
+  .audit-page.page-1 {
+    justify-content: space-between !important;
+    height: 96vh !important;
+  }
+
+  .audit-cover-logo-placeholder {
+    text-align: center !important;
+    padding: 30px 0 !important;
+    font-weight: 700 !important;
+    color: #64748b !important;
+    font-size: 11pt !important;
+    letter-spacing: 1px !important;
+    border: 1px dashed #cbd5e1 !important;
+    margin-bottom: 40px !important;
+    background: #f8fafc !important;
+  }
+
+  .audit-cover-body {
+    flex-grow: 1 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    justify-content: center !important;
+  }
+
+  .audit-cover-title {
+    font-size: 20pt !important;
+    font-weight: 800 !important;
+    color: #0f172a !important;
+    text-align: center !important;
+    line-height: 1.3 !important;
+    margin: 0 0 15px 0 !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .audit-cover-subtitle {
+    font-size: 12pt !important;
+    font-style: italic !important;
+    color: #475569 !important;
+    text-align: center !important;
+    margin: 0 0 10px 0 !important;
+  }
+
+  .audit-cover-ref {
+    font-size: 10pt !important;
+    color: #475569 !important;
+    text-align: center !important;
+    margin-bottom: 30px !important;
+  }
+
+  .audit-cover-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    margin-bottom: 30px !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .audit-cover-table td {
+    padding: 8px 12px !important;
+    border: 1px solid #cbd5e1 !important;
+    font-size: 9.5pt !important;
+    background: #ffffff !important;
+  }
+
+  .audit-cover-table td.label-col {
+    font-weight: 700 !important;
+    background: #f8fafc !important;
+    color: #1e293b !important;
+    width: 30% !important;
+  }
+
+  .audit-cover-table td.val-col {
+    color: #334155 !important;
+  }
+
+  .audit-cover-footer {
+    text-align: center !important;
+    border-top: 1px solid #cbd5e1 !important;
+    padding-top: 15px !important;
+    margin-top: auto !important;
+  }
+
+  .confidential-red {
+    color: #dc2626 !important;
+    font-weight: 700 !important;
+    font-size: 10pt !important;
+    text-transform: uppercase !important;
+    margin: 0 0 4px 0 !important;
+    letter-spacing: 0.5px !important;
+  }
+
+  .confidential-desc {
+    font-size: 8.5pt !important;
+    font-style: italic !important;
+    color: #64748b !important;
+    margin: 0 !important;
+  }
+
+  /* Table of Contents dots leader */
+  .toc-list {
+    list-style: none !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  .toc-list li {
+    display: flex !important;
+    align-items: flex-end !important;
+    margin-bottom: 12px !important;
+    font-size: 10pt !important;
+  }
+
+  .toc-title {
+    font-weight: 700 !important;
+    color: #1e293b !important;
+  }
+
+  .toc-sub-title {
+    font-weight: 500 !important;
+    color: #475569 !important;
+    padding-left: 20px !important;
+  }
+
+  .toc-dots {
+    flex-grow: 1 !important;
+    border-bottom: 1.5px dotted #94a3b8 !important;
+    margin: 0 8px !important;
+    position: relative !important;
+    top: -4px !important;
+  }
+
+  .toc-page {
+    font-weight: 700 !important;
+    color: #1e293b !important;
+  }
+
+  /* Document Typography */
+  .audit-section-title {
+    font-size: 15pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 0 0 20px 0 !important;
+    border-bottom: 2px solid #0f172a !important;
+    padding-bottom: 5px !important;
+    text-transform: uppercase !important;
+  }
+
+  .audit-sub-title {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #1e293b !important;
+    margin: 25px 0 10px 0 !important;
+  }
+
+  .audit-paragraph {
+    font-size: 10pt !important;
+    line-height: 1.6 !important;
+    color: #1e293b !important;
+    margin-bottom: 15px !important;
+  }
+
+  .audit-bullet-list {
+    list-style-type: disc !important;
+    padding-left: 20px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .audit-bullet-list li {
+    font-size: 10pt !important;
+    line-height: 1.5 !important;
+    color: #1e293b !important;
+    margin-bottom: 8px !important;
+  }
+
+  /* Metric summary panel on Page 3 */
+  .audit-metrics-summary {
+    display: flex !important;
+    background: #f8fafc !important;
+    border: 1px solid #cbd5e1 !important;
+    border-radius: 4px !important;
+    margin: 25px 0 !important;
+    padding: 15px 0 !important;
+  }
+
+  .audit-metric-box {
+    flex: 1 !important;
+    text-align: center !important;
+    border-right: 1px solid #cbd5e1 !important;
+  }
+
+  .audit-metric-box:last-child {
+    border-right: none !important;
+  }
+
+  .audit-metric-val {
+    font-size: 18pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+  }
+
+  .audit-metric-val.risk-critical {
+    color: #dc2626 !important;
+  }
+
+  .audit-metric-lbl {
+    font-size: 8.5pt !important;
+    color: #64748b !important;
+    margin-top: 4px !important;
+  }
+
+  /* Severity count table on Page 5 */
+  .audit-distribution-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1 !important;
+    margin-top: 15px !important;
+  }
+
+  .audit-distribution-table th {
+    background: #1e293b !important;
+    color: #ffffff !important;
+    padding: 10px !important;
+    font-size: 9.5pt !important;
+    text-align: center !important;
+    font-weight: 700 !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .audit-distribution-table td {
+    padding: 12px !important;
+    font-size: 10.5pt !important;
+    text-align: center !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+    font-weight: 700 !important;
+  }
+
+  /* Grid tables for remediation, compliance, SBOM, and appendix */
+  .audit-grid-table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+    border: 1px solid #cbd5e1 !important;
+    margin-top: 15px !important;
+  }
+
+  .audit-grid-table th {
+    background: #1e293b !important;
+    color: #ffffff !important;
+    padding: 10px 12px !important;
+    font-size: 9.5pt !important;
+    text-align: left !important;
+    font-weight: 700 !important;
+    border: 1px solid #cbd5e1 !important;
+  }
+
+  .audit-grid-table td {
+    padding: 10px 12px !important;
+    font-size: 9.5pt !important;
+    text-align: left !important;
+    color: #1e293b !important;
+    border: 1px solid #cbd5e1 !important;
+    vertical-align: top !important;
+  }
+
+  .audit-grid-table tr:nth-child(even) td {
+    background: #f8fafc !important;
+  }
+
+  /* Severity badge labels in findings register table */
+  .audit-badge-lbl {
+    font-size: 8pt !important;
+    font-weight: 700 !important;
+    padding: 2px 6px !important;
+    border-radius: 4px !important;
+    text-transform: uppercase !important;
+    display: inline-block !important;
+  }
+
+  .audit-badge-lbl.critical {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
+  }
+
+  .audit-badge-lbl.high {
+    background: #ffedd5 !important;
+    color: #c2410c !important;
+  }
+
+  .audit-badge-lbl.medium {
+    background: #fef9c3 !important;
+    color: #a16207 !important;
+  }
+
+  .audit-badge-lbl.low {
+    background: #e0f2fe !important;
+    color: #0369a1 !important;
+  }
+
+  .audit-badge-lbl.info {
+    background: #f1f5f9 !important;
+    color: #475569 !important;
+  }
+
+  /* Detailed findings listings on Page 6 */
+  .audit-finding-title-section {
+    font-size: 11pt !important;
+    font-weight: 700 !important;
+    color: #0f172a !important;
+    margin: 25px 0 8px 0 !important;
+    border-left: 3px solid #b91c1c !important;
+    padding-left: 8px !important;
+  }
+
+  .audit-finding-meta-panel {
+    font-size: 9pt !important;
+    color: #64748b !important;
+    margin-bottom: 12px !important;
+    border-bottom: 1px solid #cbd5e1 !important;
+    padding-bottom: 6px !important;
+  }
+
+  /* Signature Sign-Off Block on Page 11 */
+  .audit-signoff-panel {
+    width: 100% !important;
+    margin-top: 60px !important;
+  }
+
+  .signoff-row {
+    display: flex !important;
+    justify-content: space-between !important;
+    margin-bottom: 30px !important;
+  }
+
+  .signoff-field {
+    font-size: 10pt !important;
+    color: #1e293b !important;
+    width: 45% !important;
+  }
+}

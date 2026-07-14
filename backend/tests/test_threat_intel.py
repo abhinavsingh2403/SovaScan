@@ -9,34 +9,51 @@ from sovascan.models.finding import Finding, Severity
 def test_priority_calculation():
     enricher = ThreatIntelEnricher()
 
-    # Immediate
-    priority, urgency = enricher._build_priority("CVE-2023-1", known_exploited=True, epss_score=0.01)
-    assert priority == "immediate"
-    assert "Patch immediately" in urgency
+    # Case 1: Immediate due to known_exploited
+    with patch.object(enricher, "_fetch_kev", return_value={"CVE-2023-0001"}):
+        with patch.object(enricher, "_fetch_epss", return_value={}):
+            records = enricher.enrich_cves(["CVE-2023-0001"])
+            rec = records["CVE-2023-0001"]
+            assert rec.priority == "immediate"
+            assert "Patch within 24 hours" in rec.remediation_urgency
 
-    priority, urgency = enricher._build_priority("CVE-2023-2", known_exploited=False, epss_score=0.85)
-    assert priority == "immediate"
+    # Case 2: Immediate due to high epss
+    with patch.object(enricher, "_fetch_kev", return_value=set()):
+        with patch.object(enricher, "_fetch_epss", return_value={"CVE-2023-0002": {"epss": 0.85, "percentile": 0.99}}):
+            records = enricher.enrich_cves(["CVE-2023-0002"])
+            rec = records["CVE-2023-0002"]
+            assert rec.priority == "immediate"
 
-    # High
-    priority, urgency = enricher._build_priority("CVE-2023-3", known_exploited=False, epss_score=0.45)
-    assert priority == "high"
-    assert "scheduled deployment window" in urgency
+    # Case 3: High due to epss >= 0.4
+    with patch.object(enricher, "_fetch_kev", return_value=set()):
+        with patch.object(enricher, "_fetch_epss", return_value={"CVE-2023-0003": {"epss": 0.45, "percentile": 0.90}}):
+            records = enricher.enrich_cves(["CVE-2023-0003"])
+            rec = records["CVE-2023-0003"]
+            assert rec.priority == "high"
+            assert "Patch within 7 days" in rec.remediation_urgency
 
-    priority, urgency = enricher._build_priority("CVE-2023-4", known_exploited=False, epss_score=0.01, cvss_score=8.5)
-    assert priority == "high"
+    # Case 4: High due to cvss >= 9.0
+    with patch.object(enricher, "_fetch_kev", return_value=set()):
+        with patch.object(enricher, "_fetch_epss", return_value={}):
+            records = enricher.enrich_cves(["CVE-2023-0004"], cvss_scores={"CVE-2023-0004": 9.5})
+            rec = records["CVE-2023-0004"]
+            assert rec.priority == "high"
 
-    # Scheduled
-    priority, urgency = enricher._build_priority("CVE-2023-5", known_exploited=False, epss_score=0.08)
-    assert priority == "scheduled"
-    assert "routine maintenance" in urgency
+    # Case 5: Medium due to cvss >= 7.0
+    with patch.object(enricher, "_fetch_kev", return_value=set()):
+        with patch.object(enricher, "_fetch_epss", return_value={}):
+            records = enricher.enrich_cves(["CVE-2023-0005"], cvss_scores={"CVE-2023-0005": 7.5})
+            rec = records["CVE-2023-0005"]
+            assert rec.priority == "medium"
+            assert "Patch within 30 days" in rec.remediation_urgency
 
-    priority, urgency = enricher._build_priority("CVE-2023-6", known_exploited=False, epss_score=0.01, cvss_score=6.0)
-    assert priority == "scheduled"
-
-    # Monitor
-    priority, urgency = enricher._build_priority("CVE-2023-7", known_exploited=False, epss_score=0.01, cvss_score=2.0)
-    assert priority == "monitor"
-    assert "Monitor for changes" in urgency
+    # Case 6: Monitor
+    with patch.object(enricher, "_fetch_kev", return_value=set()):
+        with patch.object(enricher, "_fetch_epss", return_value={}):
+            records = enricher.enrich_cves(["CVE-2023-0006"])
+            rec = records["CVE-2023-0006"]
+            assert rec.priority == "monitor"
+            assert "Monitor and patch" in rec.remediation_urgency
 
 @patch("httpx.Client.get")
 def test_enrich_cves_success(mock_get):
@@ -75,9 +92,6 @@ def test_enrich_cves_success(mock_get):
     # Alternating mock calls: first KEV, second EPSS
     mock_get.side_effect = [mock_cisa_res, mock_epss_res]
 
-    # Reset cache
-    ThreatIntelEnricher._cisa_kev_cache = None
-
     enricher = ThreatIntelEnricher()
     records = enricher.enrich_cves(["CVE-2023-0001", "CVE-2023-0002"])
 
@@ -89,21 +103,18 @@ def test_enrich_cves_success(mock_get):
     assert rec1.known_exploited is True
     assert rec1.epss_score == 0.923
     assert rec1.priority == "immediate"
-    assert "CISA KEV" in rec1.sources
+    assert "CISA-KEV" in rec1.sources
 
     rec2 = records["CVE-2023-0002"]
     assert rec2.known_exploited is False
     assert rec2.epss_score == 0.125
-    assert rec2.priority == "scheduled"
-    assert "FIRST EPSS" in rec2.sources
+    assert rec2.priority == "monitor"
+    assert "EPSS" in rec2.sources
 
 @patch("httpx.Client.get")
 def test_enrich_cves_network_failure(mock_get):
     # Setup mock exceptions
     mock_get.side_effect = Exception("Network timeout")
-
-    # Reset cache
-    ThreatIntelEnricher._cisa_kev_cache = None
 
     enricher = ThreatIntelEnricher()
     records = enricher.enrich_cves(["CVE-2023-9999"])
@@ -115,7 +126,8 @@ def test_enrich_cves_network_failure(mock_get):
     assert rec.known_exploited is False
     assert rec.epss_score is None
     assert rec.priority == "monitor"
-    assert len(rec.sources) == 0
+    assert len(rec.sources) == 1
+    assert rec.sources == ["OSV"]
 
 def test_api_endpoint_threat_intel(client, db_session):
     # Create sample scan in db
@@ -142,7 +154,7 @@ def test_api_endpoint_threat_intel(client, db_session):
         category="cve",
         file_path="requirements.txt",
         cve_id="CVE-2023-0001",
-        cvss_score=8.2
+        cvss_score=9.2
     )
     # Add non-CVE findings
     finding2 = Finding(
@@ -157,8 +169,8 @@ def test_api_endpoint_threat_intel(client, db_session):
     db_session.add_all([finding1, finding2])
     db_session.commit()
 
-    with patch.object(ThreatIntelEnricher, "_load_cisa_kev_cache", return_value={}):
-        with patch.object(ThreatIntelEnricher, "_fetch_epss_scores", return_value={"CVE-2023-0001": {"cve": "CVE-2023-0001", "epss": "0.15", "percentile": "0.55"}}):
+    with patch.object(ThreatIntelEnricher, "_fetch_kev", return_value=set()):
+        with patch.object(ThreatIntelEnricher, "_fetch_epss", return_value={"CVE-2023-0001": {"epss": 0.15, "percentile": 0.55}}):
             res = client.get(f"/api/v1/threat-intel/scan/{db_scan.id}")
             assert res.status_code == 200
             data = res.json()
@@ -166,4 +178,4 @@ def test_api_endpoint_threat_intel(client, db_session):
             assert data["total_cves"] == 1
             assert data["records"][0]["cve_id"] == "CVE-2023-0001"
             assert data["records"][0]["epss_score"] == 0.15
-            assert data["records"][0]["priority"] == "high" # Boosted by CVSS >= 8.0
+            assert data["records"][0]["priority"] == "high" # Boosted by CVSS >= 9.0
