@@ -27,7 +27,10 @@ This document outlines the detailed system upgrades, architectural modifications
 
 ## 4. Compliance Page Calculations & Visuals
 * **Logical Alignment Fix**: Resolved a mismatch where auto-fixed vulnerabilities were still being counted as active compliance failures. The backend query in `routes.py` now filters out fixed findings (`is_fixed == False`), transitioning resolved controls dynamically to `"passed"`.
-* **Visual Gauge & Radar**: Retained the Recharts `RadarChart` inside the left sidebar panel of the 2-column layout to visualize category compliance scores dynamically.
+* **Visual Gauge Speedometer**: Replaced the speedometer dial with an interactive SVG radial gauge, complete with decorative tick marks, custom radial gradient fills, and an active risk category badge (Low/Medium/Critical Risk).
+* **Category Coverage & Statistics**: Added dynamic vertical progress bars showing compliance category coverage percentages (e.g. Protect, Detect, Identify) and control breakdown pills.
+* **Control Row Polishing**: Integrated left accent borders colored dynamically by status (passed/failed), staggered loading animations, and rich audit requirement metadata tags.
+* **Redirection Logic Fix**: Resolved a redirect bug where failed controls with missing frontend store matches would display a false positive "No active findings" success message. It now displays a detailed "Control Baseline Violation Detected" warning row redirecting directly to the Findings page to view and remediate.
 
 ---
 
