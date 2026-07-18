@@ -37,6 +37,7 @@ const Profile: React.FC = () => {
   }, [location]);
 
   const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingKeys, setLoadingKeys] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
@@ -53,9 +54,20 @@ const Profile: React.FC = () => {
     }
   };
 
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await api.getAuditLogs();
+      setAuditLogs(res.data);
+    } catch (err: any) {
+      console.error("Failed to fetch audit logs", err);
+    }
+  };
+
   useEffect(() => {
     if (activeTab === 'api-keys') {
       fetchBackendKeys();
+    } else if (activeTab === 'activity') {
+      fetchAuditLogs();
     }
   }, [activeTab]);
 
@@ -99,6 +111,17 @@ const Profile: React.FC = () => {
         status: 'warning',
       });
     }
+  });
+
+  // Add backend audit logs to activity array
+  auditLogs.forEach((log) => {
+    activity.push({
+      id: `audit-${log.id}`,
+      action: `${log.action} (Operator: ${log.operator}) — Justification: "${log.justification || 'None'}"`,
+      target: log.target || "System",
+      timestamp: log.timestamp,
+      status: log.status as any,
+    });
   });
 
   // Sort by timestamp descending

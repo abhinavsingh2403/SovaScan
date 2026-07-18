@@ -636,6 +636,7 @@ def generate_fix(
     finding_id: str,
     request: FixRequest,
     db: Session = Depends(get_db),
+    current_key: Any = Depends(verify_api_key),
 ) -> dict[str, str]:
     """Generate an auto-fix suggestion for a specific finding.
 
@@ -843,6 +844,18 @@ def generate_fix(
                 detail="Failed to physically apply auto-fix suggestion to file on disk."
             )
         finding.is_fixed = True
+        
+        # Create audit trail log
+        from sovascan.models.audit_log import AuditLog
+        operator_name = current_key.name if current_key else "Developer"
+        audit_entry = AuditLog(
+            action=f"Applied Auto-Fix: {finding.title}",
+            operator=operator_name,
+            target=f"{finding.file_path}:L{finding.line_number}" if finding.line_number else finding.file_path,
+            justification=request.justification or "Auto-fix applied via Dashboard",
+            status="success"
+        )
+        db.add(audit_entry)
         db.commit()
 
     return {
@@ -858,6 +871,7 @@ def revert_finding_fix(
     finding_id: str,
     request: FixRequest,
     db: Session = Depends(get_db),
+    current_key: Any = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """Reverts an applied fix on disk by writing the backup original context block,
     and resets the finding's is_fixed status to False.
@@ -888,6 +902,18 @@ def revert_finding_fix(
         )
 
     finding.is_fixed = False
+    
+    # Create audit trail log
+    from sovascan.models.audit_log import AuditLog
+    operator_name = current_key.name if current_key else "Developer"
+    audit_entry = AuditLog(
+        action=f"Reverted Auto-Fix: {finding.title}",
+        operator=operator_name,
+        target=f"{finding.file_path}:L{finding.line_number}" if finding.line_number else finding.file_path,
+        justification=request.justification or "Reverted change",
+        status="warning"
+    )
+    db.add(audit_entry)
     db.commit()
 
     return {
@@ -1056,7 +1082,7 @@ def compliance_report(
         ]
 
     # Query findings
-    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id)
+    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id).filter(Finding.is_fixed == False)
     if scan_id:
         query = query.filter(Finding.scan_id == scan_id)
     else:
@@ -1401,4 +1427,92 @@ def delete_api_key(
     db.commit()
 
     return {"detail": "API Key revoked and deleted successfully."}
+
+
+@router.get("/auth/audit-logs", response_model=list[dict[str, Any]])
+def get_audit_logs(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Retrieve all system audit logs sorted by timestamp descending."""
+    from sovascan.models.audit_log import AuditLog
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+    return [
+        {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat() + "Z" if log.timestamp else None,
+            "action": log.action,
+            "operator": log.operator,
+            "target": log.target,
+            "justification": log.justification,
+            "status": log.status,
+        }
+        for log in logs
+    ]
+
+
+@router.get("/auth/settings", response_model=dict[str, Any])
+def get_system_settings() -> dict[str, Any]:
+    """Retrieve active system settings."""
+    from sovascan.config import get_settings
+    settings = get_settings()
+    return {
+        "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
+        "database_url": settings.DATABASE_URL,
+        "api_host": settings.API_HOST,
+        "api_port": settings.API_PORT,
+        "debug": settings.DEBUG,
+    }
+
+
+@router.post("/auth/settings", response_model=dict[str, Any])
+def save_system_settings(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Saves system configuration settings like Slack webhook URL."""
+    slack_url = payload.get("slack_webhook_url", "")
+    
+    # Save in memory
+    from sovascan.config import get_settings
+    settings = get_settings()
+    settings.SLACK_WEBHOOK_URL = slack_url
+    
+    # Also write to .env for persistence across restarts
+    try:
+        from pathlib import Path
+        env_path = Path("C:/Users/ss/Documents/SovaScan/.env")
+        lines = []
+        if env_path.exists():
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+        
+        new_lines = [l for l in lines if not l.startswith("SLACK_WEBHOOK_URL=")]
+        new_lines.append(f"SLACK_WEBHOOK_URL={slack_url}")
+        
+        env_path.write_text("\n".join(new_lines), encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to persist settings to .env file: {e}")
+        
+    return {"detail": "Settings saved successfully."}
+
+
+@router.post("/auth/test-webhook", response_model=dict[str, Any])
+def test_system_webhook(
+    payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Sends a test notification message to the Slack webhook URL."""
+    slack_url = payload.get("slack_webhook_url", "")
+    if not slack_url:
+        raise HTTPException(status_code=400, detail="Slack Webhook URL is required.")
+        
+    import httpx
+    msg = {
+        "text": "⚡ *SovaScan Webhook Integration Test*\n"
+                "This is a test notification confirming your Slack integration is configured correctly! 🚀"
+    }
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            res = client.post(slack_url, json=msg)
+            if res.status_code >= 400:
+                raise HTTPException(status_code=400, detail=f"Slack returned error status code: {res.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}")
+        
+    return {"detail": "Test webhook alert sent successfully!"}
 

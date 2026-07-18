@@ -31,6 +31,7 @@ class Settings(BaseSettings):
 
     # Security
     SECRET_KEY: str = "dev-secret-key-change-in-production"
+    SLACK_WEBHOOK_URL: str = ""
     ALLOWED_ORIGINS: list[str] = [
         "http://localhost:3000",
         "http://localhost:5173",

@@ -171,7 +171,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card glassmorphism">
+        <div className="stat-card glassmorphism scans-card">
           <div className="stat-icon count-icon">🔍</div>
           <div className="stat-details">
             <h3>Total Scans</h3>
@@ -180,7 +180,7 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
 
-        <div className="stat-card glassmorphism">
+        <div className="stat-card glassmorphism findings-card">
           <div className="stat-icon finding-icon">🦉</div>
           <div className="stat-details">
             <h3>Active Findings</h3>

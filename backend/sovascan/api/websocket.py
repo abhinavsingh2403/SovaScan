@@ -13,6 +13,7 @@ import json
 import logging
 import hashlib
 import uuid
+import httpx
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
@@ -20,6 +21,7 @@ from typing import Any
 from fastapi import WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
 from sovascan.models.api_key import ApiKey
+from sovascan.config import get_settings
 
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
@@ -77,6 +79,26 @@ class ScanProgressEvent(BaseModel):
     def to_json(self) -> str:
         """Serialize to JSON string for WebSocket transmission."""
         return self.model_dump_json()
+
+def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
+    """Sends a real-time webhook alert to Slack/Teams when a scan finishes."""
+    settings = get_settings()
+    url = settings.SLACK_WEBHOOK_URL
+    if not url:
+        return
+        
+    payload = {
+        "text": f"🚨 *SovaScan Security Alert*\n"
+                f"*Target:* `{scan_target}`\n"
+                f"*Critical Vulnerabilities:* `{critical_count}`\n"
+                f"*High Vulnerabilities:* `{high_count}`\n"
+                f"🔗 <http://localhost:8000/report/{scan_id}|View Audit Report>"
+    }
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.post(url, json=payload)
+    except Exception as e:
+        logger.error(f"Failed to send Slack webhook alert: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -484,6 +506,12 @@ class ScanManager:
             scan.metadata_json = json.dumps(metadata)
 
             db.commit()
+
+            # Trigger real-time Slack/Teams alerting
+            try:
+                send_slack_alert(scan.target, scan.critical_count, scan.high_count, scan.id)
+            except Exception as e:
+                logger.error(f"Slack notification error: {e}")
 
             self._broadcast(
                 scan_id,

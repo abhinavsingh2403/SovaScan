@@ -58,6 +58,10 @@ class FixRequest(BaseModel):
         default=None,
         description="The 1-based end line of the context block in the original file",
     )
+    justification: str | None = Field(
+        default=None,
+        description="Optional justification reason for this remediation (Required for bank audits)",
+    )
 
 
 # ---------------------------------------------------------------------------

@@ -97,7 +97,8 @@ export const api = {
     customReplacement?: string,
     contextReplacement?: string,
     contextStartLine?: number,
-    contextEndLine?: number
+    contextEndLine?: number,
+    justification?: string
   ) =>
     client.post(`/fix/${findingId}`, {
       finding_id: findingId,
@@ -106,6 +107,7 @@ export const api = {
       context_replacement: contextReplacement,
       context_start_line: contextStartLine,
       context_end_line: contextEndLine,
+      justification: justification,
     }),
 
   /** POST /api/v1/fix/all — bulk fix all findings */
@@ -150,6 +152,18 @@ export const api = {
 
   /** DELETE /api/v1/auth/api-keys/{keyId} — revoke API key */
   deleteApiKey: (keyId: string) => client.delete(`/auth/api-keys/${keyId}`),
+
+  /** GET /api/v1/auth/audit-logs — list system audit logs */
+  getAuditLogs: () => client.get('/auth/audit-logs'),
+
+  /** GET /api/v1/auth/settings — retrieve active system settings */
+  getSystemSettings: () => client.get('/auth/settings'),
+
+  /** POST /api/v1/auth/settings — save system settings */
+  saveSystemSettings: (slackWebhookUrl: string) => client.post('/auth/settings', { slack_webhook_url: slackWebhookUrl }),
+
+  /** POST /api/v1/auth/test-webhook — trigger test notification */
+  testWebhook: (slackWebhookUrl: string) => client.post('/auth/test-webhook', { slack_webhook_url: slackWebhookUrl }),
 };
 
 /**
