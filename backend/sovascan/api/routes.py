@@ -1450,12 +1450,12 @@ def get_audit_logs(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
 
 @router.get("/auth/settings", response_model=dict[str, Any])
 def get_system_settings() -> dict[str, Any]:
-    """Retrieve active system settings."""
-    from sovascan.config import get_settings
+    """Retrieve active system settings with sensitive values masked."""
+    from sovascan.config import get_settings, mask_slack_webhook, mask_database_url
     settings = get_settings()
     return {
-        "slack_webhook_url": settings.SLACK_WEBHOOK_URL,
-        "database_url": settings.DATABASE_URL,
+        "slack_webhook_url": mask_slack_webhook(settings.SLACK_WEBHOOK_URL),
+        "database_url": mask_database_url(settings.DATABASE_URL),
         "api_host": settings.API_HOST,
         "api_port": settings.API_PORT,
         "debug": settings.DEBUG,
@@ -1466,29 +1466,42 @@ def get_system_settings() -> dict[str, Any]:
 def save_system_settings(
     payload: dict[str, Any],
 ) -> dict[str, Any]:
-    """Saves system configuration settings like Slack webhook URL."""
-    slack_url = payload.get("slack_webhook_url", "")
-    
-    # Save in memory
-    from sovascan.config import get_settings
+    """Saves system configuration settings securely, checking for SSRF vulnerabilities."""
+    from sovascan.config import get_settings, is_safe_webhook_url
     settings = get_settings()
+
+    slack_url = payload.get("slack_webhook_url", "").strip()
+
+    # If the user sends a masked representation, do not overwrite the existing URL
+    if "*" in slack_url or "..." in slack_url:
+        slack_url = settings.SLACK_WEBHOOK_URL
+    elif slack_url:
+        # Enforce SSRF protection
+        if not is_safe_webhook_url(slack_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or forbidden Slack Webhook URL. Host must resolve to a public IP address."
+            )
+
+    # Save in memory
     settings.SLACK_WEBHOOK_URL = slack_url
-    
-    # Also write to .env for persistence across restarts
+
+    # Also write to .env for persistence across restarts using dynamic path resolution
     try:
         from pathlib import Path
-        env_path = Path("C:/Users/ss/Documents/SovaScan/.env")
+        project_root = Path(__file__).parent.parent.parent.parent
+        env_path = project_root / ".env"
         lines = []
         if env_path.exists():
             lines = env_path.read_text(encoding="utf-8").splitlines()
-        
+
         new_lines = [l for l in lines if not l.startswith("SLACK_WEBHOOK_URL=")]
         new_lines.append(f"SLACK_WEBHOOK_URL={slack_url}")
-        
+
         env_path.write_text("\n".join(new_lines), encoding="utf-8")
     except Exception as e:
         logger.warning(f"Failed to persist settings to .env file: {e}")
-        
+
     return {"detail": "Settings saved successfully."}
 
 
@@ -1496,11 +1509,28 @@ def save_system_settings(
 def test_system_webhook(
     payload: dict[str, Any]
 ) -> dict[str, Any]:
-    """Sends a test notification message to the Slack webhook URL."""
-    slack_url = payload.get("slack_webhook_url", "")
+    """Sends a test notification message to the Slack webhook URL with SSRF validation."""
+    from sovascan.config import get_settings, is_safe_webhook_url
+    settings = get_settings()
+
+    slack_url = payload.get("slack_webhook_url", "").strip()
     if not slack_url:
         raise HTTPException(status_code=400, detail="Slack Webhook URL is required.")
-        
+
+    # If the URL is masked, use the active stored one
+    if "*" in slack_url or "..." in slack_url:
+        slack_url = settings.SLACK_WEBHOOK_URL
+
+    if not slack_url:
+        raise HTTPException(status_code=400, detail="No active Slack Webhook URL is configured to test.")
+
+    # Enforce SSRF protection
+    if not is_safe_webhook_url(slack_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or forbidden Slack Webhook URL. Host must resolve to a public IP address."
+        )
+
     import httpx
     msg = {
         "text": "⚡ *SovaScan Webhook Integration Test*\n"
@@ -1513,6 +1543,6 @@ def test_system_webhook(
                 raise HTTPException(status_code=400, detail=f"Slack returned error status code: {res.status_code}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}")
-        
+
     return {"detail": "Test webhook alert sent successfully!"}
 

@@ -81,14 +81,21 @@ class ScanProgressEvent(BaseModel):
         return self.model_dump_json()
 
 def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
-    """Sends a real-time webhook alert to Slack/Teams when a scan finishes."""
+    """Sends a real-time webhook alert to Slack/Teams when a scan finishes, ensuring SSRF protection."""
+    from sovascan.config import get_settings, is_safe_webhook_url
     settings = get_settings()
     url = settings.SLACK_WEBHOOK_URL
     if not url:
         return
         
+    # Enforce SSRF protection
+    if not is_safe_webhook_url(url):
+        logger.warning(f"Aborting Slack webhook dispatch: URL '{url}' is classified as unsafe (internal/loopback/non-HTTPS).")
+        return
+        
     payload = {
         "text": f"🚨 *SovaScan Security Alert*\n"
+                "🛡️ *RBI CSF & PCI-DSS Audit Status*\n"
                 f"*Target:* `{scan_target}`\n"
                 f"*Critical Vulnerabilities:* `{critical_count}`\n"
                 f"*High Vulnerabilities:* `{high_count}`\n"

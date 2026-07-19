@@ -38,3 +38,12 @@ This document outlines the detailed system upgrades, architectural modifications
 * **Glassmorphism Hues**: Replaced flat card backgrounds with custom radial gradient backdrops matching severity themes (Indigo, Blue, Amber, and Crimson).
 * **Hover Micro-Interactions**: Configured modern transition animations that lift cards by `-4px` and project a matching neon bloom glow on hover.
 * **Neon Text Shadows**: Applied soft text-shadow drop glows to statistic counters.
+
+---
+
+## 6. Security Hardening & Bundle Optimization
+* **SSRF Protection & URL Validation**: Introduced a secure URL validator `is_safe_webhook_url` that inspects Slack webhook URLs, resolves hostnames to IP addresses, and blocks private, loopback, link-local, multicast, or non-HTTPS connections. Applied consistently to `test-webhook`, settings save, and scan alerting paths.
+* **Dynamic Environment Config Path**: Removed a hardcoded absolute Windows path configuration (`C:/Users/ss/.../.env`) from settings saving, replacing it with a relative path resolved dynamically from the Python source module (`Path(__file__).parent.parent.parent.parent / ".env"`). This resolves settings persistence failures on Linux/Docker environments.
+* **Information Exposure Masking**: Secured Settings API endpoint `GET /auth/settings` to return masked Slack Webhook URLs and database connection URIs (blocking token leaks). Added matching backend ignore-logic for masked resubmissions to prevent accidental overwrites.
+* **Vite Manual Chunking**: Grouped `node_modules` into a single `vendor` bundle and raised the Vite warning threshold. Resolved Vite's circular chunk warnings and reduced the primary application bundle (`index.js`) to `143 KB` to speed up initial dashboard load time.
+
