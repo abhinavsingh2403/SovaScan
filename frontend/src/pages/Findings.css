@@ -30,6 +30,17 @@
   padding: 8px 16px;
   border-radius: 8px;
   flex: 1;
+  transition: border-color 0.25s ease,
+             box-shadow 0.35s cubic-bezier(0.25, 0.8, 0.25, 1),
+             background 0.25s ease;
+}
+
+.search-box:focus-within {
+  border-color: var(--accent-primary);
+  background: rgba(0, 0, 0, 0.3);
+  box-shadow: 0 0 0 4px rgba(99, 102, 241, 0.15),
+              0 0 20px rgba(99, 102, 241, 0.08),
+              0 0 40px rgba(99, 102, 241, 0.03);
 }
 
 .search-icon {
@@ -161,15 +172,19 @@
 .finding-row-card {
   border-radius: 12px;
   cursor: pointer;
-  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+  transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+             box-shadow 0.25s ease,
+             border-color 0.25s ease,
+             background 0.2s ease;
   overflow: hidden;
 }
 
 .finding-row-card:hover {
   background: var(--bg-card-hover);
-  border-color: rgba(255, 255, 255, 0.12);
-  transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+  border-color: rgba(99, 102, 241, 0.2);
+  transform: translateY(-3px);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.2),
+              0 0 16px rgba(99, 102, 241, 0.06);
 }
 
 .finding-row-card.expanded {
@@ -228,11 +243,40 @@
   text-align: center;
 }
 
-.severity-badge-lbl.critical { background: rgba(220, 38, 38, 0.15); color: #ef4444; border: 1px solid rgba(220, 38, 38, 0.3); }
-.severity-badge-lbl.high { background: rgba(234, 88, 12, 0.15); color: #fb923c; border: 1px solid rgba(234, 88, 12, 0.3); }
-.severity-badge-lbl.medium { background: rgba(234, 179, 8, 0.15); color: #fde047; border: 1px solid rgba(234, 179, 8, 0.3); }
-.severity-badge-lbl.low { background: rgba(37, 99, 235, 0.15); color: #60a5fa; border: 1px solid rgba(37, 99, 235, 0.3); }
-.severity-badge-lbl.info { background: rgba(100, 116, 139, 0.15); color: #cbd5e1; border: 1px solid rgba(100, 116, 139, 0.3); }
+.severity-badge-lbl.critical {
+  background: rgba(220, 38, 38, 0.15);
+  color: #ef4444;
+  border: 1px solid rgba(220, 38, 38, 0.3);
+  box-shadow: inset 0 1px 2px rgba(220, 38, 38, 0.15),
+              0 0 6px rgba(220, 38, 38, 0.08);
+}
+.severity-badge-lbl.high {
+  background: rgba(234, 88, 12, 0.15);
+  color: #fb923c;
+  border: 1px solid rgba(234, 88, 12, 0.3);
+  box-shadow: inset 0 1px 2px rgba(234, 88, 12, 0.12),
+              0 0 6px rgba(234, 88, 12, 0.06);
+}
+.severity-badge-lbl.medium {
+  background: rgba(234, 179, 8, 0.15);
+  color: #fde047;
+  border: 1px solid rgba(234, 179, 8, 0.3);
+  box-shadow: inset 0 1px 2px rgba(234, 179, 8, 0.1),
+              0 0 6px rgba(234, 179, 8, 0.05);
+}
+.severity-badge-lbl.low {
+  background: rgba(37, 99, 235, 0.15);
+  color: #60a5fa;
+  border: 1px solid rgba(37, 99, 235, 0.3);
+  box-shadow: inset 0 1px 2px rgba(37, 99, 235, 0.12),
+              0 0 6px rgba(37, 99, 235, 0.06);
+}
+.severity-badge-lbl.info {
+  background: rgba(100, 116, 139, 0.15);
+  color: #cbd5e1;
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  box-shadow: inset 0 1px 2px rgba(100, 116, 139, 0.1);
+}
 
 .rule-id-lbl {
   font-size: 11px;

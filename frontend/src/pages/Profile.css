@@ -432,3 +432,85 @@
     padding: 12px;
   }
 }
+
+/* Premium Profile Page Enhancements */
+.profile-section {
+  position: relative;
+  overflow: hidden;
+  border-color: var(--border-color);
+  background: rgba(15, 21, 41, 0.5);
+  transition: border-color var(--transition-slow), transform var(--transition-slow), box-shadow var(--transition-slow);
+}
+
+.profile-section::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(99, 102, 241, 0.15) 20%, rgba(139, 92, 246, 0.15) 80%, transparent);
+}
+
+.profile-section:hover {
+  border-color: rgba(99, 102, 241, 0.2);
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4), 0 0 2px rgba(99, 102, 241, 0.15);
+}
+
+.profile-info-grid__avatar-section {
+  position: relative;
+  overflow: hidden;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.015) 0%, rgba(255, 255, 255, 0.005) 100%) !important;
+  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  box-shadow: var(--shadow-sm);
+  transition: all var(--transition-slow);
+}
+
+.profile-info-grid__avatar-section:hover {
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.25) !important;
+  box-shadow: 0 8px 24px rgba(99, 102, 241, 0.08), 0 0 1px rgba(99, 102, 241, 0.2);
+}
+
+.profile-info-grid__avatar-large {
+  position: relative;
+  transition: all var(--transition-slow);
+}
+
+.profile-info-grid__avatar-section:hover .profile-info-grid__avatar-large {
+  transform: scale(1.06);
+  box-shadow: 0 0 32px rgba(99, 102, 241, 0.5), 0 0 10px rgba(139, 92, 246, 0.3);
+}
+
+.activity-timeline__item {
+  padding: 12px;
+  margin: 0 -12px;
+  border-radius: var(--radius-md);
+  transition: background-color 0.25s ease, transform 0.25s ease;
+  cursor: pointer;
+}
+
+.activity-timeline__item:hover {
+  background: rgba(255, 255, 255, 0.025);
+  transform: translateX(4px);
+}
+
+.activity-timeline__dot {
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.activity-timeline__item:hover .activity-timeline__dot {
+  transform: scale(1.3);
+}
+
+.keys-table tr {
+  transition: background-color 0.2s ease;
+}
+
+.keys-table tr:hover td {
+  background: rgba(99, 102, 241, 0.02);
+}
+
+.keys-table td {
+  transition: background-color 0.2s ease;
+}

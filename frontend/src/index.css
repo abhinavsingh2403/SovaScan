@@ -1246,3 +1246,159 @@ tbody td {
     width: 45% !important;
   }
 }
+
+/* ============================================================
+   Premium Enhancements — Animations, Utilities & Micro-interactions
+   ============================================================ */
+
+/* Animated border glow — cycles hue along the accent gradient */
+@keyframes borderGlow {
+  0%, 100% {
+    border-color: rgba(99, 102, 241, 0.3);
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.1), inset 0 0 8px rgba(99, 102, 241, 0.03);
+  }
+  33% {
+    border-color: rgba(139, 92, 246, 0.35);
+    box-shadow: 0 0 12px rgba(139, 92, 246, 0.12), inset 0 0 8px rgba(139, 92, 246, 0.04);
+  }
+  66% {
+    border-color: rgba(99, 102, 241, 0.25);
+    box-shadow: 0 0 10px rgba(99, 102, 241, 0.08), inset 0 0 6px rgba(99, 102, 241, 0.02);
+  }
+}
+
+/* Gentle floating animation */
+@keyframes floatUp {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+/* Diagonal shimmer sweep for cards */
+@keyframes shimmerSweep {
+  0% {
+    transform: translateX(-100%) skewX(-15deg);
+  }
+  100% {
+    transform: translateX(200%) skewX(-15deg);
+  }
+}
+
+/* Pulsing glow shadow animation */
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 0 6px rgba(99, 102, 241, 0.15), 0 0 20px rgba(99, 102, 241, 0.06);
+  }
+  50% {
+    box-shadow: 0 0 12px rgba(99, 102, 241, 0.3), 0 0 36px rgba(99, 102, 241, 0.1);
+  }
+}
+
+/* Premium glassmorphism with border glow and inner shadow */
+.glassmorphism-premium {
+  background: rgba(15, 21, 41, 0.5);
+  backdrop-filter: blur(20px) saturate(200%);
+  -webkit-backdrop-filter: blur(20px) saturate(200%);
+  border: 1px solid rgba(99, 102, 241, 0.15);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow:
+    0 8px 32px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.05),
+    inset 0 0 20px rgba(99, 102, 241, 0.03);
+  border-radius: var(--radius-lg);
+  animation: borderGlow 4s ease-in-out infinite;
+  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+.glassmorphism-premium:hover {
+  background: rgba(22, 31, 61, 0.6);
+  border-color: rgba(99, 102, 241, 0.35);
+  box-shadow:
+    0 16px 48px rgba(0, 0, 0, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.08),
+    0 0 24px rgba(99, 102, 241, 0.12);
+  transform: translateY(-3px);
+}
+
+/* Subtle pulsing glow utility */
+.animate-glow {
+  animation: glowPulse 3s ease-in-out infinite;
+}
+
+/* Card shimmer on hover — diagonal light sweep */
+.card-shimmer {
+  position: relative;
+  overflow: hidden;
+}
+
+.card-shimmer::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.03) 40%,
+    rgba(255, 255, 255, 0.07) 50%,
+    rgba(255, 255, 255, 0.03) 60%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  transition: none;
+  pointer-events: none;
+  z-index: 1;
+}
+
+.card-shimmer:hover::before {
+  animation: shimmerSweep 0.8s ease-out forwards;
+}
+
+/* Enhanced .glassmorphism — stronger blur + top border highlight */
+.glassmorphism {
+  backdrop-filter: blur(16px) saturate(180%);
+  -webkit-backdrop-filter: blur(16px) saturate(180%);
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* Gradient text utility using accent colors */
+.text-gradient {
+  background: linear-gradient(135deg, #6366f1 0%, #a78bfa 50%, #8b5cf6 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  background-size: 200% 200%;
+}
+
+/* Enhanced hover-lift with accent glow on hover */
+.hover-lift {
+  transition: transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+              box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1),
+              border-color 0.25s ease;
+}
+
+.hover-lift:hover {
+  transform: translateY(-3px);
+  box-shadow:
+    0 8px 25px rgba(0, 0, 0, 0.2),
+    0 0 15px rgba(99, 102, 241, 0.08),
+    0 0 30px rgba(99, 102, 241, 0.04);
+}
+
+/* Premium text selection styling */
+::selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: #ffffff;
+  text-shadow: none;
+}
+
+::-moz-selection {
+  background: rgba(99, 102, 241, 0.35);
+  color: #ffffff;
+  text-shadow: none;
+}

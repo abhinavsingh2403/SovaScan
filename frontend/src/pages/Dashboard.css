@@ -46,6 +46,37 @@
   backdrop-filter: blur(12px);
 }
 
+/* Shimmer sweep across stat-card on hover */
+.stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 45%;
+  height: 100%;
+  background: linear-gradient(
+    105deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.02) 35%,
+    rgba(255, 255, 255, 0.06) 50%,
+    rgba(255, 255, 255, 0.02) 65%,
+    rgba(255, 255, 255, 0) 100%
+  );
+  transform: translateX(-100%) skewX(-15deg);
+  pointer-events: none;
+  z-index: 1;
+  transition: none;
+}
+
+.stat-card:hover::before {
+  animation: stat-shimmer-sweep 0.75s ease-out forwards;
+}
+
+@keyframes stat-shimmer-sweep {
+  0% { transform: translateX(-100%) skewX(-15deg); }
+  100% { transform: translateX(280%) skewX(-15deg); }
+}
+
 /* Background glows for each card */
 .risk-card {
   background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(26, 31, 53, 0.4) 100%);
@@ -99,6 +130,14 @@
   align-items: center;
   justify-content: center;
   border: 1px solid rgba(255, 255, 255, 0.05);
+  transition: transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1),
+              box-shadow 0.3s ease;
+}
+
+.stat-card:hover .stat-icon {
+  transform: scale(1.08);
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.15),
+              0 0 6px rgba(99, 102, 241, 0.1);
 }
 
 .count-icon {
@@ -128,8 +167,10 @@
 
 .stat-number {
   font-size: 28px;
-  font-weight: 700;
+  font-weight: 800;
   margin: 0 0 4px 0;
+  letter-spacing: -0.5px;
+  font-family: var(--font-title);
 }
 
 /* Neon glow on numbers */
@@ -259,6 +300,9 @@
   margin: 0 0 20px 0;
   color: var(--text-primary);
   letter-spacing: 0.5px;
+  padding-left: 14px;
+  border-left: 3px solid var(--accent-primary);
+  border-radius: 1px;
 }
 
 .chart-wrapper {
@@ -388,12 +432,17 @@
   padding: 12px;
   background: rgba(255, 255, 255, 0.02);
   border: 1px solid rgba(255, 255, 255, 0.04);
+  border-left: 3px solid transparent;
   border-radius: 12px;
-  transition: background 0.2s ease;
+  transition: background 0.2s ease,
+             border-left-color 0.25s ease,
+             transform 0.2s ease;
 }
 
 .vuln-item:hover {
   background: rgba(255, 255, 255, 0.04);
+  border-left-color: var(--accent-primary);
+  transform: translateX(2px);
 }
 
 .vuln-details {
@@ -653,4 +702,30 @@
   background-color: rgba(255, 255, 255, 0.04) !important;
   border-color: rgba(99, 102, 241, 0.2) !important;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+/* Premium top-edge highlight line on stat cards */
+.stat-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 10%;
+  right: 10%;
+  height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(99, 102, 241, 0.25) 30%,
+    rgba(139, 92, 246, 0.35) 50%,
+    rgba(99, 102, 241, 0.25) 70%,
+    transparent 100%
+  );
+  pointer-events: none;
+  z-index: 2;
+  opacity: 0.7;
+  transition: opacity 0.3s ease;
+}
+
+.stat-card:hover::after {
+  opacity: 1;
 }
