@@ -1,9 +1,9 @@
 """Pydantic v2 request / response schemas for the SovaScan API."""
 
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -85,6 +85,13 @@ class ScanResponse(BaseModel):
     completed_at: datetime | None = None
     created_at: datetime | None = None
 
+    @field_serializer("started_at", "completed_at", "created_at")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+
     model_config = {"from_attributes": True}
 
 
@@ -106,6 +113,13 @@ class FindingResponse(BaseModel):
     cvss_score: float | None = None
     is_fixed: bool = False
     created_at: datetime | None = None
+
+    @field_serializer("created_at")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return tz_aware.isoformat().replace("+00:00", "Z")
 
     model_config = {"from_attributes": True}
 
@@ -135,6 +149,11 @@ class SBOMResponse(BaseModel):
     format: str = "cyclonedx"
     packages: list[PackageInfo]
     generated_at: datetime
+
+    @field_serializer("generated_at")
+    def serialize_datetime(self, dt: datetime) -> str:
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return tz_aware.isoformat().replace("+00:00", "Z")
 
 
 class ComplianceControlResponse(BaseModel):
@@ -221,6 +240,13 @@ class ScanProgressEvent(BaseModel):
     error: str = ""
     timestamp: datetime | None = None
 
+    @field_serializer("timestamp")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+
 
 class ThreatIntelRecordResponse(BaseModel):
     cve_id: str
@@ -236,6 +262,11 @@ class ThreatIntelRecordResponse(BaseModel):
 class ThreatIntelScanResponse(BaseModel):
     scan_id: str
     generated_at: datetime
+
+    @field_serializer("generated_at")
+    def serialize_datetime(self, dt: datetime) -> str:
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        return tz_aware.isoformat().replace("+00:00", "Z")
     total_cves: int
     known_exploited_count: int
     high_priority_count: int
