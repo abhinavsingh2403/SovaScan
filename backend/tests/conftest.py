@@ -26,6 +26,20 @@ def fixture_db_session():
     Base.metadata.create_all(bind=test_engine)
 
     db = TestingSessionLocal()
+    # Seed default key for testing authentication
+    import hashlib
+    from sovascan.models.api_key import ApiKey
+    default_key = "ss_live_mock_local_dev_key_12345"
+    key_hash = hashlib.sha256(default_key.encode("utf-8")).hexdigest()
+    dev_key = ApiKey(
+        id="2",
+        name="Local-Developer-Key",
+        key_hash=key_hash,
+        is_active=True
+    )
+    db.add(dev_key)
+    db.commit()
+
     try:
         yield db
     finally:
@@ -49,6 +63,7 @@ def fixture_client(db_session):
 
     app.dependency_overrides[get_db] = override_get_db
     with TestClient(app) as test_client:
+        test_client.headers = {"X-API-Key": "ss_live_mock_local_dev_key_12345"}
         yield test_client
     app.dependency_overrides.clear()
     websocket.SessionMaker = original_session_maker

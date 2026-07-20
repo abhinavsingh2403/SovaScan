@@ -11,13 +11,17 @@ from __future__ import annotations
 import asyncio
 import json
 import logging
+import hashlib
 import uuid
+import httpx
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import WebSocket, WebSocketDisconnect
+from fastapi import WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
+from sovascan.models.api_key import ApiKey
+from sovascan.config import get_settings
 
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
@@ -52,7 +56,7 @@ def _clean_path(path_str: str, base_path: Path) -> str:
 
 def is_allowed_git_url(target: str) -> bool:
     """Helper to validate if git target URL protocol is secure and allowed."""
-    return target.startswith(("https://", "http://")) and " " not in target
+    return target.startswith("https://") and " " not in target
 
 
 def resolve_git_url_and_branch(target: str, options: dict[str, Any] | None = None) -> tuple[str, str | None, str | None]:
@@ -144,6 +148,33 @@ class ScanProgressEvent(BaseModel):
     def to_json(self) -> str:
         """Serialize to JSON string for WebSocket transmission."""
         return self.model_dump_json()
+
+def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
+    """Sends a real-time webhook alert to Slack/Teams when a scan finishes, ensuring SSRF protection."""
+    from sovascan.config import get_settings, is_safe_webhook_url
+    settings = get_settings()
+    url = settings.SLACK_WEBHOOK_URL
+    if not url:
+        return
+        
+    # Enforce SSRF protection
+    if not is_safe_webhook_url(url):
+        logger.warning(f"Aborting Slack webhook dispatch: URL '{url}' is classified as unsafe (internal/loopback/non-HTTPS).")
+        return
+        
+    payload = {
+        "text": f"🚨 *SovaScan Security Alert*\n"
+                "🛡️ *RBI CSF & PCI-DSS Audit Status*\n"
+                f"*Target:* `{scan_target}`\n"
+                f"*Critical Vulnerabilities:* `{critical_count}`\n"
+                f"*High Vulnerabilities:* `{high_count}`\n"
+                f"🔗 <http://localhost:8000/report/{scan_id}|View Audit Report>"
+    }
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            client.post(url, json=payload)
+    except Exception as e:
+        logger.error(f"Failed to send Slack webhook alert: {e}")
 
 
 # ---------------------------------------------------------------------------
@@ -565,6 +596,12 @@ class ScanManager:
 
             db.commit()
 
+            # Trigger real-time Slack/Teams alerting
+            try:
+                send_slack_alert(scan.target, scan.critical_count, scan.high_count, scan.id)
+            except Exception as e:
+                logger.error(f"Slack notification error: {e}")
+
             self._broadcast(
                 scan_id,
                 self._make_event(
@@ -675,8 +712,34 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
     Clients connect to ``/api/v1/scan/{scan_id}/ws`` and receive
     JSON-encoded :class:`ScanProgressEvent` messages in real time.
     """
+    api_key_str = websocket.query_params.get("api_key")
+    db = SessionMaker()
+    try:
+        if not api_key_str:
+            await websocket.accept()
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Missing API key")
+            return
+
+        key_hash = hashlib.sha256(api_key_str.encode("utf-8")).hexdigest()
+        db_key = db.query(ApiKey).filter(
+            ApiKey.key_hash == key_hash,
+            ApiKey.is_active == True
+        ).first()
+
+        if not db_key:
+            await websocket.accept()
+            await websocket.close(code=status.WS_1008_POLICY_VIOLATION, reason="Invalid API key")
+            return
+    except Exception as exc:
+        logger.error("WebSocket auth error: %s", exc)
+        await websocket.accept()
+        await websocket.close(code=status.WS_1011_INTERNAL_ERROR)
+        return
+    finally:
+        db.close()
+
     await websocket.accept()
-    logger.info("WS client connected for scan %s", scan_id)
+    logger.info("WS client authenticated and connected for scan %s", scan_id)
 
     # Send current scan status as the first message
     db = SessionMaker()

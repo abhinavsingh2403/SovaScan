@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
 import { useStore } from '../store';
+import { api } from '../api/client';
 import './Profile.css';
 
 interface ApiKey {
@@ -35,42 +36,40 @@ const Profile: React.FC = () => {
     }
   }, [location]);
 
-  const KEYS_STORAGE_KEY = 'sovascan-api-keys';
-  const DEFAULT_KEYS: ApiKey[] = [
-    {
-      id: '1',
-      name: 'GitHub-CI-Prod',
-      key: 'ss_live_a1b2c3d4e5f6g7h8i9j0k1l2m3n4o5p6',
-      createdAt: '2026-06-15T12:00:00Z',
-      lastUsed: '2026-07-11T18:30:00Z',
-    },
-    {
-      id: '2',
-      name: 'Local-Developer-Key',
-      key: 'ss_live_z9y8x7w6v5u4t3s2r1q0p9o8n7m6l5k4',
-      createdAt: '2026-07-01T09:15:00Z',
-      lastUsed: '2026-07-12T01:45:00Z',
-    }
-  ];
-
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>(() => {
-    try {
-      const stored = localStorage.getItem(KEYS_STORAGE_KEY);
-      return stored ? JSON.parse(stored) : DEFAULT_KEYS;
-    } catch {
-      return DEFAULT_KEYS;
-    }
-  });
-
-  useEffect(() => {
-    try {
-      localStorage.setItem(KEYS_STORAGE_KEY, JSON.stringify(apiKeys));
-    } catch {
-      // ignore
-    }
-  }, [apiKeys]);
+  const [apiKeys, setApiKeys] = useState<any[]>([]);
+  const [auditLogs, setAuditLogs] = useState<any[]>([]);
+  const [loadingKeys, setLoadingKeys] = useState(false);
   const [newKeyName, setNewKeyName] = useState('');
   const [generatedKey, setGeneratedKey] = useState<string | null>(null);
+
+  const fetchBackendKeys = async () => {
+    setLoadingKeys(true);
+    try {
+      const res = await api.getApiKeys();
+      setApiKeys(res.data);
+    } catch (err: any) {
+      console.error("Failed to fetch API keys", err);
+    } finally {
+      setLoadingKeys(false);
+    }
+  };
+
+  const fetchAuditLogs = async () => {
+    try {
+      const res = await api.getAuditLogs();
+      setAuditLogs(res.data);
+    } catch (err: any) {
+      console.error("Failed to fetch audit logs", err);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'api-keys') {
+      fetchBackendKeys();
+    } else if (activeTab === 'activity') {
+      fetchAuditLogs();
+    }
+  }, [activeTab]);
 
   const { scans, findings, fetchScans, fetchFindings } = useStore();
 
@@ -114,6 +113,17 @@ const Profile: React.FC = () => {
     }
   });
 
+  // Add backend audit logs to activity array
+  auditLogs.forEach((log) => {
+    activity.push({
+      id: `audit-${log.id}`,
+      action: `${log.action} (Operator: ${log.operator}) — Justification: "${log.justification || 'None'}"`,
+      target: log.target || "System",
+      timestamp: log.timestamp,
+      status: log.status as any,
+    });
+  });
+
   // Sort by timestamp descending
   activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
@@ -137,32 +147,61 @@ const Profile: React.FC = () => {
     );
   }
 
-  const handleGenerateKey = (e: React.FormEvent) => {
+  const handleGenerateKey = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newKeyName.trim()) return;
-
-    const randomHex = Array.from({ length: 32 }, () =>
-      Math.floor(Math.random() * 16).toString(16)
-    ).join('');
-    const newKeyString = `ss_live_${randomHex}`;
-
-    const newApiKey: ApiKey = {
-      id: Date.now().toString(),
-      name: newKeyName,
-      key: newKeyString,
-      createdAt: new Date().toISOString(),
-      lastUsed: 'Never',
-    };
-
-    setApiKeys([newApiKey, ...apiKeys]);
-    setGeneratedKey(newKeyString);
-    setNewKeyName('');
+    try {
+      const res = await api.createApiKey(newKeyName.trim());
+      const newKey = res.data;
+      setGeneratedKey(newKey.key);
+      try {
+        const stored = localStorage.getItem('sovascan-api-keys') || '[]';
+        const parsed = JSON.parse(stored);
+        parsed.unshift({ id: newKey.id, name: newKey.name, key: newKey.key });
+        localStorage.setItem('sovascan-api-keys', JSON.stringify(parsed));
+        localStorage.setItem('sovascan-active-key', newKey.key);
+      } catch (e) {
+        // ignore
+      }
+      setNewKeyName('');
+      fetchBackendKeys();
+    } catch (err: any) {
+      alert(`Failed to generate API Key: ${err.message || err}`);
+    }
   };
 
-  const handleRevokeKey = (id: string) => {
+  const handleRevokeKey = async (id: string) => {
     if (window.confirm('Are you sure you want to revoke this API key? Systems using this key will immediately lose access.')) {
-      setApiKeys(apiKeys.filter((k) => k.id !== id));
-      if (generatedKey) setGeneratedKey(null);
+      try {
+        await api.deleteApiKey(id);
+        try {
+          const stored = localStorage.getItem('sovascan-api-keys');
+          if (stored) {
+            const parsed = JSON.parse(stored);
+            const filtered = parsed.filter((k: any) => k.id !== id);
+            localStorage.setItem('sovascan-api-keys', JSON.stringify(filtered));
+          }
+          const active = localStorage.getItem('sovascan-active-key');
+          // If we deleted the active key, try to active another cached one or fall back
+          if (active) {
+            const stored = localStorage.getItem('sovascan-api-keys');
+            if (stored) {
+              const parsed = JSON.parse(stored);
+              if (parsed.length > 0) {
+                localStorage.setItem('sovascan-active-key', parsed[0].key);
+              } else {
+                localStorage.removeItem('sovascan-active-key');
+              }
+            }
+          }
+        } catch {
+          // ignore
+        }
+        fetchBackendKeys();
+        if (generatedKey) setGeneratedKey(null);
+      } catch (err: any) {
+        alert(`Failed to revoke API Key: ${err.message || err}`);
+      }
     }
   };
 
@@ -298,13 +337,13 @@ const Profile: React.FC = () => {
                         <tr key={k.id}>
                           <td className="key-name">{k.name}</td>
                           <td>
-                            <code>{k.key.substring(0, 12)}...</code>
+                            <code>{k.key ? `${k.key.substring(0, 12)}...` : 'ss_live_****************'}</code>
                           </td>
-                          <td>{new Date(k.createdAt).toLocaleDateString()}</td>
+                          <td>{new Date(k.created_at || k.createdAt).toLocaleDateString()}</td>
                           <td>
-                            {k.lastUsed === 'Never'
+                            {(!k.last_used || k.last_used === 'Never' || k.lastUsed === 'Never')
                               ? 'Never'
-                              : new Date(k.lastUsed).toLocaleString()}
+                              : new Date(k.last_used || k.lastUsed).toLocaleString()}
                           </td>
                           <td>
                             <button

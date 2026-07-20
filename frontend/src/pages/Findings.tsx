@@ -127,9 +127,16 @@ const Findings: React.FC = () => {
         ...prev,
         [id]: initialText,
       }));
+      let initialEvidence = finding.evidence || '';
+      if (initialEvidence.trim() === 'requires login') {
+        const targetLineObj = ctxData.lines.find((l: any) => l.num === finding.lineNumber);
+        if (targetLineObj) {
+          initialEvidence = targetLineObj.content;
+        }
+      }
       setCustomReplacements((prev) => ({
         ...prev,
-        [id]: prev[id] !== undefined ? prev[id] : (finding.evidence || ''),
+        [id]: prev[id] !== undefined ? prev[id] : initialEvidence,
       }));
       setCollapsedContext((prev) => ({
         ...prev,
@@ -181,6 +188,16 @@ const Findings: React.FC = () => {
   };
 
   const confirmApplyFix = async (finding: Finding) => {
+    const justification = window.prompt("Enter a justification reason for this remediation (Required for bank audits):");
+    if (justification === null) {
+      return; // user cancelled
+    }
+    const cleanJustification = justification.trim();
+    if (!cleanJustification) {
+      alert("Remediation Justification is mandatory for bank audits!");
+      return;
+    }
+
     setApplyingFixId(finding.id);
     try {
       const customReplacement = customReplacements[finding.id] || '';
@@ -191,7 +208,8 @@ const Findings: React.FC = () => {
         customReplacement,
         undefined, // contextReplacement
         undefined, // contextStartLine
-        undefined  // contextEndLine
+        undefined, // contextEndLine
+        cleanJustification
       );
         const desc = res.data?.description || 'Fix applied successfully!';
         setFixSuccessMsg((prev) => ({
@@ -292,9 +310,16 @@ const Findings: React.FC = () => {
         [findingId]: originalText,
       }));
     }
+    let cancelEvidence = finding.evidence || '';
+    if (cancelEvidence.trim() === 'requires login' && ctx) {
+      const targetLineObj = ctx.lines.find((l: any) => l.num === finding.lineNumber);
+      if (targetLineObj) {
+        cancelEvidence = targetLineObj.content;
+      }
+    }
     setCustomReplacements((prev) => ({
       ...prev,
-      [findingId]: finding.evidence || '',
+      [findingId]: cancelEvidence,
     }));
     setPendingFix((prev) => {
       const next = { ...prev };
@@ -363,7 +388,13 @@ const Findings: React.FC = () => {
   };
 
   const renderSideBySideSandbox = (finding: Finding) => {
-    const originalCode = finding.evidence || '';
+    let originalCode = finding.evidence || '';
+    if (originalCode.trim() === 'requires login' && contextCache[finding.id]) {
+      const targetLineObj = contextCache[finding.id].lines.find((l: any) => l.num === finding.lineNumber);
+      if (targetLineObj) {
+        originalCode = targetLineObj.content;
+      }
+    }
     const currentValue = customReplacements[finding.id] !== undefined ? customReplacements[finding.id] : '';
 
     return (

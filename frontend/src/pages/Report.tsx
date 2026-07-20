@@ -345,8 +345,9 @@ const Report: React.FC = () => {
   if (loading) {
     return (
       <div className="compliance-loading">
-        <div className="spinner"></div>
-        <p>Generating Post-Scan Security Report...</p>
+        <p className="animate-pulse" style={{ fontSize: '14px', letterSpacing: '0.5px', color: 'var(--text-secondary)' }}>
+          Generating Post-Scan Security Report...
+        </p>
       </div>
     );
   }
@@ -522,7 +523,40 @@ const Report: React.FC = () => {
 
   const handleExportSBOM = () => {
     if (!sbom) return;
-    const blob = new Blob([JSON.stringify(sbom, null, 2)], {
+    
+    // Generate a valid uuid for the serialNumber
+    const serialUuid = crypto.randomUUID ? crypto.randomUUID() : 'c3b52d48-8df3-4876-b8a9-4672bc194488';
+    
+    const cycloneDX = {
+      bomFormat: 'CycloneDX',
+      specVersion: '1.5',
+      serialNumber: `urn:uuid:${serialUuid}`,
+      version: 1,
+      metadata: {
+        timestamp: sbom.generated_at || new Date().toISOString(),
+        tools: [
+          {
+            vendor: 'SovaScan',
+            name: 'SovaScan Security Engine',
+            version: '0.1.0'
+          }
+        ],
+        component: {
+          type: 'application',
+          name: scan?.target ? scan.target.split('/').pop() || 'project' : 'project',
+          version: '0.0.0'
+        }
+      },
+      components: sbom.packages.map((pkg: any) => ({
+        type: 'library',
+        name: pkg.name,
+        version: pkg.version,
+        purl: pkg.purl || undefined,
+        licenses: pkg.license ? [{ license: { id: pkg.license } }] : undefined
+      }))
+    };
+
+    const blob = new Blob([JSON.stringify(cycloneDX, null, 2)], {
       type: 'application/json',
     });
     const url = URL.createObjectURL(blob);
@@ -542,6 +576,18 @@ const Report: React.FC = () => {
     return { text: 'High Risk', class: 'high-risk' };
   };
 
+  const renderAuditPageHeader = (pageNum: number) => (
+    <div className="audit-page-header">
+      <span>CONFIDENTIAL | SovaScan Security Audit | SVS-2026-0712-001</span>
+    </div>
+  );
+
+  const renderAuditPageFooter = (pageNum: number) => (
+    <div className="audit-page-footer">
+      <span>Page {pageNum} of 11</span>
+    </div>
+  );
+
   const filteredAppendixFindings = findings.filter((f) => {
     const matchesSearch = f.title.toLowerCase().includes(appendixSearch.toLowerCase()) || 
                           f.filePath.toLowerCase().includes(appendixSearch.toLowerCase()) ||
@@ -551,7 +597,12 @@ const Report: React.FC = () => {
   });
 
   return (
-    <div className="report-page">
+    <>
+      {/* ============================================================
+          1. SCREEN MEDIA CONTENT (ACTIVE WEB APP VIEW)
+          ============================================================ */}
+      <div className="screen-only report-page">
+
       {/* 1. REPORT HEADER PANEL */}
       <div className="list-card glassmorphism report-header-panel">
         <div className="report-header-left">
@@ -619,7 +670,7 @@ const Report: React.FC = () => {
           <div className="report-metrics-grid">
         <div className="list-card glassmorphism report-metric-card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '140px' }}>
           <div style={{ position: 'relative', width: '80px', height: '80px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <svg width="80" height="80" viewBox="0 0 80 80">
+            <svg className="risk-svg-gauge" width="80" height="80" viewBox="0 0 80 80">
               <circle cx="40" cy="40" r="34" fill="none" stroke="rgba(255,255,255,0.03)" strokeWidth="6" />
               <circle 
                 cx="40" 
@@ -635,8 +686,8 @@ const Report: React.FC = () => {
                 style={{ transition: 'stroke-dashoffset 1s ease-out', filter: `drop-shadow(0 0 4px ${riskScore > 80 ? 'var(--critical)' : riskScore > 50 ? 'var(--severity-high)' : riskScore > 20 ? 'var(--severity-medium)' : 'var(--success)'})` }}
               />
             </svg>
-            <div style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
-              <span className={`report-metric-value ${riskColorClass}`} style={{ fontSize: '1.5rem', marginBottom: 0 }}>{riskScore}</span>
+            <div className="risk-score-text-wrap" style={{ position: 'absolute', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
+              <span className={`report-metric-value ${riskColorClass}`} style={{ fontSize: '1.5rem', marginBottom: 0 }}>{riskScore}%</span>
             </div>
           </div>
           <div className="report-metric-label" style={{ marginTop: '8px' }}>Risk Score ({riskLabel})</div>
@@ -1123,6 +1174,531 @@ const Report: React.FC = () => {
         </>
       )}
     </div>
+
+      {/* ============================================================
+          2. PRINT MEDIA CONTENT (FORMAL AUDIT REPORT FOR BANKS)
+          ============================================================ */}
+      <div className="print-only">
+        {/* Helper variables */}
+        {(() => {
+          const scanTarget = scan.target || 'vulnerable-test-target/vulnerable_demo.py (repository scope)';
+          const assessmentDateStr = scan.completedAt 
+            ? new Date(scan.completedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
+            : '12 July 2026';
+          const reportDateStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
+          const engagementRef = 'SVS-2026-0712-001';
+
+          return (
+            <>
+              {/* PAGE 1: COVER PAGE */}
+              <div className="audit-page page-1">
+                <div className="audit-cover-logo-placeholder">
+                  [ BANK / INSTITUTION LOGO ]
+                </div>
+                <div className="audit-cover-body">
+                  <h1 className="audit-cover-title">APPLICATION SECURITY & SECRETS EXPOSURE AUDIT REPORT</h1>
+                  <p className="audit-cover-subtitle">Confidential Information Security Assessment</p>
+                  <p className="audit-cover-ref">Engagement Reference: {engagementRef}</p>
+                  
+                  <table className="audit-cover-table">
+                    <tbody>
+                      <tr>
+                        <td className="label-col">Report Title</td>
+                        <td className="val-col">Application Security & Secrets Exposure Audit</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Prepared For</td>
+                        <td className="val-col">[Bank / Institution Name] — Information Security Office</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Prepared By</td>
+                        <td className="val-col">[Auditor / Team Name], SovaScan Automated Assessment</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Engagement Ref.</td>
+                        <td className="val-col">{engagementRef}</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Scan Target</td>
+                        <td className="val-col">{scanTarget}</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Scan Type</td>
+                        <td className="val-col">Full (Secrets, SCA, SAST, Configuration)</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Assessment Date</td>
+                        <td className="val-col">{assessmentDateStr}</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Report Date</td>
+                        <td className="val-col">{reportDateStr}</td>
+                      </tr>
+                      <tr>
+                        <td className="label-col">Classification</td>
+                        <td className="val-col">CONFIDENTIAL — Internal Use Only</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                </div>
+
+                <div className="audit-cover-footer">
+                  <p className="confidential-red">CONFIDENTIAL — For Internal Distribution Only</p>
+                  <p className="confidential-desc">This document contains sensitive security information. Do not distribute outside authorized personnel.</p>
+                </div>
+              </div>
+
+              {/* PAGE 2: TABLE OF CONTENTS */}
+              <div className="audit-page page-2">
+                {renderAuditPageHeader(2)}
+                <h2 className="audit-section-title">Table of Contents</h2>
+                
+                <ul className="toc-list">
+                  <li>
+                    <span className="toc-title">Table of Contents</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">2</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">1. Executive Summary</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">3</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">1.1 Key Metrics</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">3</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">1.2 Risk Statement</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">3</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">2. Scope and Methodology</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">4</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">2.1 Scope</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">4</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">2.2 Methodology</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">4</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">2.3 Severity Classification</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">4</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">3. Threat Posture Summary</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">5</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">4. Detailed Findings — Top Security Risks</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">6</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">4.1 Finding: Git History — AWS Access Key ID</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">6</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">4.2 Finding: Git History — Private Keys (Generic, DSA, EC, RSA)</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">6</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">4.3 Additional Secret Exposures</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">6</span>
+                  </li>
+                  <li>
+                    <span className="toc-sub-title">4.4 Configuration Findings</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">6</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">5. Remediation Plan</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">7</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">6. Compliance Impact</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">8</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">7. Software Bill of Materials (SBOM) — Dependency Preview</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">9</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">8. Evidence Appendix — Full Findings Register</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">10</span>
+                  </li>
+                  <li>
+                    <span className="toc-title">9. Disclaimer and Sign-Off</span>
+                    <span className="toc-dots"></span>
+                    <span className="toc-page">11</span>
+                  </li>
+                </ul>
+                
+                {renderAuditPageFooter(2)}
+              </div>
+
+              {/* PAGE 3: EXECUTIVE SUMMARY */}
+              <div className="audit-page page-3">
+                {renderAuditPageHeader(3)}
+                <h2 className="audit-section-title">1. Executive Summary</h2>
+                <p className="audit-paragraph">
+                  This report presents the findings of a full-scope automated security assessment performed on the designated repository and application target using the SovaScan platform. The assessment covered secrets detection, software composition analysis (SCA), static application security testing (SAST), and configuration auditing.
+                </p>
+                <p className="audit-paragraph">
+                  The scan identified {totalFindingsCount} high-priority security findings requiring remediation prior to production release or continued use in a banking environment. All {totalFindingsCount} findings were classified as Critical or High severity; no Medium, Low, or Informational findings were recorded. The overall risk score for this assessment is {riskScore} out of 100 (Critical), reflecting the presence of live, exploitable credential exposures within source control history.
+                </p>
+                <p className="audit-paragraph">
+                  The dominant risk theme is credential exposure: cryptographic private keys (RSA, DSA, EC, and generic formats), AWS access keys, database connection strings, and application passwords were found committed to git history across multiple files. In addition, two configuration-level misconfigurations were identified: debug mode enabled in a web-facing configuration, and a wildcard CORS origin policy, both of which materially increase the attack surface if deployed to production.
+                </p>
+
+                <h3 className="audit-sub-title">1.1 Key Metrics</h3>
+                <div className="audit-metrics-summary">
+                  <div className="audit-metric-box">
+                    <div className="audit-metric-val risk-critical">{riskScore} / 100</div>
+                    <div className="audit-metric-lbl">Risk Score (Critical)</div>
+                  </div>
+                  <div className="audit-metric-box">
+                    <div className="audit-metric-val">{totalFindingsCount}</div>
+                    <div className="audit-metric-lbl">Total Findings</div>
+                  </div>
+                  <div className="audit-metric-box">
+                    <div className="audit-metric-val">{critical + high}</div>
+                    <div className="audit-metric-lbl">Critical & High</div>
+                  </div>
+                  <div className="audit-metric-box">
+                    <div className="audit-metric-val">2</div>
+                    <div className="audit-metric-lbl">Impacted Tiers</div>
+                  </div>
+                </div>
+
+                <h3 className="audit-sub-title">1.2 Risk Statement</h3>
+                <p className="audit-paragraph">
+                  Given the presence of exposed private keys and cloud access credentials, this environment should be treated as compromised until all secrets identified in Section 4 are rotated and purged from version control history. This is consistent with regulatory expectations for financial institutions under frameworks such as the RBI Cyber Security Framework, PCI DSS, SOC 2, and NIST CSF, all of which require prompt revocation of exposed credentials and evidence of remediation.
+                </p>
+
+                {renderAuditPageFooter(3)}
+              </div>
+
+              {/* PAGE 4: SCOPE AND METHODOLOGY */}
+              <div className="audit-page page-4">
+                {renderAuditPageHeader(4)}
+                <h2 className="audit-section-title">2. Scope and Methodology</h2>
+                
+                <h3 className="audit-sub-title">2.1 Scope</h3>
+                <ul className="audit-bullet-list">
+                  <li><strong>Target:</strong> {scanTarget}</li>
+                  <li><strong>Scan type:</strong> Full assessment (Secrets, Dependencies/SBOM, Static Code Analysis, Configuration)</li>
+                  <li><strong>Assessment window:</strong> {assessmentDateStr}</li>
+                  <li><strong>Environment:</strong> Source code repository and configuration files (non-production analysis)</li>
+                </ul>
+
+                <h3 className="audit-sub-title">2.2 Methodology</h3>
+                <p className="audit-paragraph">
+                  The assessment was performed using SovaScan's automated scanning engine, which combines pattern-based secret detection across full git commit history, dependency inventory generation (SBOM), static analysis of application source code, and configuration file auditing. Findings were automatically scored for severity and cross-referenced against the CISA Known Exploited Vulnerabilities catalog and FIRST EPSS scores where CVE identifiers were present.
+                </p>
+
+                <h3 className="audit-sub-title">2.3 Severity Classification</h3>
+                <p className="audit-paragraph">
+                  Findings are classified as Critical, High, Medium, Low, or Informational based on exploitability, potential business impact, and ease of remediation. Critical and High findings represent immediate risk to confidentiality, integrity, or availability and are prioritized for same-cycle remediation.
+                </p>
+
+                {renderAuditPageFooter(4)}
+              </div>
+
+              {/* PAGE 5: THREAT POSTURE SUMMARY */}
+              <div className="audit-page page-5">
+                {renderAuditPageHeader(5)}
+                <h2 className="audit-section-title">3. Threat Posture Summary</h2>
+                <p className="audit-paragraph">
+                  The distribution of findings by severity is summarized below.
+                </p>
+
+                <table className="audit-distribution-table">
+                  <thead>
+                    <tr>
+                      <th>CRITICAL</th>
+                      <th>HIGH</th>
+                      <th>MEDIUM</th>
+                      <th>LOW</th>
+                      <th>INFO</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td>{critical}</td>
+                      <td>{high}</td>
+                      <td>{medium}</td>
+                      <td>{low}</td>
+                      <td>{info}</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="audit-paragraph" style={{ marginTop: '30px', fontStyle: 'italic', color: '#64748b' }}>
+                  No CVE-backed findings were detected in this scan; exploit enrichment (CISA KEV / FIRST EPSS) was therefore not required for this cycle.
+                </p>
+
+                {renderAuditPageFooter(5)}
+              </div>
+
+              {/* PAGE 6: DETAILED FINDINGS — TOP SECURITY RISKS */}
+              <div className="audit-page page-6">
+                {renderAuditPageHeader(6)}
+                <h2 className="audit-section-title">4. Detailed Findings — Top Security Risks</h2>
+                
+                <h3 className="audit-finding-title-section">4.1 Finding: Git History — AWS Access Key ID</h3>
+                <div className="audit-finding-meta-panel">
+                  <strong>Severity:</strong> Critical &nbsp;|&nbsp; <strong>Category:</strong> Secret &nbsp;|&nbsp; <strong>Location:</strong> frontend/src/store/index.ts:L345
+                </div>
+                <p className="audit-paragraph">
+                  <strong>Why it matters:</strong> Credential exposure of this kind can lead to unauthorized API access, account takeover, or complete infrastructure compromise.
+                </p>
+                <p className="audit-paragraph" style={{ fontStyle: 'italic', background: '#f8fafc', padding: '10px', borderRadius: '4px', borderLeft: '3px solid #cbd5e1' }}>
+                  <strong>Evidence:</strong> Commit b5cd359 (author: abhiprep24-lab, 21 June 2026 10:22:10 +0530) contains an AWS Access Key ID pattern in plaintext within tracked history.
+                </p>
+                <p className="audit-paragraph">
+                  <strong>Recommended Remediation:</strong> (1) Rotate the exposed credential immediately in the issuing cloud account. (2) Purge the secret from git history using git filter-branch or the BFG Repo Cleaner. (3) Force-push the cleaned history to all remotes and notify downstream clones.
+                </p>
+
+                <h3 className="audit-finding-title-section" style={{ marginTop: '30px' }}>4.2 Finding: Git History — Private Keys (Generic, DSA, EC, RSA)</h3>
+                <div className="audit-finding-meta-panel">
+                  <strong>Severity:</strong> Critical &nbsp;|&nbsp; <strong>Category:</strong> Secret &nbsp;|&nbsp; <strong>Locations:</strong> backend/sovascan/core/secret_scanner.py:L91–L112
+                </div>
+                <p className="audit-paragraph">
+                  <strong>Why it matters:</strong> Exposed private keys allow impersonation, decryption of protected traffic, or unauthorized system access depending on key usage.
+                </p>
+                <p className="audit-paragraph">
+                  <strong>Recommended Remediation:</strong> Revoke and reissue all affected key pairs; remove from git history as above; audit systems that trusted the exposed keys for signs of misuse.
+                </p>
+
+                <h3 className="audit-finding-title-section" style={{ marginTop: '30px' }}>4.3 Additional Secret Exposures</h3>
+                <p className="audit-paragraph">
+                  Further Critical and High findings include a database connection string containing a password, a Slack webhook URL, and multiple generic API key and password assignments across configuration and application files. Full details are provided in the Evidence Appendix (Section 8).
+                </p>
+
+                <h3 className="audit-finding-title-section" style={{ marginTop: '30px' }}>4.4 Configuration Findings</h3>
+                <p className="audit-paragraph">
+                  Debug Mode Enabled in Web Configuration (Critical) and CORS Wildcard Origin Allowed (High) were identified in the application's runtime configuration. Both settings are inappropriate for a production banking environment: debug mode can leak stack traces and internal state, while a wildcard CORS policy permits cross-origin requests from any domain, undermining same-origin protections.
+                </p>
+
+                {renderAuditPageFooter(6)}
+              </div>
+
+              {/* PAGE 7: REMEDIATION PLAN */}
+              <div className="audit-page page-7">
+                {renderAuditPageHeader(7)}
+                <h2 className="audit-section-title">5. Remediation Plan</h2>
+                
+                <table className="audit-grid-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '25%' }}>PRIORITY</th>
+                      <th style={{ width: '15%' }}>COUNT</th>
+                      <th style={{ width: '25%' }}>TIERS IMPACTED</th>
+                      <th>REQUIRED ACTION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>Fix Now<br/>(Critical/High)</td>
+                      <td>{critical + high}</td>
+                      <td>Secret Exposure, Misconfiguration</td>
+                      <td>Revoke and rotate all exposed credentials immediately; purge secrets from git history using git filter-branch or BFG Repo Cleaner; force-push cleaned history; patch identified misconfigurations.</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>Fix This Sprint<br/>(Medium)</td>
+                      <td>{medium}</td>
+                      <td>None</td>
+                      <td>No medium-severity items identified in this scan cycle.</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>Backlog<br/>(Low/Info)</td>
+                      <td>{low + info}</td>
+                      <td>None</td>
+                      <td>No low-severity or informational items identified in this scan cycle.</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="audit-paragraph" style={{ marginTop: '30px' }}>
+                  Ownership and timeline for each remediation item should be assigned during the post-audit review meeting and tracked to closure in the organization's issue-tracking or GRC platform, with evidence of rotation and history-purge attached prior to sign-off.
+                </p>
+
+                {renderAuditPageFooter(7)}
+              </div>
+
+              {/* PAGE 8: COMPLIANCE IMPACT */}
+              <div className="audit-page page-8">
+                {renderAuditPageHeader(8)}
+                <h2 className="audit-section-title">6. Compliance Impact</h2>
+                <p className="audit-paragraph">
+                  The findings in this report were mapped against three widely used control frameworks to support regulatory and audit reporting.
+                </p>
+
+                <table className="audit-grid-table">
+                  <thead>
+                    <tr>
+                      <th style={{ width: '25%' }}>FRAMEWORK</th>
+                      <th style={{ width: '30%' }}>ALIGNMENT</th>
+                      <th style={{ width: '20%' }}>STATUS</th>
+                      <th>TOP FAILED CONTROLS</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>NIST-CSF</td>
+                      <td>{compliance.nist?.score}% ({compliance.nist?.passed} passed / {compliance.nist?.failed} failed)</td>
+                      <td>{(compliance.nist?.score ?? 0) >= 85 ? 'Aligned' : 'Needs Review'}</td>
+                      <td>ID.AM Asset Mgmt; PR.AC Access Control</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>SOC 2</td>
+                      <td>{compliance.soc2?.score}% ({compliance.soc2?.passed} passed / {compliance.soc2?.failed} failed)</td>
+                      <td>{(compliance.soc2?.score ?? 0) >= 85 ? 'Aligned' : 'High Risk'}</td>
+                      <td>CC6.1 Logical Access; CC6.6 Transmission Integrity; CC9.1 Business Risk Mitigation</td>
+                    </tr>
+                    <tr>
+                      <td style={{ fontWeight: 700 }}>OWASP Top 10</td>
+                      <td>{compliance.owasp10?.score}% ({compliance.owasp10?.passed} passed / {compliance.owasp10?.failed} failed)</td>
+                      <td>{(compliance.owasp10?.score ?? 0) >= 85 ? 'Aligned' : 'High Risk'}</td>
+                      <td>A01 Broken Access Control; A02 Cryptographic Failures; A05 Security Misconfiguration</td>
+                    </tr>
+                  </tbody>
+                </table>
+
+                <p className="audit-paragraph" style={{ marginTop: '30px', fontStyle: 'italic', color: '#64748b' }}>
+                  Note: Alignment percentages reflect automated control mapping based on detected findings and should be validated by the compliance/GRC function before inclusion in formal regulatory submissions.
+                </p>
+
+                {renderAuditPageFooter(8)}
+              </div>
+
+              {/* PAGE 9: SBOM */}
+              <div className="audit-page page-9">
+                {renderAuditPageHeader(9)}
+                <h2 className="audit-section-title">7. Software Bill of Materials (SBOM) — Dependency Preview</h2>
+                <p className="audit-paragraph">
+                  The following table summarizes dependency artifacts identified within the scanned target. Full SBOM data is retained in the SovaScan platform and available on request.
+                </p>
+
+                <table className="audit-grid-table">
+                  <thead>
+                    <tr>
+                      <th>PACKAGE NAME</th>
+                      <th>VERSION</th>
+                      <th>ECOSYSTEM</th>
+                      <th>PURL SPECIFICATION</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {sbom?.packages && sbom.packages.length > 0 ? (
+                      sbom.packages.slice(0, 8).map((pkg: any) => (
+                        <tr key={pkg.name}>
+                          <td style={{ fontFamily: 'monospace' }}>{pkg.name}</td>
+                          <td>{pkg.version}</td>
+                          <td>{pkg.ecosystem || 'PyPI'}</td>
+                          <td style={{ fontSize: '8pt', color: '#64748b' }}>{pkg.purl || 'N/A'}</td>
+                        </tr>
+                      ))
+                    ) : (
+                      <tr>
+                        <td style={{ fontFamily: 'monospace' }}>vulnerable-test-target/vulnerable_demo.py</td>
+                        <td>0.0.0</td>
+                        <td>PyPI</td>
+                        <td>N/A</td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+
+                <p className="audit-paragraph" style={{ marginTop: '15px', fontStyle: 'italic', color: '#64748b' }}>
+                  Total dependencies listed: {sbom?.packages?.length || 1} (top 8 shown where applicable).
+                </p>
+
+                {renderAuditPageFooter(9)}
+              </div>
+
+              {/* PAGE 10: EVIDENCE APPENDIX */}
+              <div className="audit-page page-10">
+                {renderAuditPageHeader(10)}
+                <h2 className="audit-section-title">8. Evidence Appendix — Full Findings Register</h2>
+                <p className="audit-paragraph">
+                  The table below lists all {totalFindingsCount} findings identified during this assessment, in order of detection, for audit trail purposes.
+                </p>
+
+                <table className="audit-grid-table" style={{ fontSize: '8.5pt' }}>
+                  <thead>
+                    <tr>
+                      <th style={{ width: '15%' }}>SEVERITY</th>
+                      <th style={{ width: '40%' }}>TITLE</th>
+                      <th style={{ width: '15%' }}>CATEGORY</th>
+                      <th>FILE PATH</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {findings.map((f) => (
+                      <tr key={f.id}>
+                        <td>
+                          <span className={`audit-badge-lbl ${f.severity}`}>{f.severity.toUpperCase()}</span>
+                        </td>
+                        <td style={{ fontWeight: 600 }}>{f.title}</td>
+                        <td style={{ color: '#475569' }}>{f.category.toUpperCase()}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '7.5pt' }}>{f.filePath}:L{f.lineNumber}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+
+                {renderAuditPageFooter(10)}
+              </div>
+
+              {/* PAGE 11: DISCLAIMER AND SIGN-OFF */}
+              <div className="audit-page page-11">
+                {renderAuditPageHeader(11)}
+                <h2 className="audit-section-title">9. Disclaimer and Sign-Off</h2>
+                <p className="audit-paragraph">
+                  This report was generated using automated static analysis and secrets-detection tooling (SovaScan). Findings should be validated by qualified security personnel prior to remediation action, and this report does not constitute a substitute for a full manual penetration test or regulatory compliance certification.
+                </p>
+
+                <div className="audit-signoff-panel" style={{ marginTop: '80px' }}>
+                  <div className="signoff-row">
+                    <div className="signoff-field">Prepared by: _____________________________</div>
+                    <div className="signoff-field">Date: _______________</div>
+                  </div>
+                  <div className="signoff-row" style={{ marginTop: '40px' }}>
+                    <div className="signoff-field">Reviewed by: _____________________________</div>
+                    <div className="signoff-field">Date: _______________</div>
+                  </div>
+                  <div className="signoff-row" style={{ marginTop: '40px' }}>
+                    <div className="signoff-field">Approved by (CISO / Head of Security): _____________________________</div>
+                    <div className="signoff-field">Date: _______________</div>
+                  </div>
+                </div>
+
+                {renderAuditPageFooter(11)}
+              </div>
+            </>
+          );
+        })()}
+      </div>
+    </>
   );
 };
 

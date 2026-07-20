@@ -1,308 +1,212 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api/client';
 import './Settings.css';
 
-/* ============================================================
-   Settings Page
-   ============================================================
-   Provides user-configurable preferences for SovaScan such as
-   API connection, scan defaults, notification toggles, and
-   data-management actions.
-   ============================================================ */
-
-interface SettingsState {
-  apiBaseUrl: string;
-  scanTimeout: number;
-  defaultScanType: string;
-  maxFileSize: number;
-  enableNotifications: boolean;
-  autoRefreshDashboard: boolean;
-  darkMode: boolean;
-  defaultFramework: string;
+interface SystemSettings {
+  slack_webhook_url: string;
+  database_url: string;
+  api_host: string;
+  api_port: number;
+  debug: boolean;
 }
 
-const DEFAULT_SETTINGS: SettingsState = {
-  apiBaseUrl: '/api/v1',
-  scanTimeout: 300,
-  defaultScanType: 'full',
-  maxFileSize: 10,
-  enableNotifications: true,
-  autoRefreshDashboard: true,
-  darkMode: true,
-  defaultFramework: 'NIST-CSF',
-};
-
-const STORAGE_KEY = 'sovascan-settings';
-
 const Settings: React.FC = () => {
-  const [settings, setSettings] = useState<SettingsState>(() => {
-    try {
-      const stored = localStorage.getItem(STORAGE_KEY);
-      return stored ? { ...DEFAULT_SETTINGS, ...JSON.parse(stored) } : DEFAULT_SETTINGS;
-    } catch {
-      return DEFAULT_SETTINGS;
-    }
-  });
+  const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
+  const [systemInfo, setSystemInfo] = useState<SystemSettings | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [testingWebhook, setTestingWebhook] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [toastMsg, setToastMsg] = useState('');
 
-  /* Persist on save */
-  const handleSave = () => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-    setSaved(true);
+  const fetchSettings = async () => {
+    setLoading(true);
+    try {
+      const res = await api.getSystemSettings();
+      setSlackWebhookUrl(res.data.slack_webhook_url || '');
+      setSystemInfo(res.data);
+    } catch (err: any) {
+      console.error("Failed to load settings from backend", err);
+    } finally {
+      setLoading(false);
+    }
   };
 
-  const handleReset = () => {
-    setSettings(DEFAULT_SETTINGS);
-    localStorage.removeItem(STORAGE_KEY);
-    setSaved(false);
+  useEffect(() => {
+    fetchSettings();
+  }, []);
+
+  const handleSave = async () => {
+    setLoading(true);
+    try {
+      await api.saveSystemSettings(slackWebhookUrl);
+      setToastMsg('✅ Settings saved successfully');
+      setSaved(true);
+      fetchSettings();
+    } catch (err: any) {
+      alert(`Failed to save settings: ${err.message || err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleTestWebhook = async () => {
+    if (!slackWebhookUrl.trim()) {
+      alert("Please enter a Slack Webhook URL first.");
+      return;
+    }
+    setTestingWebhook(true);
+    try {
+      await api.testWebhook(slackWebhookUrl);
+      setToastMsg('⚡ Test Slack alert sent successfully!');
+      setSaved(true);
+    } catch (err: any) {
+      alert(`Slack Notification failed: ${err.response?.data?.detail || err.message}`);
+    } finally {
+      setTestingWebhook(false);
+    }
   };
 
   const handleClearData = () => {
-    if (window.confirm('Are you sure you want to clear all cached scan data? This cannot be undone.')) {
+    if (window.confirm('Are you sure you want to clear all locally cached browser states? This will reset active keys.')) {
       localStorage.clear();
-      setSettings(DEFAULT_SETTINGS);
+      setToastMsg('🧹 Local cache cleared.');
+      setSaved(true);
+      setTimeout(() => window.location.reload(), 1500);
     }
   };
 
-  /* Auto-dismiss toast */
   useEffect(() => {
     if (!saved) return;
-    const timer = setTimeout(() => setSaved(false), 2500);
+    const timer = setTimeout(() => setSaved(false), 3000);
     return () => clearTimeout(timer);
   }, [saved]);
 
-  const update = <K extends keyof SettingsState>(key: K, value: SettingsState[K]) => {
-    setSettings((prev) => ({ ...prev, [key]: value }));
-  };
-
   return (
     <div className="settings animate-fade-in">
-      {/* ---- API Configuration ---- */}
+      {/* Webhook Settings Section */}
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">🔗</span>
-          <h2 className="settings__section-title">API Configuration</h2>
+          <span className="settings__section-icon">🔔</span>
+          <h2 className="settings__section-title">Audit Notifications (Slack / Teams)</h2>
         </div>
         <p className="settings__section-desc">
-          Configure the backend connection and request settings.
+          Configure real-time notifications to alert security teams when scans finish and identify critical vulnerabilities.
         </p>
 
         <div className="settings__row">
           <div className="settings__row-info">
-            <div className="settings__row-label">API Base URL</div>
+            <div className="settings__row-label">Slack Webhook URL</div>
             <div className="settings__row-hint">
-              The root URL used for all backend requests.
+              Incoming Webhook URL configured in your Slack app integration dashboard.
             </div>
           </div>
           <input
             className="settings__input"
             type="text"
-            value={settings.apiBaseUrl}
-            onChange={(e) => update('apiBaseUrl', e.target.value)}
-            placeholder="/api/v1"
+            value={slackWebhookUrl}
+            onChange={(e) => setSlackWebhookUrl(e.target.value)}
+            placeholder="https://hooks.slack.com/services/..."
+            style={{ width: '100%', maxWidth: '500px' }}
           />
         </div>
 
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Scan Timeout (seconds)</div>
-            <div className="settings__row-hint">
-              Maximum time a scan is allowed to run before timing out.
-            </div>
-          </div>
-          <input
-            className="settings__input"
-            type="number"
-            min={30}
-            max={3600}
-            value={settings.scanTimeout}
-            onChange={(e) => update('scanTimeout', Number(e.target.value))}
-          />
-        </div>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Max File Size (MB)</div>
-            <div className="settings__row-hint">
-              Files larger than this are skipped during scanning.
-            </div>
-          </div>
-          <input
-            className="settings__input"
-            type="number"
-            min={1}
-            max={100}
-            value={settings.maxFileSize}
-            onChange={(e) => update('maxFileSize', Number(e.target.value))}
-          />
-        </div>
-      </section>
-
-      {/* ---- Scan Defaults ---- */}
-      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.12s' }}>
-        <div className="settings__section-header">
-          <span className="settings__section-icon">🚀</span>
-          <h2 className="settings__section-title">Scan Defaults</h2>
-        </div>
-        <p className="settings__section-desc">
-          Default values used when starting a new scan.
-        </p>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Default Scan Type</div>
-            <div className="settings__row-hint">
-              The scan type pre-selected on the New Scan page.
-            </div>
-          </div>
-          <select
-            className="settings__select"
-            value={settings.defaultScanType}
-            onChange={(e) => update('defaultScanType', e.target.value)}
+        <div className="settings__row-actions" style={{ marginTop: '16px', display: 'flex', gap: '12px' }}>
+          <button 
+            className="settings__btn settings__btn--primary" 
+            onClick={handleSave}
+            disabled={loading}
           >
-            <option value="full">Full Scan</option>
-            <option value="dependencies">Dependencies</option>
-            <option value="secrets">Secrets</option>
-            <option value="sast">SAST Only</option>
-            <option value="git-history">Git History</option>
-          </select>
-        </div>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Default Compliance Framework</div>
-            <div className="settings__row-hint">
-              The framework pre-selected on the Compliance page.
-            </div>
-          </div>
-          <select
-            className="settings__select"
-            value={settings.defaultFramework}
-            onChange={(e) => update('defaultFramework', e.target.value)}
+            {loading ? 'Saving...' : 'Save Configuration'}
+          </button>
+          <button 
+            className="settings__btn settings__btn--secondary" 
+            onClick={handleTestWebhook}
+            disabled={testingWebhook}
           >
-            <option value="NIST-CSF">NIST Cybersecurity Framework</option>
-            <option value="SOC-2">SOC 2 Type II Standard</option>
-            <option value="OWASP-10">OWASP Top 10 Security Risks</option>
-          </select>
-        </div>
-      </section>
-
-      {/* ---- Preferences ---- */}
-      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.19s' }}>
-        <div className="settings__section-header">
-          <span className="settings__section-icon">🎛️</span>
-          <h2 className="settings__section-title">Preferences</h2>
-        </div>
-        <p className="settings__section-desc">
-          Toggle application behaviour and appearance settings.
-        </p>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Enable Notifications</div>
-            <div className="settings__row-hint">
-              Show in-app alerts when scans complete or new findings arrive.
-            </div>
-          </div>
-          <label className="settings__toggle">
-            <input
-              type="checkbox"
-              checked={settings.enableNotifications}
-              onChange={(e) => update('enableNotifications', e.target.checked)}
-            />
-            <span className="settings__toggle-slider" />
-          </label>
-        </div>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Auto-Refresh Dashboard</div>
-            <div className="settings__row-hint">
-              Automatically reload dashboard data every 60 seconds.
-            </div>
-          </div>
-          <label className="settings__toggle">
-            <input
-              type="checkbox"
-              checked={settings.autoRefreshDashboard}
-              onChange={(e) => update('autoRefreshDashboard', e.target.checked)}
-            />
-            <span className="settings__toggle-slider" />
-          </label>
-        </div>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Dark Mode</div>
-            <div className="settings__row-hint">
-              Use the dark colour scheme (recommended).
-            </div>
-          </div>
-          <label className="settings__toggle">
-            <input
-              type="checkbox"
-              checked={settings.darkMode}
-              onChange={(e) => update('darkMode', e.target.checked)}
-            />
-            <span className="settings__toggle-slider" />
-          </label>
-        </div>
-      </section>
-
-      {/* ---- Data Management ---- */}
-      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.26s' }}>
-        <div className="settings__section-header">
-          <span className="settings__section-icon">🗄️</span>
-          <h2 className="settings__section-title">Data Management</h2>
-        </div>
-        <p className="settings__section-desc">
-          Manage locally cached data and reset preferences.
-        </p>
-
-        <div className="settings__row">
-          <div className="settings__row-info">
-            <div className="settings__row-label">Clear Cached Data</div>
-            <div className="settings__row-hint">
-              Removes all locally stored scan results and preferences.
-            </div>
-          </div>
-          <button className="settings__btn settings__btn--danger" onClick={handleClearData}>
-            Clear All Data
+            {testingWebhook ? 'Testing...' : '⚡ Test Webhook Alert'}
           </button>
         </div>
       </section>
 
-      {/* ---- About ---- */}
-      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.33s' }}>
+      {/* System Information Section */}
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.12s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">🦉</span>
-          <h2 className="settings__section-title">About SovaScan</h2>
+          <span className="settings__section-icon">🖥️</span>
+          <h2 className="settings__section-title">System Environment & Ledger Status</h2>
         </div>
-        <div className="settings__about">
-          <span className="settings__about-logo animate-radar-pulse">🦉</span>
-          <div className="settings__about-info">
-            <h3>SovaScan v0.1.0</h3>
-            <p>
-              Intelligent Dependency, Configuration, and Secrets Security
-              Analyzer tailored for Financial & Banking Codebases.
-            </p>
+        <p className="settings__section-desc">
+          Current connection metadata and system environment parameters.
+        </p>
+
+        {systemInfo && (
+          <div className="system-info-grid" style={{
+            display: 'grid',
+            gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+            gap: '16px',
+            marginTop: '12px',
+            fontSize: '13px'
+          }}>
+            <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Engine</div>
+              <div style={{ fontFamily: 'monospace', color: '#3b82f6' }}>SQLite 3 (Local Audit Ledger)</div>
+            </div>
+            <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Path</div>
+              <div style={{ fontFamily: 'monospace', fontSize: '11px', wordBreak: 'break-all' }}>{systemInfo.database_url}</div>
+            </div>
+            <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Server Endpoint</div>
+              <div style={{ fontFamily: 'monospace' }}>http://{systemInfo.api_host}:{systemInfo.api_port}</div>
+            </div>
+            <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Active API Host Mode</div>
+              <div style={{ color: systemInfo.debug ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
+                {systemInfo.debug ? 'DEVELOPMENT / DEBUG' : 'PRODUCTION HARDENED'}
+              </div>
+            </div>
           </div>
+        )}
+      </section>
+
+      {/* Danger Zone Section */}
+      <section className="settings__section settings__section--danger glassmorphism animate-slide-up" style={{ animationDelay: '0.19s' }}>
+        <div className="settings__section-header">
+          <span className="settings__section-icon">⚠️</span>
+          <h2 className="settings__section-title" style={{ color: 'var(--danger)' }}>System Maintenance</h2>
+        </div>
+        <p className="settings__section-desc">
+          Destructive operations for resetting active configurations.
+        </p>
+
+        <div className="settings__row" style={{ borderTop: '1px solid rgba(239, 68, 68, 0.08)', paddingTop: '16px' }}>
+          <div className="settings__row-info">
+            <div className="settings__row-label">Clear Browser Session</div>
+            <div className="settings__row-hint">
+              Clears the active browser local storage settings, loaded keys, and UI cache states.
+            </div>
+          </div>
+          <button className="settings__btn settings__btn--danger" onClick={handleClearData}>
+            Clear Local Cache
+          </button>
         </div>
       </section>
 
-      {/* ---- Action Buttons ---- */}
-      <div className="settings__actions">
-        <button className="settings__btn settings__btn--primary" onClick={handleSave}>
-          Save Settings
-        </button>
-        <button className="settings__btn settings__btn--secondary" onClick={handleReset}>
-          Reset to Defaults
-        </button>
-      </div>
-
-      {/* ---- Toast ---- */}
+      {/* Toast Notification */}
       {saved && (
-        <div className="settings__toast">
-          ✅ Settings saved successfully
+        <div className="settings__toast" style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          background: '#10b981',
+          color: '#ffffff',
+          padding: '12px 24px',
+          borderRadius: '8px',
+          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
+          zIndex: 1000,
+          fontWeight: 500,
+          animation: 'slideUp 0.3s ease'
+        }}>
+          {toastMsg}
         </div>
       )}
     </div>

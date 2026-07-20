@@ -375,16 +375,30 @@
 
 /* Print Overrides */
 @media print {
-  body {
-    background: #fff !important;
-    color: #000 !important;
+  @page {
+    size: A4;
+    margin: 15mm 12mm 15mm 12mm;
   }
 
+  body {
+    background: #ffffff !important;
+    color: #111111 !important;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif !important;
+    font-size: 11pt !important;
+    line-height: 1.5 !important;
+  }
+
+  /* Hide navigation controls, sidebars, buttons, and headers */
   .sidebar,
   .topbar,
   .report-actions,
+  .recent-scans-table th:last-child,
+  .recent-scans-table td:last-child,
+  .search-container,
+  .filters,
   nav,
   button,
+  a.settings__btn,
   .layout-sidebar,
   .layout-header,
   a[href]::after {
@@ -394,35 +408,133 @@
   .main-wrapper {
     margin-left: 0 !important;
     padding: 0 !important;
+    width: 100% !important;
   }
 
   .report-page {
-    padding: 0;
-    max-width: 100%;
-    background: #fff !important;
-    color: #000 !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+    background: #ffffff !important;
+    color: #111111 !important;
   }
 
-  .report-header-panel,
-  .report-metric-card,
+  /* Structural Panel Overrides */
+  .list-card,
   .summary-panel,
   .report-risk-card,
   .remediation-col,
   .compliance-report-card,
   .console-window,
   .glassmorphism {
-    background: #fff !important;
-    color: #000 !important;
-    border: 1px solid #ccc !important;
+    background: transparent !important;
+    color: #111111 !important;
+    border: none !important;
+    border-radius: 0 !important;
     box-shadow: none !important;
     backdrop-filter: none !important;
     -webkit-backdrop-filter: none !important;
+    margin-bottom: 25px !important;
+    padding: 0 !important;
+    page-break-inside: avoid !important;
   }
 
+  .report-risk-card {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 20px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .compliance-report-card {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 15px !important;
+    margin-bottom: 15px !important;
+  }
+
+  .remediation-col {
+    border-bottom: 1px solid #e2e8f0 !important;
+    padding-bottom: 15px !important;
+    margin-bottom: 15px !important;
+  }
+
+  /* Page Break Rules for Sections */
+  .report-header-panel {
+    page-break-after: avoid !important;
+    border: none !important;
+    background: transparent !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    padding: 0 0 20px 0 !important;
+    margin-bottom: 25px !important;
+  }
+
+  .report-summary-layout {
+    display: block !important;
+    page-break-after: always !important;
+  }
+
+  .report-section {
+    page-break-before: always !important;
+    page-break-inside: auto !important;
+  }
+
+  .report-section .list-card,
+  .report-section .console-window,
+  .report-section .glassmorphism,
+  .report-section table {
+    page-break-inside: auto !important;
+  }
+
+  .report-section tr {
+    page-break-inside: avoid !important;
+  }
+
+  /* Layout conversions (Grids to Blocks/2-columns) */
+  .report-metrics-grid {
+    display: grid !important;
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 15px !important;
+    margin-bottom: 20px !important;
+  }
+
+  .report-metric-card {
+    border: none !important;
+    border-left: 3px solid #cbd5e1 !important;
+    padding: 10px 15px !important;
+    background: #f8fafc !important;
+  }
+
+  .remediation-columns {
+    display: block !important;
+  }
+
+  .remediation-col {
+    display: block !important;
+    width: 100% !important;
+    margin-bottom: 15px !important;
+  }
+
+  .compliance-cards-grid {
+    display: grid !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 12px !important;
+  }
+
+  .posture-panel {
+    margin-top: 25px !important;
+    border: none !important;
+    background: transparent !important;
+  }
+
+  /* Typography */
   .report-header-left h1 {
-    color: #000 !important;
+    font-size: 24pt !important;
+    color: #0f172a !important;
     -webkit-text-fill-color: initial !important;
     background: none !important;
+    margin-bottom: 10px !important;
+    font-weight: 700 !important;
   }
 
   .report-metric-value,
@@ -432,42 +544,115 @@
   .compliance-report-header h4,
   .summary-panel h3,
   .report-section h3 {
-    color: #000 !important;
+    color: #0f172a !important;
+    font-weight: 700 !important;
   }
 
   .report-meta-value,
   .report-risk-why,
   .remediation-col-action strong,
   .compliance-stat-val {
-    color: #333 !important;
+    color: #334155 !important;
   }
 
   .report-meta-label,
   .report-metric-label,
   .compliance-stat-label,
   .sbom-preview-table th {
-    color: #666 !important;
+    color: #64748b !important;
+    font-size: 9pt !important;
   }
 
-  .monospace-td,
+  /* Code Evidence and Snippets Formatting */
+  .monospace-td {
+    background: transparent !important;
+    border: none !important;
+    font-family: Courier, monospace !important;
+    font-size: 9.5pt !important;
+  }
+
   code {
-    background: #f5f5f5 !important;
-    color: #000 !important;
-    border: 1px solid #ddd !important;
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border: none !important;
+    font-family: Courier, monospace !important;
+    font-size: 9.5pt !important;
+    padding: 2px 4px !important;
+  }
+
+  pre {
+    background: #f8fafc !important;
+    color: #0f172a !important;
+    border: none !important;
+    border-left: 3px solid #cbd5e1 !important;
+    font-family: Courier, monospace !important;
+    font-size: 9.5pt !important;
+    padding: 10px 15px !important;
+    white-space: pre-wrap !important;
+    word-break: break-all !important;
+    border-radius: 0 !important;
   }
 
   .report-risk-why {
-    background: #fcfcfc !important;
-    border-left: 3px solid #666 !important;
+    background: #fffbeb !important;
+    border-left: 3px solid #d97706 !important;
+    color: #b45309 !important;
+    font-size: 10pt !important;
+    padding: 8px 12px !important;
   }
 
   .evidence-console {
-    border: 1px solid #ccc !important;
+    border: none !important;
+    border-left: 3px solid #cbd5e1 !important;
+    background: #f8fafc !important;
+    border-radius: 0 !important;
   }
 
   .evidence-console .evidence-pre {
-    background: #fafafa !important;
-    color: #111 !important;
+    background: transparent !important;
+    color: #0f172a !important;
+    padding: 0 !important;
+    border-left: none !important;
+  }
+
+  .table-responsive {
+    overflow-x: visible !important;
+  }
+
+  table {
+    width: 100% !important;
+    border-collapse: collapse !important;
+  }
+
+  th, td {
+    padding: 8px 10px !important;
+    border-bottom: 1px solid #e2e8f0 !important;
+    text-align: left !important;
+    font-size: 10pt !important;
+  }
+
+  /* Badges */
+  .status-badge,
+  .badge-type,
+  .compliance-status-lbl {
+    border: none !important;
+    background: #f1f5f9 !important;
+    color: #334155 !important;
+    padding: 2px 6px !important;
+    font-size: 8.5pt !important;
+    border-radius: 4px !important;
+    text-shadow: none !important;
+    box-shadow: none !important;
+  }
+
+  .status-badge.completed {
+    background: #dcfce7 !important;
+    color: #15803d !important;
+  }
+
+  .status-badge.failed {
+    background: #fee2e2 !important;
+    color: #b91c1c !important;
   }
 }
 

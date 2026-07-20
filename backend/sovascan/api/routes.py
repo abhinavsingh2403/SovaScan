@@ -30,10 +30,11 @@ from sovascan.core.threat_intel import ThreatIntelEnricher, CVE_PATTERN
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
+from sovascan.api.auth import verify_api_key
 
 logger = logging.getLogger("sovascan.api")
 
-router = APIRouter(tags=["sovascan"])
+router = APIRouter(tags=["sovascan"], dependencies=[Depends(verify_api_key)])
 
 
 # ---------------------------------------------------------------------------
@@ -112,8 +113,8 @@ async def create_scan(
     # Validate target before creating DB record
     is_git = request.target.startswith("http://") or request.target.startswith("https://") or "://" in request.target or request.target.startswith("git@")
     if is_git:
-        if not (request.target.startswith("https://") or request.target.startswith("http://")) or " " in request.target:
-            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+        if not request.target.startswith("https://") or " " in request.target:
+            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only secure HTTPS protocol is allowed for remote scans.")
     else:
         if "://" in request.target:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
@@ -635,6 +636,7 @@ def generate_fix(
     finding_id: str,
     request: FixRequest,
     db: Session = Depends(get_db),
+    current_key: Any = Depends(verify_api_key),
 ) -> dict[str, str]:
     """Generate an auto-fix suggestion for a specific finding.
 
@@ -842,6 +844,18 @@ def generate_fix(
                 detail="Failed to physically apply auto-fix suggestion to file on disk."
             )
         finding.is_fixed = True
+        
+        # Create audit trail log
+        from sovascan.models.audit_log import AuditLog
+        operator_name = current_key.name if current_key else "Developer"
+        audit_entry = AuditLog(
+            action=f"Applied Auto-Fix: {finding.title}",
+            operator=operator_name,
+            target=f"{finding.file_path}:L{finding.line_number}" if finding.line_number else finding.file_path,
+            justification=request.justification or "Auto-fix applied via Dashboard",
+            status="success"
+        )
+        db.add(audit_entry)
         db.commit()
 
     return {
@@ -857,6 +871,7 @@ def revert_finding_fix(
     finding_id: str,
     request: FixRequest,
     db: Session = Depends(get_db),
+    current_key: Any = Depends(verify_api_key),
 ) -> dict[str, Any]:
     """Reverts an applied fix on disk by writing the backup original context block,
     and resets the finding's is_fixed status to False.
@@ -887,6 +902,18 @@ def revert_finding_fix(
         )
 
     finding.is_fixed = False
+    
+    # Create audit trail log
+    from sovascan.models.audit_log import AuditLog
+    operator_name = current_key.name if current_key else "Developer"
+    audit_entry = AuditLog(
+        action=f"Reverted Auto-Fix: {finding.title}",
+        operator=operator_name,
+        target=f"{finding.file_path}:L{finding.line_number}" if finding.line_number else finding.file_path,
+        justification=request.justification or "Reverted change",
+        status="warning"
+    )
+    db.add(audit_entry)
     db.commit()
 
     return {
@@ -1055,7 +1082,7 @@ def compliance_report(
         ]
 
     # Query findings
-    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id)
+    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id).filter(Finding.is_fixed == False)
     if scan_id:
         query = query.filter(Finding.scan_id == scan_id)
     else:
@@ -1329,4 +1356,193 @@ def get_scan_threat_intel(
         "high_priority_count": high_priority_cnt,
         "records": records_list
     }
+
+
+@router.get("/auth/api-keys", response_model=list[dict[str, Any]])
+def get_api_keys(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Retrieve metadata of all active API Keys."""
+    from sovascan.models.api_key import ApiKey
+    keys = db.query(ApiKey).all()
+    return [
+        {
+            "id": k.id,
+            "name": k.name,
+            "created_at": k.created_at.isoformat() + "Z" if k.created_at else None,
+            "last_used": k.last_used.isoformat() + "Z" if k.last_used else "Never",
+            "is_active": k.is_active,
+        }
+        for k in keys
+    ]
+
+
+@router.post("/auth/api-keys", response_model=dict[str, Any])
+def create_api_key(
+    request_data: dict[str, str],
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """Generate a new secure API Key, store its hash, and return the plaintext key once."""
+    from sovascan.models.api_key import ApiKey
+    import secrets
+    import hashlib
+
+    name = request_data.get("name")
+    if not name or not name.strip():
+        raise HTTPException(status_code=400, detail="API Key name is required.")
+
+    # Generate a random hex string prefix with ss_live_
+    plaintext_key = f"ss_live_{secrets.token_hex(16)}"
+    key_hash = hashlib.sha256(plaintext_key.encode("utf-8")).hexdigest()
+
+    new_key = ApiKey(
+        id=str(uuid.uuid4()),
+        name=name.strip(),
+        key_hash=key_hash,
+        is_active=True
+    )
+    db.add(new_key)
+    db.commit()
+
+    return {
+        "id": new_key.id,
+        "name": new_key.name,
+        "key": plaintext_key,  # Returned only once to the client
+        "created_at": new_key.created_at.isoformat() + "Z" if new_key.created_at else None,
+        "last_used": "Never",
+        "is_active": True
+    }
+
+
+@router.delete("/auth/api-keys/{key_id}", response_model=dict[str, Any])
+def delete_api_key(
+    key_id: str,
+    db: Session = Depends(get_db)
+) -> dict[str, Any]:
+    """Revokes/deletes an API Key by setting is_active = False or deleting from database."""
+    from sovascan.models.api_key import ApiKey
+    key_entry = db.query(ApiKey).filter(ApiKey.id == key_id).first()
+    if not key_entry:
+        raise HTTPException(status_code=404, detail="API Key not found.")
+
+    db.delete(key_entry)
+    db.commit()
+
+    return {"detail": "API Key revoked and deleted successfully."}
+
+
+@router.get("/auth/audit-logs", response_model=list[dict[str, Any]])
+def get_audit_logs(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
+    """Retrieve all system audit logs sorted by timestamp descending."""
+    from sovascan.models.audit_log import AuditLog
+    logs = db.query(AuditLog).order_by(AuditLog.timestamp.desc()).all()
+    return [
+        {
+            "id": log.id,
+            "timestamp": log.timestamp.isoformat() + "Z" if log.timestamp else None,
+            "action": log.action,
+            "operator": log.operator,
+            "target": log.target,
+            "justification": log.justification,
+            "status": log.status,
+        }
+        for log in logs
+    ]
+
+
+@router.get("/auth/settings", response_model=dict[str, Any])
+def get_system_settings() -> dict[str, Any]:
+    """Retrieve active system settings with sensitive values masked."""
+    from sovascan.config import get_settings, mask_slack_webhook, mask_database_url
+    settings = get_settings()
+    return {
+        "slack_webhook_url": mask_slack_webhook(settings.SLACK_WEBHOOK_URL),
+        "database_url": mask_database_url(settings.DATABASE_URL),
+        "api_host": settings.API_HOST,
+        "api_port": settings.API_PORT,
+        "debug": settings.DEBUG,
+    }
+
+
+@router.post("/auth/settings", response_model=dict[str, Any])
+def save_system_settings(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    """Saves system configuration settings securely, checking for SSRF vulnerabilities."""
+    from sovascan.config import get_settings, is_safe_webhook_url
+    settings = get_settings()
+
+    slack_url = payload.get("slack_webhook_url", "").strip()
+
+    # If the user sends a masked representation, do not overwrite the existing URL
+    if "*" in slack_url or "..." in slack_url:
+        slack_url = settings.SLACK_WEBHOOK_URL
+    elif slack_url:
+        # Enforce SSRF protection
+        if not is_safe_webhook_url(slack_url):
+            raise HTTPException(
+                status_code=400,
+                detail="Invalid or forbidden Slack Webhook URL. Host must resolve to a public IP address."
+            )
+
+    # Save in memory
+    settings.SLACK_WEBHOOK_URL = slack_url
+
+    # Also write to .env for persistence across restarts using dynamic path resolution
+    try:
+        from pathlib import Path
+        project_root = Path(__file__).parent.parent.parent.parent
+        env_path = project_root / ".env"
+        lines = []
+        if env_path.exists():
+            lines = env_path.read_text(encoding="utf-8").splitlines()
+
+        new_lines = [l for l in lines if not l.startswith("SLACK_WEBHOOK_URL=")]
+        new_lines.append(f"SLACK_WEBHOOK_URL={slack_url}")
+
+        env_path.write_text("\n".join(new_lines), encoding="utf-8")
+    except Exception as e:
+        logger.warning(f"Failed to persist settings to .env file: {e}")
+
+    return {"detail": "Settings saved successfully."}
+
+
+@router.post("/auth/test-webhook", response_model=dict[str, Any])
+def test_system_webhook(
+    payload: dict[str, Any]
+) -> dict[str, Any]:
+    """Sends a test notification message to the Slack webhook URL with SSRF validation."""
+    from sovascan.config import get_settings, is_safe_webhook_url
+    settings = get_settings()
+
+    slack_url = payload.get("slack_webhook_url", "").strip()
+    if not slack_url:
+        raise HTTPException(status_code=400, detail="Slack Webhook URL is required.")
+
+    # If the URL is masked, use the active stored one
+    if "*" in slack_url or "..." in slack_url:
+        slack_url = settings.SLACK_WEBHOOK_URL
+
+    if not slack_url:
+        raise HTTPException(status_code=400, detail="No active Slack Webhook URL is configured to test.")
+
+    # Enforce SSRF protection
+    if not is_safe_webhook_url(slack_url):
+        raise HTTPException(
+            status_code=400,
+            detail="Invalid or forbidden Slack Webhook URL. Host must resolve to a public IP address."
+        )
+
+    import httpx
+    msg = {
+        "text": "⚡ *SovaScan Webhook Integration Test*\n"
+                "This is a test notification confirming your Slack integration is configured correctly! 🚀"
+    }
+    try:
+        with httpx.Client(timeout=5.0) as client:
+            res = client.post(slack_url, json=msg)
+            if res.status_code >= 400:
+                raise HTTPException(status_code=400, detail=f"Slack returned error status code: {res.status_code}")
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}")
+
+    return {"detail": "Test webhook alert sent successfully!"}
 
