@@ -1,4 +1,4 @@
-import { NavLink, useLocation } from 'react-router-dom';
+import { NavLink, useLocation, useNavigate } from 'react-router-dom';
 import { useState, useEffect, useRef } from 'react';
 import { useStore } from '../store';
 import './Layout.css';
@@ -154,12 +154,21 @@ const pageTitles: Record<string, string> = {
 
 export default function Layout({ children }: LayoutProps) {
   const location = useLocation();
+  const navigate = useNavigate();
   const [searchQuery, setSearchQuery] = useState('');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [notifOpen, setNotifOpen] = useState(false);
   const notifRef = useRef<HTMLDivElement>(null);
   const [avatarOpen, setAvatarOpen] = useState(false);
   const avatarRef = useRef<HTMLDivElement>(null);
+
+  const handleSearchSubmit = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      if (searchQuery.trim()) {
+        navigate(`/findings?search=${encodeURIComponent(searchQuery.trim())}`);
+      }
+    }
+  };
 
   const {
     notifications,
@@ -245,9 +254,10 @@ export default function Layout({ children }: LayoutProps) {
               <input
                 type="text"
                 className="topbar__search-input"
-                placeholder="Search scans, findings..."
+                placeholder="Search rule, path, title... [Enter]"
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
+                onKeyDown={handleSearchSubmit}
               />
             </div>
             <div className="topbar__notif-container" ref={notifRef}>
