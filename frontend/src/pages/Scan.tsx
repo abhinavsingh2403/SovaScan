@@ -3,7 +3,7 @@ import { useStore } from '../store';
 import './Scan.css';
 
 const Scan: React.FC = () => {
-  const { startScan, scanProgress, scans, fetchScans } = useStore();
+  const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
   const [scanType, setScanType] = useState(() => {
     try {
@@ -59,8 +59,9 @@ const Scan: React.FC = () => {
   }, [scanProgress.running, scanProgress.findingsCount]);
 
   useEffect(() => {
-    if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (terminalEndRef.current && terminalEndRef.current.parentElement) {
+      const container = terminalEndRef.current.parentElement;
+      container.scrollTop = container.scrollHeight;
     }
   }, [scanLogs]);
 
@@ -276,6 +277,17 @@ const Scan: React.FC = () => {
               <div className="progress-meta">
                 <span className="percent-num">{scanProgress.percent}%</span>
                 <span className="phase-num">{scanProgress.phase} phase</span>
+              </div>
+
+              <div className="cancel-scan-action" style={{ textAlign: 'center', margin: '8px 0 12px 0' }}>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={() => cancelScan(scanProgress.activeScanId)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', fontSize: '0.8125rem', fontWeight: 600 }}
+                >
+                  🛑 Cancel Scan
+                </button>
               </div>
 
               <div className="findings-ticker">

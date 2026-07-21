@@ -20,6 +20,7 @@ from sovascan.api.schemas import (
     FixRequest,
     FixResponse,
     SBOMResponse,
+    ScanCancelResponse,
     ScanRequest,
     ScanResponse,
     ThreatIntelScanResponse,
@@ -166,6 +167,37 @@ def get_scan(
     if scan is None:
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     return scan
+
+
+@router.post("/scan/{scan_id}/cancel", response_model=ScanCancelResponse)
+def cancel_scan_endpoint(
+    scan_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Cancel an in-progress or queued scan.
+
+    Triggers the active orchestrator's cancellation handle, terminates
+    child processes, and updates the scan status to failed/cancelled in SQLite.
+    """
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if scan is None:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    if scan.status not in (ScanStatus.PENDING, ScanStatus.RUNNING):
+        return {
+            "scan_id": scan_id,
+            "status": scan.status.value if hasattr(scan.status, "value") else str(scan.status),
+            "message": f"Scan is already in terminal state: {scan.status}",
+        }
+
+    cancelled = scan_manager.cancel_scan(scan_id)
+    logger.info("Scan cancellation requested for %s (success: %s)", scan_id, cancelled)
+
+    return {
+        "scan_id": scan_id,
+        "status": "cancelled",
+        "message": "Scan cancellation request accepted and processed.",
+    }
 
 
 @router.get("/scan/{scan_id}/findings", response_model=FindingsListResponse)
