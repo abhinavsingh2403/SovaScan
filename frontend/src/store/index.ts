@@ -261,6 +261,7 @@ interface SovaState {
     phase: string;
     percent: number;
     findingsCount: number;
+    activeScanId?: string;
   };
   notifications: SovaNotification[];
 
@@ -269,6 +270,7 @@ interface SovaState {
   fetchFindings: (scanId?: string) => Promise<void>;
   fetchComplianceReport: (framework: string) => Promise<void>;
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
+  cancelScan: (scanId?: string) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
   fixAllFindings: () => Promise<any[]>;
@@ -453,6 +455,10 @@ export const useStore = create<SovaState>((set, get) => ({
         throw new Error('No scan ID returned from server');
       }
 
+      set((state) => ({
+        scanProgress: { ...state.scanProgress, activeScanId: scanId },
+      }));
+
       get().addNotification({
         type: 'info',
         title: 'Scan Started',
@@ -480,6 +486,7 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || msg.status || 'Scanning...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
               break;
@@ -491,6 +498,7 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || 'Analyzing...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
               if (msg.finding) {
@@ -653,7 +661,52 @@ export const useStore = create<SovaState>((set, get) => ({
       set({
         loading: false,
         error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
-        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0 },
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0, activeScanId: undefined },
+      });
+    }
+  },
+
+  /* -------------------------------------------------------
+     cancelScan — abort active running scan
+     ------------------------------------------------------- */
+  cancelScan: async (scanId?: string) => {
+    let targetId = scanId || get().scanProgress.activeScanId;
+    if (!targetId) {
+      const runningScan = get().scans.find((s) => s.status === 'running' || s.status === 'pending');
+      if (runningScan) {
+        targetId = runningScan.id;
+      }
+    }
+    if (!targetId) {
+      console.warn('cancelScan invoked but no active or running scan ID was found');
+      return;
+    }
+
+    try {
+      await api.cancelScan(targetId);
+      set({
+        scanProgress: {
+          running: false,
+          phase: 'Scan cancelled by user',
+          percent: 0,
+          findingsCount: 0,
+          activeScanId: undefined,
+        },
+        loading: false,
+      });
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Cancelled',
+        message: 'Active security scan was terminated.',
+      });
+      get().fetchDashboard();
+      get().fetchScans();
+    } catch (err: any) {
+      console.error('Failed to cancel scan:', err);
+      get().addNotification({
+        type: 'error',
+        title: 'Cancellation Error',
+        message: err?.message || 'Failed to cancel scan',
       });
     }
   },

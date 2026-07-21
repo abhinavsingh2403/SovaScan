@@ -7,6 +7,7 @@ and produces structured outputs.
 from __future__ import annotations
 
 import logging
+import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -71,9 +72,21 @@ class ScanOrchestrator:
 
         self.baselines_dir = Path(baselines_dir) if baselines_dir else None
         self.progress_callback = progress_callback
+        self.cancel_event = threading.Event()
+
+    def cancel(self) -> None:
+        """Signal the orchestrator to abort the scan immediately."""
+        self.cancel_event.set()
+        logger.info("Cancellation event set for Orchestrator target: %s", self.target_path)
+
+    def _check_cancelled(self) -> None:
+        """Check if scan cancellation was requested and raise InterruptedError."""
+        if self.cancel_event.is_set():
+            raise InterruptedError("Scan cancelled by user.")
 
     def _update_progress(self, phase: str, percentage: float) -> None:
         """Trigger the progress callback if registered."""
+        self._check_cancelled()
         if self.progress_callback:
             try:
                 self.progress_callback(phase, percentage)

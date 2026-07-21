@@ -95,6 +95,14 @@ class ScanResponse(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class ScanCancelResponse(BaseModel):
+    """Response schema for cancelling an in-progress scan."""
+
+    scan_id: str
+    status: str = "cancelled"
+    message: str = "Scan cancellation request accepted."
+
+
 class FindingResponse(BaseModel):
     """Response schema for a single finding."""
 

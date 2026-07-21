@@ -81,6 +81,9 @@ export const api = {
     options?: Record<string, unknown>;
   }) => client.post('/scan', data),
 
+  /** POST /api/v1/scan/{scanId}/cancel — cancel an in-progress scan */
+  cancelScan: (scanId: string) => client.post(`/scan/${scanId}/cancel`),
+
   /** GET /api/v1/findings — list findings across all scans */
   getFindings: (params?: {
     scan_id?: string;

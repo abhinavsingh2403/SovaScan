@@ -365,3 +365,26 @@ def test_websocket_connection(client: TestClient) -> None:
         if not completed:
             db_resp = client.get(f"/api/v1/scan/{scan_id}")
             assert db_resp.json()["status"] in ("completed", "failed")
+
+
+def test_cancel_scan_endpoint(client: TestClient) -> None:
+    """Test cancelling an in-progress scan via POST /api/v1/scan/{scan_id}/cancel."""
+    payload = {
+        "target": SCAN_TARGET,
+        "scan_type": "full"
+    }
+    resp = client.post("/api/v1/scan", json=payload)
+    assert resp.status_code == 202
+    scan_id = resp.json()["id"]
+
+    # Post cancellation request
+    cancel_resp = client.post(f"/api/v1/scan/{scan_id}/cancel")
+    assert cancel_resp.status_code == 200
+    cancel_data = cancel_resp.json()
+    assert cancel_data["scan_id"] == scan_id
+    assert cancel_data["status"] in ("cancelled", "completed", "failed")
+
+    # Verify DB status
+    db_resp = client.get(f"/api/v1/scan/{scan_id}")
+    assert db_resp.status_code == 200
+    assert db_resp.json()["status"] in ("failed", "completed")
