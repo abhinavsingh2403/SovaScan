@@ -277,6 +277,7 @@ interface SovaState {
     percent: number;
     findingsCount: number;
     activeScanId?: string;
+    pollIntervalId?: ReturnType<typeof setInterval>;
   };
   notifications: SovaNotification[];
 
@@ -409,18 +410,55 @@ export const useStore = create<SovaState>((set, get) => ({
       const rawFindings = (data.findings ?? []) as Record<string, unknown>[];
       const mappedFindings = rawFindings.map(mapFinding);
 
-      // Generate the 12-row control checklist grid dynamically
-      const controls = generateComplianceControls(framework, mappedFindings);
-      const passedCount = controls.filter((c) => c.status === 'passed').length;
-      const failedCount = controls.filter((c) => c.status === 'failed').length;
-      const naCount = controls.filter((c) => c.status === 'not-applicable').length;
+      // Merge compliance findings into the store so Compliance.tsx
+      // can look up finding details via getControlFindings()
+      if (mappedFindings.length > 0) {
+        set((state) => {
+          const existingIds = new Set(state.findings.map((f) => f.id));
+          const newFindings = mappedFindings.filter((f) => !existingIds.has(f.id));
+          return newFindings.length > 0
+            ? { findings: [...state.findings, ...newFindings] }
+            : {};
+        });
+      }
 
-      // Calculate the compliance score dynamically to align perfectly with the checklist stats.
-      // We exclude N/A (Not Applicable) controls from the baseline, which is standard compliance practice.
-      const totalApplicable = controls.length - naCount;
-      const calculatedScore = totalApplicable > 0 
-        ? Math.round((passedCount / totalApplicable) * 100) 
-        : 100;
+      // Use backend-provided controls directly instead of client-side heuristic
+      const rawControls = (data.controls ?? []) as Record<string, unknown>[];
+      let controls: ComplianceControl[];
+      let passedCount: number;
+      let failedCount: number;
+      let naCount: number;
+      let calculatedScore: number;
+
+      if (rawControls.length > 0) {
+        // Server-authoritative: use backend controls and score
+        controls = rawControls.map((c) => ({
+          id: (c.id as string) ?? '',
+          name: (c.name as string) ?? '',
+          description: (c.description as string) ?? '',
+          status: ((c.status as string) === 'failed'
+            ? 'failed'
+            : (c.status as string) === 'not-applicable'
+              ? 'not-applicable'
+              : 'passed') as ComplianceControl['status'],
+          category: (c.category as string) ?? '',
+          findings: ((c.findings ?? []) as string[]),
+        }));
+        passedCount = (data.passed as number) ?? controls.filter((c) => c.status === 'passed').length;
+        failedCount = (data.failed as number) ?? controls.filter((c) => c.status === 'failed').length;
+        naCount = controls.filter((c) => c.status === 'not-applicable').length;
+        calculatedScore = Math.round((data.score as number) ?? 0);
+      } else {
+        // Fallback: generate controls client-side if backend returns none
+        controls = generateComplianceControls(framework, mappedFindings);
+        passedCount = controls.filter((c) => c.status === 'passed').length;
+        failedCount = controls.filter((c) => c.status === 'failed').length;
+        naCount = controls.filter((c) => c.status === 'not-applicable').length;
+        const totalApplicable = controls.length - naCount;
+        calculatedScore = totalApplicable > 0
+          ? Math.round((passedCount / totalApplicable) * 100)
+          : 100;
+      }
 
       const report: ComplianceReport = {
         framework,
@@ -454,10 +492,14 @@ export const useStore = create<SovaState>((set, get) => ({
      with automatic polling fallback.
      ------------------------------------------------------- */
   startScan: async (target: string, scanType: string, _frameworks: string[]) => {
+    // Clear any existing poll interval from a previous scan
+    const prevPollId = get().scanProgress.pollIntervalId;
+    if (prevPollId) clearInterval(prevPollId);
+
     set({
       loading: true,
       error: null,
-      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0 },
+      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0, pollIntervalId: undefined },
     });
 
     try {
@@ -594,7 +636,7 @@ export const useStore = create<SovaState>((set, get) => ({
               if (status === 'completed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
                   loading: false,
                 });
                 get().addNotification({
@@ -609,7 +651,7 @@ export const useStore = create<SovaState>((set, get) => ({
               } else if (status === 'failed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
                   loading: false,
                   error: 'Scan execution failed',
                 });
@@ -623,13 +665,16 @@ export const useStore = create<SovaState>((set, get) => ({
               console.error('Polling error:', pollErr);
             }
           }, 3000);
+          // Track poll interval so it can be cleaned up
+          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
         }
       };
 
       ws.onclose = () => {
         // Ensure loading state is cleared if WS closes unexpectedly
         const { scanProgress } = useStore.getState();
-        if (scanProgress.running) {
+        // Only start polling if scan is still running AND no poll interval is already active
+        if (scanProgress.running && !scanProgress.pollIntervalId) {
           // WS closed while scan was still running — start polling fallback
           const pollInterval = setInterval(async () => {
             try {
@@ -640,7 +685,7 @@ export const useStore = create<SovaState>((set, get) => ({
               if (status === 'completed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
                   loading: false,
                 });
                 get().addNotification({
@@ -655,7 +700,7 @@ export const useStore = create<SovaState>((set, get) => ({
               } else if (status === 'failed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
                   loading: false,
                   error: 'Scan execution failed',
                 });
@@ -669,6 +714,8 @@ export const useStore = create<SovaState>((set, get) => ({
               console.error('Polling error:', pollErr);
             }
           }, 3000);
+          // Track poll interval so it can be cleaned up
+          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
         }
       };
 
@@ -698,6 +745,10 @@ export const useStore = create<SovaState>((set, get) => ({
     }
 
     try {
+      // Clear any active poll interval before cancelling
+      const pollId = get().scanProgress.pollIntervalId;
+      if (pollId) clearInterval(pollId);
+
       await api.cancelScan(targetId);
       set({
         scanProgress: {
@@ -706,6 +757,7 @@ export const useStore = create<SovaState>((set, get) => ({
           percent: 0,
           findingsCount: 0,
           activeScanId: undefined,
+          pollIntervalId: undefined,
         },
         loading: false,
       });
