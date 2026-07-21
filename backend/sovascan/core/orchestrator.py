@@ -17,6 +17,7 @@ from typing import Any
 from sovascan.core.config_drift import ConfigDriftAnalyzer
 from sovascan.core.cve_scanner import CVEScanner, Finding
 from sovascan.core.dependency_resolver import Dependency, DependencyResolver
+from sovascan.core.financial_integrity_scanner import FinancialIntegrityScanner
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.misconfig_detector import MisconfigDetector
 from sovascan.core.sast_scanner import SASTScanner
@@ -171,6 +172,15 @@ class ScanOrchestrator:
                 raw_findings.extend(git_scanner.scan(self.target_path))
             except Exception as exc:
                 logger.error("Git history scan failed: %s", exc)
+
+        # 3.7 Financial integrity scanning (salami-slicing fraud detection)
+        if self.scan_type in ("full", "financial-integrity"):
+            self._update_progress("Scanning for financial integrity and rounding fraud patterns", 75.0)
+            financial_scanner = FinancialIntegrityScanner()
+            try:
+                raw_findings.extend(financial_scanner.scan(self.target_path))
+            except Exception as exc:
+                logger.error("Financial integrity scan failed: %s", exc)
 
         # Phase 4: Severity Scoring
         self._update_progress("Applying contextual severity scoring", 80.0)
