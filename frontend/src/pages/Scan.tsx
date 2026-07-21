@@ -17,7 +17,7 @@ const Scan: React.FC = () => {
     }
     return 'full';
   });
-  const [frameworks, setFrameworks] = useState<string[]>(['NIST-CSF', 'SOC-2']);
+  const [frameworks, setFrameworks] = useState<string[]>(['RBI-CSF', 'NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
 
@@ -203,7 +203,7 @@ const Scan: React.FC = () => {
             <div className="form-group">
               <label>Compliance Framework Mapping:</label>
               <div className="checkboxes-row">
-                {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => (
+                {['RBI-CSF', 'NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => (
                   <label key={fw} className={`checkbox-card ${frameworks.includes(fw) ? 'active' : ''}`}>
                     <input
                       type="checkbox"
