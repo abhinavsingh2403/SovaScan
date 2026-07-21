@@ -1071,11 +1071,11 @@ def compliance_report(
         Compliance scoring, controls list, and mapped findings.
     """
     fw_key = framework.lower().strip()
-    supported_frameworks = ("nist-csf", "nist", "soc2", "soc-2", "owasp-10", "owasp10")
+    supported_frameworks = ("rbi-csf", "rbi", "nist-csf", "nist", "soc2", "soc-2", "owasp-10", "owasp10")
     if fw_key not in supported_frameworks:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported framework: {framework}. Supported: nist-csf, soc-2, owasp-10",
+            detail=f"Unsupported framework: {framework}. Supported: rbi-csf, nist-csf, soc-2, owasp-10",
         )
 
     if scan_id:
@@ -1085,7 +1085,17 @@ def compliance_report(
 
     # Define control descriptors
     controls_definitions = []
-    if fw_key in ("nist-csf", "nist"):
+    if fw_key in ("rbi-csf", "rbi"):
+        controls_definitions = [
+            {"id": "RBI-1.1", "name": "Baseline Cyber Security Controls", "category": "Governance", "description": "Enforce baseline cybersecurity practices across banking applications.", "match_cat": "misconfig"},
+            {"id": "RBI-2.4", "name": "Network Subnet & Access Isolation", "category": "Network", "description": "Restrict wildcard binding and isolate internal banking network segments.", "match_cat": "misconfig"},
+            {"id": "RBI-3.1", "name": "Data Integrity & Encryption Protection", "category": "Data", "description": "Ensure sensitive customer data and credentials are securely encrypted.", "match_cat": "secret"},
+            {"id": "RBI-4.2", "name": "Vulnerability Management & CVE Patching", "category": "Operations", "description": "Maintain updated libraries and remediate third-party component vulnerabilities.", "match_cat": "cve"},
+            {"id": "RBI-5.6", "name": "User Access Control & Credential Security", "category": "Identity", "description": "Prevent hardcoded API keys and unauthorized credential sharing.", "match_cat": "secret"},
+            {"id": "RBI-6.3", "name": "Security Code Auditing & SAST Controls", "category": "Development", "description": "Perform static analysis to catch logic bugs and injection attacks.", "match_cat": "sast"},
+            {"id": "RBI-7.1", "name": "Continuous Monitoring & Audit Logging", "category": "Monitoring", "description": "Maintain audit trails and real-time security incident alerting.", "match_cat": "sast"}
+        ]
+    elif fw_key in ("nist-csf", "nist"):
         controls_definitions = [
             {"id": "ID.AM", "name": "Asset Management", "category": "Identify", "description": "Identify assets to manage security risks.", "match_cat": "misconfig"},
             {"id": "PR.AC", "name": "Access Control", "category": "Protect", "description": "Ensure access to assets is limited to authorized users.", "match_cat": "secret"},

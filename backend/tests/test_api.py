@@ -105,7 +105,7 @@ def test_get_sbom(client: TestClient) -> None:
 
 def test_compliance_report(client: TestClient) -> None:
     """Test generating a compliance framework report."""
-    for fw in ("nist-csf", "soc-2", "owasp-10"):
+    for fw in ("rbi-csf", "nist-csf", "soc-2", "owasp-10"):
         resp = client.get(f"/api/v1/compliance/{fw}")
         assert resp.status_code == 200
         data = resp.json()
