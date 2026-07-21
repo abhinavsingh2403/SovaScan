@@ -3,7 +3,7 @@
   display: flex;
   flex-direction: column;
   gap: 28px;
-  max-width: 1200px;
+  max-width: 1400px;
   margin: 0 auto;
 }
 
@@ -249,17 +249,29 @@
 /* Compliance Impact Section */
 .compliance-cards-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-  gap: 20px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 16px;
+}
+
+@media (max-width: 1100px) {
+  .compliance-cards-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .compliance-cards-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 .compliance-report-card {
-  padding: 20px;
+  padding: 18px;
   border-radius: var(--radius-lg);
   border: 1px solid rgba(255, 255, 255, 0.04);
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 14px;
 }
 
 .compliance-report-header {
