@@ -37,50 +37,63 @@ SovaScan is an enterprise-grade security scanner designed to find, score, and re
 
 ## 🏗️ System Architecture
 
+### 1. High-Level Architecture (Core Component Boundaries)
+
 ```mermaid
 graph TD
-    subgraph "Frontend (React + TypeScript)"
-        UI["Dashboard & Pages"]
-        Store["Zustand Store"]
-        Client["Axios API Client"]
-        UI --> Store
-        Store --> Client
+    classDef client fill:#0f172a,stroke:#3b82f6,stroke-width:1px,color:#f8fafc;
+    classDef gateway fill:#1e1b4b,stroke:#6366f1,stroke-width:1px,color:#f8fafc;
+    classDef core fill:#311042,stroke:#a855f7,stroke-width:1px,color:#f8fafc;
+    classDef db fill:#064e3b,stroke:#10b981,stroke-width:1px,color:#f8fafc;
+    classDef ext fill:#7c2d12,stroke:#f97316,stroke-width:1px,color:#f8fafc;
+
+    subgraph "Frontend"
+        A["Dashboard UI<br/>(React / Zustand)"]:::client
+    end
+    subgraph "API Layer"
+        B["Secure Router Gateway<br/>(FastAPI / API Key Auth)"]:::gateway
+    end
+    subgraph "Background Engine"
+        C["Scan Orchestrator<br/>(ScanManager / WebSockets)"]:::core
+        D["Multi-Vector Scanners<br/>(SAST / Secrets / Dependency)"]:::core
+    end
+    subgraph "Storage & Threat Intel"
+        E[("SQLite Database<br/>(sovascan.db)")]:::db
+        F["Threat Feeds<br/>(OSV / CISA KEV / EPSS)"]:::ext
     end
 
-    subgraph "Backend (FastAPI + Python)"
-        API["FastAPI Endpoints"]
-        Orch["Scan Orchestrator"]
-        DB[("SQLite / PostgreSQL")]
-        
-        Client -->|HTTP Requests| API
-        API -->|Starts Scan| Orch
-        API -->|Read/Write| DB
-        
-        subgraph "Scanning Engine"
-            Dep["Dependency Resolver"]
-            CVE["CVE Scanner"]
-            Sec["Secret Scanner"]
-            Mis["Misconfig Detector"]
-            Drift["Config Drift Analyzer"]
-            SAST["SAST Scanner (Bandit + Semgrep)"]
-            GitHist["Git History Scanner"]
-            Scorer["Severity Scorer"]
-            
-            Orch --> Dep
-            Orch --> CVE
-            Orch --> Sec
-            Orch --> Mis
-            Orch --> Drift
-            Orch --> SAST
-            Orch --> GitHist
-            Orch --> Scorer
-        end
-    end
+    A -->|Secure Requests & WebSockets| B
+    B -->|Queues Async Jobs| C
+    C -->|Executes Scanners| D
+    D -->|Queries Exploit Data| F
+    D -->|Persists Findings & Caches SBOM| E
+    B -->|Reads Scan Statistics| E
+```
 
-    subgraph "External"
-        OSV["OSV.dev API"]
-        CVE -->|Queries Package CVEs| OSV
-    end
+### 2. Low-Level Architecture (Execution & Lifecycle Pipeline)
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as Dashboard UI
+    participant API as FastAPI Router
+    participant Engine as Scan Manager
+    participant DB as SQLite DB
+
+    User->>API: 1. POST /scan {target} with API Key
+    Note over API: Verifies API Key & checks target URL is HTTPS
+    API->>DB: 2. Inserts PENDING Scan Record
+    API->>Engine: 3. Dispatches Scan Task (Async)
+    API-->>User: 4. Returns Scan ID (202 Accepted)
+
+    User->>Engine: 5. Connects WebSocket (with API Key)
+    activate Engine
+    Note over Engine: Clones remote repo to secure temp directory
+    Engine->>Engine: 6. Runs SAST, Secrets, & Dependencies
+    Note over Engine: Normalizes, scores, and deduplicates findings
+    Engine->>DB: 7. Saves Findings & caches SBOM list
+    Engine->>User: 8. Streams completed scan events
+    deactivate Engine
 ```
 
 ---

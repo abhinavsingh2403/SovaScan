@@ -100,8 +100,9 @@
 }
 
 .scan-type-card:hover {
-  background: rgba(255, 255, 255, 0.04);
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  border-color: rgba(99, 102, 241, 0.25);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
 }
 
 .scan-type-card.active {
@@ -229,12 +230,15 @@
   font-weight: 600;
   font-size: 14px;
   cursor: pointer;
-  transition: opacity 0.2s ease, transform 0.1s ease;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  position: relative;
+  overflow: hidden;
 }
 
 .submit-scan-btn:hover:not(:disabled) {
-  opacity: 0.95;
-  transform: translateY(-1px);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 25px rgba(99, 102, 241, 0.35),
+              0 0 15px rgba(99, 102, 241, 0.15);
 }
 
 .submit-scan-btn:disabled {
@@ -254,15 +258,46 @@
   color: var(--text-secondary);
 }
 
-.owl-mascot {
-  font-size: 64px;
-  margin-bottom: 16px;
-  animation: float 3s ease-in-out infinite;
+.idle-reticle-container {
+  position: relative;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 24px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
-@keyframes float {
-  0%, 100% { transform: translateY(0); }
-  50% { transform: translateY(-8px); }
+.idle-reticle-ring-1 {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 1px dashed rgba(99, 102, 241, 0.2);
+  transform-origin: center;
+}
+
+.idle-reticle-ring-2 {
+  position: absolute;
+  width: 80%;
+  height: 80%;
+  border-radius: 50%;
+  border: 1.5px solid rgba(255, 255, 255, 0.03);
+}
+
+.owl-mascot {
+  font-size: 48px;
+  z-index: 2;
+  animation: float-slow 4s ease-in-out infinite;
+}
+
+@keyframes float-slow {
+  0%, 100% {
+    transform: translateY(0) scale(1);
+  }
+  50% {
+    transform: translateY(-4px) scale(1.02);
+  }
 }
 
 .progress-idle-state h3, .progress-active-state h3 {
@@ -358,14 +393,24 @@
 }
 
 .terminal-header .dot {
-  width: 8px;
-  height: 8px;
+  width: 10px;
+  height: 10px;
   border-radius: 50%;
+  transition: box-shadow 0.2s ease;
 }
 
-.dot-red { background: #ff5f56; }
-.dot-yellow { background: #ffbd2e; }
-.dot-green { background: #27c93f; }
+.dot-red {
+  background: radial-gradient(circle at 35% 35%, #ff8a80, #ff5f56 60%, #e0443e);
+  box-shadow: 0 0 4px rgba(255, 95, 86, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+.dot-yellow {
+  background: radial-gradient(circle at 35% 35%, #ffe082, #ffbd2e 60%, #e0a620);
+  box-shadow: 0 0 4px rgba(255, 189, 46, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
+.dot-green {
+  background: radial-gradient(circle at 35% 35%, #69f0ae, #27c93f 60%, #1faa33);
+  box-shadow: 0 0 4px rgba(39, 201, 63, 0.4), inset 0 1px 1px rgba(255, 255, 255, 0.25);
+}
 
 .terminal-title {
   margin-left: 8px;
@@ -387,6 +432,16 @@
   flex-direction: column;
   gap: 6px;
   scroll-behavior: smooth;
+  position: relative;
+  background:
+    repeating-linear-gradient(
+      0deg,
+      transparent 0px,
+      transparent 19px,
+      rgba(255, 255, 255, 0.01) 19px,
+      rgba(255, 255, 255, 0.01) 20px
+    ),
+    linear-gradient(180deg, rgba(2, 4, 10, 0) 0%, rgba(2, 4, 10, 0.3) 100%);
 }
 
 /* Custom scrollbar for terminal */
@@ -429,7 +484,7 @@
 }
 
 .target-lbl {
-  font-family: monospace;
+  font-family: var(--font-mono);
   font-size: 12px;
   color: var(--info);
   margin: 0 0 24px 0;
@@ -528,6 +583,66 @@
   color: var(--text-primary);
 }
 
+.scan-history-table tr {
+  position: relative;
+  transition: background 0.2s ease;
+}
+
 .scan-history-table tr:hover td {
-  background: rgba(255, 255, 255, 0.01);
+  background: rgba(99, 102, 241, 0.03);
+}
+
+.scan-history-table tr:hover td:first-child {
+  box-shadow: inset 3px 0 0 0 var(--accent-primary);
+}
+
+.monospace-td {
+  font-family: var(--font-mono);
+  font-weight: 500;
+  color: var(--accent-secondary) !important;
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ============================================================
+   Scanning Pulse Animation for Active States
+   ============================================================ */
+@keyframes scanningPulse {
+  0%, 100% {
+    box-shadow: 0 0 8px rgba(99, 102, 241, 0.15);
+    border-color: rgba(99, 102, 241, 0.2);
+  }
+  50% {
+    box-shadow: 0 0 24px rgba(99, 102, 241, 0.3),
+                0 0 48px rgba(99, 102, 241, 0.08);
+    border-color: rgba(99, 102, 241, 0.4);
+  }
+}
+
+.scanning-active {
+  animation: scanningPulse 2.5s ease-in-out infinite;
+}
+
+/* Terminal log container glow when scanning */
+.terminal-log-container.scanning-active {
+  animation: scanningPulse 2.5s ease-in-out infinite;
+}
+
+/* Progress bar fill pulse */
+.progress-bar-fill {
+  position: relative;
+}
+
+.progress-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  width: 6px;
+  height: 100%;
+  background: rgba(255, 255, 255, 0.5);
+  border-radius: 4px;
+  animation: progressPulse 1.5s ease-in-out infinite;
 }

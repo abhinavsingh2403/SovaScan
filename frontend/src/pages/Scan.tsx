@@ -3,10 +3,21 @@ import { useStore } from '../store';
 import './Scan.css';
 
 const Scan: React.FC = () => {
-  const { startScan, scanProgress, scans, fetchScans } = useStore();
+  const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
   const [targetPath, setTargetPath] = useState('');
-  const [scanType, setScanType] = useState('full');
-  const [frameworks, setFrameworks] = useState<string[]>(['NIST-CSF', 'SOC-2']);
+  const [scanType, setScanType] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-settings');
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        return parsed.defaultScanType || 'full';
+      }
+    } catch {
+      // ignore
+    }
+    return 'full';
+  });
+  const [frameworks, setFrameworks] = useState<string[]>(['RBI-CSF', 'NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
 
@@ -48,8 +59,9 @@ const Scan: React.FC = () => {
   }, [scanProgress.running, scanProgress.findingsCount]);
 
   useEffect(() => {
-    if (terminalEndRef.current) {
-      terminalEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (terminalEndRef.current && terminalEndRef.current.parentElement) {
+      const container = terminalEndRef.current.parentElement;
+      container.scrollTop = container.scrollHeight;
     }
   }, [scanLogs]);
 
@@ -185,13 +197,31 @@ const Scan: React.FC = () => {
                     </div>
                   </div>
                 </label>
+
+                <label className={`scan-type-card ${scanType === 'financial-integrity' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="financial-integrity"
+                    checked={scanType === 'financial-integrity'}
+                    onChange={() => setScanType('financial-integrity')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">💰</span>
+                    <div className="radio-text">
+                      <strong>Financial Integrity</strong>
+                      <span>Salami Slicing & Rounding Fraud</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 
             <div className="form-group">
               <label>Compliance Framework Mapping:</label>
               <div className="checkboxes-row">
-                {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => (
+                {['RBI-CSF', 'NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => (
                   <label key={fw} className={`checkbox-card ${frameworks.includes(fw) ? 'active' : ''}`}>
                     <input
                       type="checkbox"
@@ -233,7 +263,7 @@ const Scan: React.FC = () => {
 
             <button
               type="submit"
-              className="submit-scan-btn"
+              className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() ? 'glow-cta' : ''}`}
               disabled={scanProgress.running || !targetPath.trim()}
             >
               {scanProgress.running ? 'Scanning Execution in Progress...' : '🦉 Launch SovaScan'}
@@ -267,6 +297,17 @@ const Scan: React.FC = () => {
                 <span className="phase-num">{scanProgress.phase} phase</span>
               </div>
 
+              <div className="cancel-scan-action" style={{ textAlign: 'center', margin: '8px 0 12px 0' }}>
+                <button
+                  type="button"
+                  className="btn btn-danger btn-sm"
+                  onClick={() => cancelScan(scanProgress.activeScanId)}
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', padding: '6px 16px', fontSize: '0.8125rem', fontWeight: 600 }}
+                >
+                  🛑 Cancel Scan
+                </button>
+              </div>
+
               <div className="findings-ticker">
                 <span className="ticker-number font-red">{scanProgress.findingsCount}</span>
                 <p>Security findings discovered so far</p>
@@ -292,7 +333,11 @@ const Scan: React.FC = () => {
             </div>
           ) : (
             <div className="progress-idle-state">
-              <div className="owl-mascot animate-radar-pulse">🦉</div>
+              <div className="idle-reticle-container">
+                <div className="idle-reticle-ring-1 animate-radar-spin"></div>
+                <div className="idle-reticle-ring-2"></div>
+                <div className="owl-mascot">🦉</div>
+              </div>
               <h3>Scan Engine Idle</h3>
               <p>Configure parameters on the left and start the analyzer to view live results.</p>
             </div>
@@ -301,47 +346,55 @@ const Scan: React.FC = () => {
       </div>
 
       {/* History section */}
-      <div className="scan-history-section glassmorphism animate-slide-up">
-        <h2>Scan Run History</h2>
-        <div className="table-responsive">
-          <table className="scan-history-table">
-            <thead>
-              <tr>
-                <th>Target</th>
-                <th>Type</th>
-                <th>Run Date</th>
-                <th>Findings Count</th>
-                <th>Duration</th>
-                <th>Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {scans.slice(0, 10).map((scan) => (
-                <tr key={scan.id}>
-                  <td className="monospace-td">{scan.target}</td>
-                  <td><span className="badge-type">{scan.scanType}</span></td>
-                  <td>{new Date(scan.createdAt).toLocaleString()}</td>
-                  <td>
-                    <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                    <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                    <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                  </td>
-                  <td>
-                    {scan.completedAt
-                      ? `${Math.round(
-                          (new Date(scan.completedAt).getTime() -
-                            new Date(scan.startedAt).getTime()) /
-                            1000
-                        )}s`
-                      : '-'}
-                  </td>
-                  <td>
-                    <span className={`status-badge ${scan.status}`}>{scan.status}</span>
-                  </td>
+      <div className="scan-history-section glassmorphism animate-slide-up console-window">
+        <div className="terminal-header">
+          <span className="dot dot-red"></span>
+          <span className="dot dot-yellow"></span>
+          <span className="dot dot-green"></span>
+          <span className="terminal-title">sovascan@history:~</span>
+        </div>
+        <div className="console-body">
+          <h2>Scan Run History</h2>
+          <div className="table-responsive">
+            <table className="scan-history-table">
+              <thead>
+                <tr>
+                  <th>Target</th>
+                  <th>Type</th>
+                  <th>Run Date</th>
+                  <th>Findings Count</th>
+                  <th>Duration</th>
+                  <th>Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {scans.slice(0, 10).map((scan) => (
+                  <tr key={scan.id}>
+                    <td className="monospace-td" title={scan.target}>{scan.target}</td>
+                    <td><span className="badge-type">{scan.scanType}</span></td>
+                    <td>{new Date(scan.createdAt).toLocaleString()}</td>
+                    <td>
+                      <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
+                      <span className="scan-count-tag orange-tag">{scan.highCount}</span>
+                      <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
+                    </td>
+                    <td>
+                      {scan.completedAt
+                        ? `${Math.round(
+                            (new Date(scan.completedAt).getTime() -
+                              new Date(scan.startedAt).getTime()) /
+                              1000
+                          )}s`
+                        : '-'}
+                    </td>
+                    <td>
+                      <span className={`status-badge ${scan.status}`}>{scan.status}</span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     </div>

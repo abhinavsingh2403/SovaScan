@@ -1,9 +1,9 @@
 """Pydantic v2 request / response schemas for the SovaScan API."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_serializer
 
 # ---------------------------------------------------------------------------
 # Request schemas
@@ -42,6 +42,26 @@ class FixRequest(BaseModel):
         default=False,
         description="Whether to automatically apply the fix",
     )
+    custom_replacement: str | None = Field(
+        default=None,
+        description="Optional custom code replacement text provided by the user via the sandbox editor",
+    )
+    context_replacement: str | None = Field(
+        default=None,
+        description="The full edited block of 10-15 lines of context from the frontend sandbox",
+    )
+    context_start_line: int | None = Field(
+        default=None,
+        description="The 1-based start line of the context block in the original file",
+    )
+    context_end_line: int | None = Field(
+        default=None,
+        description="The 1-based end line of the context block in the original file",
+    )
+    justification: str | None = Field(
+        default=None,
+        description="Optional justification reason for this remediation (Required for bank audits)",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -65,7 +85,22 @@ class ScanResponse(BaseModel):
     completed_at: datetime | None = None
     created_at: datetime | None = None
 
+    @field_serializer("started_at", "completed_at", "created_at")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+
     model_config = {"from_attributes": True}
+
+
+class ScanCancelResponse(BaseModel):
+    """Response schema for cancelling an in-progress scan."""
+
+    scan_id: str
+    status: str = "cancelled"
+    message: str = "Scan cancellation request accepted."
 
 
 class FindingResponse(BaseModel):
@@ -86,6 +121,13 @@ class FindingResponse(BaseModel):
     cvss_score: float | None = None
     is_fixed: bool = False
     created_at: datetime | None = None
+
+    @field_serializer("created_at")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return tz_aware.isoformat().replace("+00:00", "Z")
 
     model_config = {"from_attributes": True}
 
@@ -116,6 +158,20 @@ class SBOMResponse(BaseModel):
     packages: list[PackageInfo]
     generated_at: datetime
 
+    @field_serializer("generated_at")
+    def serialize_datetime(self, dt: datetime) -> str:
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+
+
+class ComplianceControlResponse(BaseModel):
+    id: str
+    name: str
+    category: str
+    status: str
+    findings: list[str] = []
+    description: str = ""
+
 
 class ComplianceResponse(BaseModel):
     """Compliance check result against a specific framework."""
@@ -126,6 +182,7 @@ class ComplianceResponse(BaseModel):
     passed: int
     failed: int
     findings: list[FindingResponse]
+    controls: list[ComplianceControlResponse] = []
 
 
 class TrendDataPoint(BaseModel):
@@ -174,6 +231,8 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+    database: str
+    scanners: dict[str, bool]
     uptime: float
 
 
@@ -188,3 +247,46 @@ class ScanProgressEvent(BaseModel):
     status: str = ""
     error: str = ""
     timestamp: datetime | None = None
+
+    @field_serializer("timestamp")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        if dt is None:
+            return None
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+
+
+class ThreatIntelRecordResponse(BaseModel):
+    cve_id: str
+    known_exploited: bool
+    epss_score: float | None = None
+    epss_percentile: float | None = None
+    priority: str
+    summary: str
+    remediation_urgency: str
+    sources: list[str] = Field(default_factory=list)
+
+
+class ThreatIntelScanResponse(BaseModel):
+    scan_id: str
+    generated_at: datetime
+
+    @field_serializer("generated_at")
+    def serialize_datetime(self, dt: datetime) -> str:
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
+        return tz_aware.isoformat().replace("+00:00", "Z")
+    total_cves: int
+    known_exploited_count: int
+    high_priority_count: int
+    records: list[ThreatIntelRecordResponse]
+
+
+class FindingContextResponse(BaseModel):
+    """Response schema for file context around a finding."""
+
+    finding_id: str
+    file_path: str
+    start_line: int
+    end_line: int
+    target_line: int
+    lines: list[dict[str, str | int]]
