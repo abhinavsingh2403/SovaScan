@@ -262,6 +262,32 @@ input, select, textarea {
 }
 
 /* ============================================================
+   Custom Dark Theme Select & Option Styling
+   ============================================================ */
+select {
+  background-color: #0b0f24 !important;
+  color: #f8fafc !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  border-radius: var(--radius-md, 8px);
+  outline: none;
+  font-family: var(--font-sans);
+}
+
+select option {
+  background-color: #0b0f24 !important;
+  color: #f8fafc !important;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+select option:hover,
+select option:focus,
+select option:checked {
+  background-color: #1a234a !important;
+  color: #a78bfa !important;
+}
+
+/* ============================================================
    Severity Badges
    ============================================================ */
 .badge {

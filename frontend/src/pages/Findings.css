@@ -69,19 +69,36 @@
 }
 
 .filter-select select {
-  background: rgba(0, 0, 0, 0.25);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: #0b0f24 !important;
+  border: 1px solid rgba(255, 255, 255, 0.12) !important;
   padding: 8px 16px;
   border-radius: 8px;
-  color: var(--text-primary);
+  color: var(--text-primary) !important;
   outline: none;
   cursor: pointer;
   font-size: 13px;
-  transition: border-color 0.2s ease;
+  transition: all 0.2s ease;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
 }
 
-.filter-select select:focus {
-  border-color: var(--accent-primary);
+.filter-select select:focus,
+.filter-select select:hover {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+}
+
+.filter-select select option {
+  background-color: #0b0f24 !important;
+  color: #f8fafc !important;
+  padding: 10px 14px;
+  font-size: 13px;
+}
+
+.filter-select select option:hover,
+.filter-select select option:focus,
+.filter-select select option:checked {
+  background-color: #1a234a !important;
+  color: #a78bfa !important;
 }
 
 .results-summary {
