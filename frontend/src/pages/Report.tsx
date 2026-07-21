@@ -303,7 +303,7 @@ const Report: React.FC = () => {
 
         // Fetch primary scan and findings
         const scanRes = await api.getScan(scanId);
-        const findingsRes = await api.getFindings({ scan_id: scanId, per_page: 100 });
+        const findingsRes = await api.getFindings({ scan_id: scanId, per_page: 10000 });
 
         setScan(mapScan(scanRes.data));
         setFindings((findingsRes.data.findings || []).map(mapFinding));

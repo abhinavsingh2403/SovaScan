@@ -266,6 +266,7 @@ function generateComplianceControls(framework: string, violatingFindings: Findin
 interface SovaState {
   scans: Scan[];
   findings: Finding[];
+  totalFindingsCount: number;
   dashboardSummary: DashboardSummary | null;
   complianceReports: Record<string, ComplianceReport>;
   loading: boolean;
@@ -334,6 +335,7 @@ const saveNotifications = (notifs: SovaNotification[]) => {
 export const useStore = create<SovaState>((set, get) => ({
   scans: [],
   findings: [],
+  totalFindingsCount: 0,
   dashboardSummary: null,
   complianceReports: {},
   notifications: loadNotifications(),
@@ -382,13 +384,13 @@ export const useStore = create<SovaState>((set, get) => ({
   fetchFindings: async (scanId?: string) => {
     set({ loading: true, error: null });
     try {
-      const params: Record<string, unknown> = { per_page: 100 };
+      const params: Record<string, unknown> = { per_page: 10000 };
       if (scanId) params.scan_id = scanId;
       const res = await api.getFindings(params as Parameters<typeof api.getFindings>[0]);
-      const findings: Finding[] = (
-        (res.data.findings ?? []) as Record<string, unknown>[]
-      ).map(mapFinding);
-      set({ findings, loading: false });
+      const rawFindings = (res.data.findings ?? []) as Record<string, unknown>[];
+      const findings: Finding[] = rawFindings.map(mapFinding);
+      const total = (res.data.total as number) ?? findings.length;
+      set({ findings, totalFindingsCount: total, loading: false });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load findings';
       set({ error: message, loading: false });

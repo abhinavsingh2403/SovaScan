@@ -17,6 +17,7 @@ const getReplacementFromPatch = (patch: string): string => {
 const Findings: React.FC = () => {
   const {
     findings,
+    totalFindingsCount,
     loading,
     fetchFindings,
     fixAllFindings,
@@ -627,7 +628,7 @@ const Findings: React.FC = () => {
       {/* Findings Count Summary */}
       <div className="results-summary animate-fade-in">
         <p>
-          Showing <span>{filteredFindings.length}</span> of <span>{findings.length}</span> active
+          Showing <span>{filteredFindings.length}</span> of <span>{totalFindingsCount > 0 ? totalFindingsCount : findings.length}</span> active
           findings
         </p>
         {findings.some((f) => !f.isFixed) && (

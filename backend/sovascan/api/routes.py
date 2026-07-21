@@ -204,7 +204,7 @@ def cancel_scan_endpoint(
 def list_findings(
     scan_id: str,
     page: int = Query(default=1, ge=1, description="Page number"),
-    per_page: int = Query(default=20, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(default=100, ge=1, le=10000, description="Items per page"),
     severity: str | None = Query(default=None, description="Filter by severity"),
     db: Session = Depends(get_db),
 ) -> dict[str, Any]:
@@ -257,7 +257,7 @@ def list_findings(
 @router.get("/findings", response_model=FindingsListResponse)
 def list_all_findings(
     page: int = Query(default=1, ge=1, description="Page number"),
-    per_page: int = Query(default=50, ge=1, le=100, description="Items per page"),
+    per_page: int = Query(default=100, ge=1, le=10000, description="Items per page"),
     severity: str | None = Query(default=None, description="Filter by severity"),
     category: str | None = Query(default=None, description="Filter by category"),
     scan_id: str | None = Query(default=None, description="Filter by scan ID"),
