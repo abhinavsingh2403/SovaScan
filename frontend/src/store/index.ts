@@ -104,6 +104,11 @@ const mapDashboardSummary = (d: Record<string, unknown>): DashboardSummary => {
    ============================================================ */
 
 const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'Governance', 'Network', 'Data Security', 'Vulnerability Management',
+    'Access Control', 'Code Auditing', 'Audit Trails', 'Encryption',
+    'Incident Response', 'Subnet Protection',
+  ],
   'NIST-CSF': [
     'Identify', 'Identify', 'Protect', 'Protect', 'Protect',
     'Detect', 'Detect', 'Respond', 'Respond', 'Recover',
@@ -120,6 +125,13 @@ const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'RBI-1.1: Baseline Cybersecurity Controls', 'RBI-2.4: Network Subnet & Access Isolation',
+    'RBI-3.1: Data Integrity & Secret Encryption', 'RBI-4.2: Vulnerability & Dependency Management',
+    'RBI-5.6: User Access Control & Key Security', 'RBI-6.3: Static Application Security Testing (SAST)',
+    'RBI-7.1: Continuous Monitoring & Audit Logs', 'RBI-3.5: Cryptographic Hashing Standards',
+    'RBI-6.8: Real-Time Incident Response Alerts', 'RBI-2.8: SSRF Outbound Firewall Controls',
+  ],
   'NIST-CSF': [
     'Asset Management (ID.AM)', 'Risk Assessment (ID.RA)',
     'Identity Management & Access Control (PR.AC)', 'Data Security & Encryption (PR.DS)',
@@ -144,9 +156,12 @@ const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_FULL_NAMES: Record<string, string> = {
+  'RBI-CSF': 'Reserve Bank of India Cybersecurity Framework',
   'NIST-CSF': 'NIST Cybersecurity Framework',
   'SOC-2': 'SOC 2 Type II Compliance Standard',
   'OWASP-10': 'OWASP Top 10 Security Risks',
+  'rbi-csf': 'Reserve Bank of India Cybersecurity Framework',
+  'rbi': 'Reserve Bank of India Cybersecurity Framework',
   'nist-csf': 'NIST Cybersecurity Framework',
   'soc-2': 'SOC 2 Type II Compliance Standard',
   'soc2': 'SOC 2 Type II Compliance Standard',
@@ -261,6 +276,7 @@ interface SovaState {
     phase: string;
     percent: number;
     findingsCount: number;
+    activeScanId?: string;
   };
   notifications: SovaNotification[];
 
@@ -269,6 +285,7 @@ interface SovaState {
   fetchFindings: (scanId?: string) => Promise<void>;
   fetchComplianceReport: (framework: string) => Promise<void>;
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
+  cancelScan: (scanId?: string) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
   fixAllFindings: () => Promise<any[]>;
@@ -453,6 +470,10 @@ export const useStore = create<SovaState>((set, get) => ({
         throw new Error('No scan ID returned from server');
       }
 
+      set((state) => ({
+        scanProgress: { ...state.scanProgress, activeScanId: scanId },
+      }));
+
       get().addNotification({
         type: 'info',
         title: 'Scan Started',
@@ -480,6 +501,7 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || msg.status || 'Scanning...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
               break;
@@ -491,6 +513,7 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || 'Analyzing...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
               if (msg.finding) {
@@ -653,7 +676,52 @@ export const useStore = create<SovaState>((set, get) => ({
       set({
         loading: false,
         error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
-        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0 },
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0, activeScanId: undefined },
+      });
+    }
+  },
+
+  /* -------------------------------------------------------
+     cancelScan — abort active running scan
+     ------------------------------------------------------- */
+  cancelScan: async (scanId?: string) => {
+    let targetId = scanId || get().scanProgress.activeScanId;
+    if (!targetId) {
+      const runningScan = get().scans.find((s) => s.status === 'running' || s.status === 'pending');
+      if (runningScan) {
+        targetId = runningScan.id;
+      }
+    }
+    if (!targetId) {
+      console.warn('cancelScan invoked but no active or running scan ID was found');
+      return;
+    }
+
+    try {
+      await api.cancelScan(targetId);
+      set({
+        scanProgress: {
+          running: false,
+          phase: 'Scan cancelled by user',
+          percent: 0,
+          findingsCount: 0,
+          activeScanId: undefined,
+        },
+        loading: false,
+      });
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Cancelled',
+        message: 'Active security scan was terminated.',
+      });
+      get().fetchDashboard();
+      get().fetchScans();
+    } catch (err: any) {
+      console.error('Failed to cancel scan:', err);
+      get().addNotification({
+        type: 'error',
+        title: 'Cancellation Error',
+        message: err?.message || 'Failed to cancel scan',
       });
     }
   },

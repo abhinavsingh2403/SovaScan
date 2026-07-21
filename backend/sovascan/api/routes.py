@@ -20,6 +20,7 @@ from sovascan.api.schemas import (
     FixRequest,
     FixResponse,
     SBOMResponse,
+    ScanCancelResponse,
     ScanRequest,
     ScanResponse,
     ThreatIntelScanResponse,
@@ -166,6 +167,37 @@ def get_scan(
     if scan is None:
         raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
     return scan
+
+
+@router.post("/scan/{scan_id}/cancel", response_model=ScanCancelResponse)
+def cancel_scan_endpoint(
+    scan_id: str,
+    db: Session = Depends(get_db),
+) -> dict[str, str]:
+    """Cancel an in-progress or queued scan.
+
+    Triggers the active orchestrator's cancellation handle, terminates
+    child processes, and updates the scan status to failed/cancelled in SQLite.
+    """
+    scan = db.query(Scan).filter(Scan.id == scan_id).first()
+    if scan is None:
+        raise HTTPException(status_code=404, detail=f"Scan {scan_id} not found")
+
+    if scan.status not in (ScanStatus.PENDING, ScanStatus.RUNNING):
+        return {
+            "scan_id": scan_id,
+            "status": scan.status.value if hasattr(scan.status, "value") else str(scan.status),
+            "message": f"Scan is already in terminal state: {scan.status}",
+        }
+
+    cancelled = scan_manager.cancel_scan(scan_id)
+    logger.info("Scan cancellation requested for %s (success: %s)", scan_id, cancelled)
+
+    return {
+        "scan_id": scan_id,
+        "status": "cancelled",
+        "message": "Scan cancellation request accepted and processed.",
+    }
 
 
 @router.get("/scan/{scan_id}/findings", response_model=FindingsListResponse)
@@ -1039,11 +1071,11 @@ def compliance_report(
         Compliance scoring, controls list, and mapped findings.
     """
     fw_key = framework.lower().strip()
-    supported_frameworks = ("nist-csf", "nist", "soc2", "soc-2", "owasp-10", "owasp10")
+    supported_frameworks = ("rbi-csf", "rbi", "nist-csf", "nist", "soc2", "soc-2", "owasp-10", "owasp10")
     if fw_key not in supported_frameworks:
         raise HTTPException(
             status_code=400,
-            detail=f"Unsupported framework: {framework}. Supported: nist-csf, soc-2, owasp-10",
+            detail=f"Unsupported framework: {framework}. Supported: rbi-csf, nist-csf, soc-2, owasp-10",
         )
 
     if scan_id:
@@ -1053,7 +1085,17 @@ def compliance_report(
 
     # Define control descriptors
     controls_definitions = []
-    if fw_key in ("nist-csf", "nist"):
+    if fw_key in ("rbi-csf", "rbi"):
+        controls_definitions = [
+            {"id": "RBI-1.1", "name": "Baseline Cyber Security Controls", "category": "Governance", "description": "Enforce baseline cybersecurity practices across banking applications.", "match_cat": "misconfig"},
+            {"id": "RBI-2.4", "name": "Network Subnet & Access Isolation", "category": "Network", "description": "Restrict wildcard binding and isolate internal banking network segments.", "match_cat": "misconfig"},
+            {"id": "RBI-3.1", "name": "Data Integrity & Encryption Protection", "category": "Data", "description": "Ensure sensitive customer data and credentials are securely encrypted.", "match_cat": "secret"},
+            {"id": "RBI-4.2", "name": "Vulnerability Management & CVE Patching", "category": "Operations", "description": "Maintain updated libraries and remediate third-party component vulnerabilities.", "match_cat": "cve"},
+            {"id": "RBI-5.6", "name": "User Access Control & Credential Security", "category": "Identity", "description": "Prevent hardcoded API keys and unauthorized credential sharing.", "match_cat": "secret"},
+            {"id": "RBI-6.3", "name": "Security Code Auditing & SAST Controls", "category": "Development", "description": "Perform static analysis to catch logic bugs and injection attacks.", "match_cat": "sast"},
+            {"id": "RBI-7.1", "name": "Continuous Monitoring & Audit Logging", "category": "Monitoring", "description": "Maintain audit trails and real-time security incident alerting.", "match_cat": "sast"}
+        ]
+    elif fw_key in ("nist-csf", "nist"):
         controls_definitions = [
             {"id": "ID.AM", "name": "Asset Management", "category": "Identify", "description": "Identify assets to manage security risks.", "match_cat": "misconfig"},
             {"id": "PR.AC", "name": "Access Control", "category": "Protect", "description": "Ensure access to assets is limited to authorized users.", "match_cat": "secret"},

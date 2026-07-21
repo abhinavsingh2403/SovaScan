@@ -139,9 +139,16 @@ const mapComplianceControl = (c: any): ComplianceControl => ({
   findings: c.findings ?? [],
 });
 
+interface ComplianceMap {
+  rbi: ComplianceReport | null;
+  nist: ComplianceReport | null;
+  soc2: ComplianceReport | null;
+  owasp10: ComplianceReport | null;
+}
+
 const mapCompliance = (c: any): ComplianceReport => ({
   framework: c.framework,
-  frameworkFullName: c.framework === 'nist-csf' ? 'NIST Cybersecurity Framework' : c.framework === 'soc-2' ? 'SOC-2 Trust Criteria' : 'OWASP Top 10',
+  frameworkFullName: c.framework === 'rbi-csf' || c.framework === 'rbi' ? 'Reserve Bank of India Cybersecurity Framework' : c.framework === 'nist-csf' ? 'NIST Cybersecurity Framework' : c.framework === 'soc-2' ? 'SOC-2 Trust Criteria' : 'OWASP Top 10',
   score: c.score ?? 100,
   totalControls: c.total_controls ?? 0,
   passed: c.passed ?? 0,
@@ -158,6 +165,7 @@ const Report: React.FC = () => {
   const [findings, setFindings] = useState<Finding[]>([]);
   const [sbom, setSbom] = useState<SBOMResponse | null>(null);
   const [compliance, setCompliance] = useState<ComplianceMap>({
+    rbi: null,
     nist: null,
     soc2: null,
     owasp10: null,
@@ -310,12 +318,14 @@ const Report: React.FC = () => {
 
         // Fetch compliance reports
         try {
-          const [nistRes, soc2Res, owasp10Res] = await Promise.all([
+          const [rbiRes, nistRes, soc2Res, owasp10Res] = await Promise.all([
+            api.getCompliance('rbi-csf', scanId),
             api.getCompliance('nist-csf', scanId),
             api.getCompliance('soc-2', scanId),
             api.getCompliance('owasp-10', scanId),
           ]);
           setCompliance({
+            rbi: mapCompliance(rbiRes.data),
             nist: mapCompliance(nistRes.data),
             soc2: mapCompliance(soc2Res.data),
             owasp10: mapCompliance(owasp10Res.data),
@@ -994,8 +1004,8 @@ const Report: React.FC = () => {
       <div className="report-section">
         <h3>🛡️ Compliance Impact</h3>
         <div className="compliance-cards-grid">
-          {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fwName) => {
-            const key = fwName === 'NIST-CSF' ? 'nist' : fwName === 'SOC-2' ? 'soc2' : 'owasp10';
+          {['RBI-CSF', 'NIST-CSF', 'SOC-2', 'OWASP-10'].map((fwName) => {
+            const key = fwName === 'RBI-CSF' ? 'rbi' : fwName === 'NIST-CSF' ? 'nist' : fwName === 'SOC-2' ? 'soc2' : 'owasp10';
             const report = compliance[key as keyof ComplianceMap];
             const score = report?.score || 0;
             const status = getComplianceStatus(score);

@@ -192,6 +192,7 @@ class ScanManager:
     def __init__(self) -> None:
         self._subscribers: dict[str, list[asyncio.Queue[ScanProgressEvent]]] = {}
         self._active_tasks: dict[str, asyncio.Task[None]] = {}
+        self._active_orchestrators: dict[str, ScanOrchestrator] = {}
         self._loop: asyncio.AbstractEventLoop | None = None
 
     # -- subscriber management ---------------------------------------------
@@ -238,6 +239,46 @@ class ScanManager:
             timestamp=datetime.now(UTC).isoformat(),
             **kwargs,
         )
+
+    def cancel_scan(self, scan_id: str) -> bool:
+        """Cancel an active scan if running or registered."""
+        orchestrator = self._active_orchestrators.get(scan_id)
+        if orchestrator:
+            orchestrator.cancel()
+            logger.info("Cancellation handle invoked for active orchestrator scan %s", scan_id)
+
+        db = SessionMaker()
+        try:
+            scan_row = db.query(Scan).filter(Scan.id == scan_id).first()
+            if scan_row and scan_row.status in (ScanStatus.PENDING, ScanStatus.RUNNING):
+                scan_row.status = ScanStatus.FAILED
+                scan_row.completed_at = datetime.now(UTC)
+                metadata = {}
+                if scan_row.metadata_json:
+                    try:
+                        metadata = json.loads(scan_row.metadata_json)
+                    except Exception:
+                        pass
+                metadata["error"] = "Scan cancelled by user"
+                scan_row.metadata_json = json.dumps(metadata)
+                db.commit()
+                self._broadcast(
+                    scan_id,
+                    self._make_event(
+                        scan_id,
+                        type="scan_complete",
+                        status="failed",
+                        phase="Cancelled",
+                        error="Scan cancelled by user",
+                    ),
+                )
+                return True
+        except Exception as err:
+            logger.error("Failed to update cancelled scan in DB: %s", err)
+        finally:
+            db.close()
+
+        return orchestrator is not None
 
     # -- scan lifecycle ----------------------------------------------------
 
@@ -369,8 +410,11 @@ class ScanManager:
                 scan_type=scan_type,
                 progress_callback=progress_cb,
             )
-
-            result = orchestrator.run_scan()
+            self._active_orchestrators[scan_id] = orchestrator
+            try:
+                result = orchestrator.run_scan()
+            finally:
+                self._active_orchestrators.pop(scan_id, None)
 
             # -- Store orchestrator findings ---------------------------------
             severity_counts: dict[str, int] = {
