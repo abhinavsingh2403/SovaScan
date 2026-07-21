@@ -5,6 +5,7 @@ import './Compliance.css';
 
 /* Framework icon mapping for visual distinction */
 const frameworkIcons: Record<string, string> = {
+  'RBI-CSF': '🏦',
   'NIST-CSF': '🏛️',
   'SOC-2': '🔐',
   'OWASP-10': '🕸️',
@@ -17,12 +18,12 @@ const Compliance: React.FC = () => {
       const stored = localStorage.getItem('sovascan-settings');
       if (stored) {
         const parsed = JSON.parse(stored);
-        return parsed.defaultFramework || 'NIST-CSF';
+        return parsed.defaultFramework || 'RBI-CSF';
       }
     } catch {
       // ignore
     }
-    return 'NIST-CSF';
+    return 'RBI-CSF';
   });
   const [expandedControlId, setExpandedControlId] = useState<string | null>(null);
   const navigate = useNavigate();
@@ -53,11 +54,11 @@ const Compliance: React.FC = () => {
   // Category-specific color mapping for visual organization
   const getCategoryClass = (cat: string) => {
     const c = cat.toLowerCase();
-    if (c === 'identify' || c === 'security') return 'cat-identify';
-    if (c === 'protect' || c === 'confidentiality') return 'cat-protect';
-    if (c === 'detect' || c === 'availability') return 'cat-detect';
-    if (c === 'respond' || c === 'processing integrity') return 'cat-respond';
-    if (c === 'recover' || c === 'privacy') return 'cat-recover';
+    if (c === 'governance' || c === 'identify' || c === 'security') return 'cat-identify';
+    if (c === 'network' || c === 'protect' || c === 'confidentiality') return 'cat-protect';
+    if (c === 'data security' || c === 'detect' || c === 'availability') return 'cat-detect';
+    if (c === 'vulnerability management' || c === 'respond' || c === 'processing integrity') return 'cat-respond';
+    if (c === 'access control' || c === 'recover' || c === 'privacy') return 'cat-recover';
     return 'cat-default';
   };
 
@@ -71,7 +72,7 @@ const Compliance: React.FC = () => {
     <div className="compliance-container">
       {/* Framework Selector Tabs */}
       <div className="framework-selector animate-fade-in">
-        {['NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => {
+        {['RBI-CSF', 'NIST-CSF', 'SOC-2', 'OWASP-10'].map((fw) => {
           const isActive = selectedFramework === fw;
           const fwReport = getComplianceReport(fw);
           const score = fwReport?.score || 0;

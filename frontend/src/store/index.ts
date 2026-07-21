@@ -104,6 +104,11 @@ const mapDashboardSummary = (d: Record<string, unknown>): DashboardSummary => {
    ============================================================ */
 
 const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'Governance', 'Network', 'Data Security', 'Vulnerability Management',
+    'Access Control', 'Code Auditing', 'Audit Trails', 'Encryption',
+    'Incident Response', 'Subnet Protection',
+  ],
   'NIST-CSF': [
     'Identify', 'Identify', 'Protect', 'Protect', 'Protect',
     'Detect', 'Detect', 'Respond', 'Respond', 'Recover',
@@ -120,6 +125,13 @@ const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'RBI-1.1: Baseline Cybersecurity Controls', 'RBI-2.4: Network Subnet & Access Isolation',
+    'RBI-3.1: Data Integrity & Secret Encryption', 'RBI-4.2: Vulnerability & Dependency Management',
+    'RBI-5.6: User Access Control & Key Security', 'RBI-6.3: Static Application Security Testing (SAST)',
+    'RBI-7.1: Continuous Monitoring & Audit Logs', 'RBI-3.5: Cryptographic Hashing Standards',
+    'RBI-6.8: Real-Time Incident Response Alerts', 'RBI-2.8: SSRF Outbound Firewall Controls',
+  ],
   'NIST-CSF': [
     'Asset Management (ID.AM)', 'Risk Assessment (ID.RA)',
     'Identity Management & Access Control (PR.AC)', 'Data Security & Encryption (PR.DS)',
@@ -144,9 +156,12 @@ const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_FULL_NAMES: Record<string, string> = {
+  'RBI-CSF': 'Reserve Bank of India Cybersecurity Framework',
   'NIST-CSF': 'NIST Cybersecurity Framework',
   'SOC-2': 'SOC 2 Type II Compliance Standard',
   'OWASP-10': 'OWASP Top 10 Security Risks',
+  'rbi-csf': 'Reserve Bank of India Cybersecurity Framework',
+  'rbi': 'Reserve Bank of India Cybersecurity Framework',
   'nist-csf': 'NIST Cybersecurity Framework',
   'soc-2': 'SOC 2 Type II Compliance Standard',
   'soc2': 'SOC 2 Type II Compliance Standard',
