@@ -517,6 +517,13 @@ const Findings: React.FC = () => {
       );
     }
 
+    if (category === 'financial-integrity' || ruleId.startsWith('FIN-')) {
+      return (
+        "Systematic rounding or truncation bias in monetary arithmetic can silently shave micro-amounts " +
+        "across high-volume transactions (salami slicing), causing un-reconciled financial leakage and regulatory audit failures."
+      );
+    }
+
     // Default fallback
     return (
       "This misconfiguration weakens the defensive layers of your application. It could allow unauthorized users " +

@@ -197,6 +197,24 @@ const Scan: React.FC = () => {
                     </div>
                   </div>
                 </label>
+
+                <label className={`scan-type-card ${scanType === 'financial-integrity' ? 'active' : ''}`}>
+                  <input
+                    type="radio"
+                    name="scanType"
+                    value="financial-integrity"
+                    checked={scanType === 'financial-integrity'}
+                    onChange={() => setScanType('financial-integrity')}
+                    disabled={scanProgress.running}
+                  />
+                  <div className="radio-content">
+                    <span className="radio-icon">💰</span>
+                    <div className="radio-text">
+                      <strong>Financial Integrity</strong>
+                      <span>Salami Slicing & Rounding Fraud</span>
+                    </div>
+                  </div>
+                </label>
               </div>
             </div>
 
