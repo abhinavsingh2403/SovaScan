@@ -1,10 +1,9 @@
-import pytest
 from unittest.mock import MagicMock, patch
-from fastapi.testclient import TestClient
 
-from sovascan.core.threat_intel import ThreatIntelEnricher, ThreatIntelRecord
-from sovascan.models.scan import Scan, ScanStatus
+from sovascan.core.threat_intel import ThreatIntelEnricher
 from sovascan.models.finding import Finding, Severity
+from sovascan.models.scan import Scan, ScanStatus
+
 
 def test_priority_calculation():
     enricher = ThreatIntelEnricher()

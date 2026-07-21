@@ -1,11 +1,12 @@
-import pytest
 import json
-from unittest.mock import patch, MagicMock
 from pathlib import Path
-from sovascan.api.websocket import is_allowed_git_url, ScanManager
-from sovascan.core.severity_scorer import normalize_severity, Severity
-from sovascan.models.scan import Scan, ScanStatus
+from unittest.mock import MagicMock, patch
+
+from sovascan.api.websocket import ScanManager, is_allowed_git_url
+from sovascan.core.severity_scorer import Severity, normalize_severity
 from sovascan.models.finding import Finding
+from sovascan.models.scan import Scan, ScanStatus
+
 
 def test_git_url_protocol_validation():
     # Valid HTTPS protocols
@@ -113,7 +114,7 @@ def test_finding_deduplication_and_sbom_cache(mock_run_scan, client, db_session)
     assert scan.status == ScanStatus.COMPLETED
     # Should only save 1 finding (deduplicated)
     assert scan.total_findings == 1
-    
+
     findings = db_session.query(Finding).filter(Finding.scan_id == scan.id).all()
     assert len(findings) == 1
 

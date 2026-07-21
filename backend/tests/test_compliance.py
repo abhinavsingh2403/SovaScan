@@ -1,6 +1,6 @@
-import pytest
-from sovascan.models.scan import Scan, ScanStatus
 from sovascan.models.finding import Finding, Severity
+from sovascan.models.scan import Scan, ScanStatus
+
 
 def test_global_vs_scan_specific_compliance(client, db_session):
     # Setup scan 1
@@ -71,7 +71,7 @@ def test_global_vs_scan_specific_compliance(client, db_session):
     assert data_scan1["failed"] == 1 # only PR.DS fails
     assert data_scan1["passed"] == 5
     assert data_scan1["score"] == 83.3
-    
+
     controls_map1 = {c["id"]: c for c in data_scan1["controls"]}
     assert controls_map1["PR.AC"]["status"] == "passed"
     assert controls_map1["PR.DS"]["status"] == "failed"
@@ -83,7 +83,7 @@ def test_global_vs_scan_specific_compliance(client, db_session):
     assert len(data_scan2["findings"]) == 1
     assert data_scan2["failed"] == 1 # only PR.AC fails
     assert data_scan2["passed"] == 5
-    
+
     controls_map2 = {c["id"]: c for c in data_scan2["controls"]}
     assert controls_map2["PR.AC"]["status"] == "failed"
     assert controls_map2["PR.DS"]["status"] == "passed"

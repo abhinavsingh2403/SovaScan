@@ -93,7 +93,7 @@ def create_app() -> FastAPI:
             dict: Health status including version, database status, and scanner availability.
         """
         uptime = time.time() - _start_time if _start_time > 0 else 0.0
-        
+
         # Check database health
         db_status = "ok"
         try:

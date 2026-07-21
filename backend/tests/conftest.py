@@ -28,6 +28,7 @@ def fixture_db_session():
     db = TestingSessionLocal()
     # Seed default key for testing authentication
     import hashlib
+
     from sovascan.models.api_key import ApiKey
     default_key = "ss_live_mock_local_dev_key_12345"
     key_hash = hashlib.sha256(default_key.encode("utf-8")).hexdigest()

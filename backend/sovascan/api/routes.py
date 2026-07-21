@@ -2,7 +2,6 @@
 
 import json
 import logging
-import subprocess
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -12,6 +11,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from sovascan.api.auth import verify_api_key
 from sovascan.api.schemas import (
     ComplianceResponse,
     DashboardSummary,
@@ -26,12 +26,10 @@ from sovascan.api.schemas import (
     ThreatIntelScanResponse,
 )
 from sovascan.api.websocket import scan_manager
-from sovascan.core.orchestrator import ScanOrchestrator
-from sovascan.core.threat_intel import ThreatIntelEnricher, CVE_PATTERN
+from sovascan.core.threat_intel import CVE_PATTERN, ThreatIntelEnricher
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
 from sovascan.models.scan import Scan, ScanStatus
-from sovascan.api.auth import verify_api_key
 
 logger = logging.getLogger("sovascan.api")
 
@@ -435,7 +433,7 @@ def _apply_context_replacement_on_disk(
         file_path_obj.write_text("".join(new_lines), encoding="utf-8")
         return True
     except Exception as e:
-        print(f"Error applying context replacement on disk: {e}")
+        logger.error("Error applying context replacement on disk: %s", e)
         return False
 
 
@@ -481,7 +479,7 @@ def _apply_finding_fix_on_disk(
                 old_line = lines[line_idx]
                 suffix = file_path_obj.suffix.lower()
                 env_var = finding.rule_id.replace("-", "_").upper()
-                
+
                 if suffix == ".py":
                     if "=" in old_line:
                         lhs, rhs = old_line.split("=", 1)
@@ -520,7 +518,7 @@ def _apply_finding_fix_on_disk(
                         new_val = f"System.getenv(\"{env_var}\")"
                 else:
                     new_val = f'{finding.rule_id}_VALUE=${{{{ secrets.{finding.rule_id.replace("-", "_")} }}}}'
-                
+
                 # preserve trailing newline if present
                 if old_line.endswith("\n"):
                     new_val += "\n"
@@ -638,7 +636,7 @@ def get_finding_context(
         raise HTTPException(
             status_code=500,
             detail=f"Failed to read source file: {exc}",
-        )
+        ) from exc
 
     all_lines = content.splitlines()
     target_line = finding.line_number or 1
@@ -703,7 +701,7 @@ def generate_fix(
             file_path_obj = Path(finding.file_path)
             if not file_path_obj.is_absolute() and finding.scan:
                 file_path_obj = Path(finding.scan.target) / finding.file_path
-            
+
             if file_path_obj.exists() and file_path_obj.is_file():
                 file_lines = file_path_obj.read_text(encoding="utf-8").splitlines()
                 if finding.line_number and 0 < finding.line_number <= len(file_lines):
@@ -716,7 +714,7 @@ def generate_fix(
     if finding.category == "secret":
         suffix = Path(finding.file_path).suffix.lower() if finding.file_path else ""
         env_var = finding.rule_id.replace("-", "_").upper()
-        
+
         if suffix == ".py":
             if old_line_val and "=" in old_line_val:
                 lhs, rhs = old_line_val.split("=", 1)
@@ -876,7 +874,7 @@ def generate_fix(
                 detail="Failed to physically apply auto-fix suggestion to file on disk."
             )
         finding.is_fixed = True
-        
+
         # Create audit trail log
         from sovascan.models.audit_log import AuditLog
         operator_name = current_key.name if current_key else "Developer"
@@ -934,7 +932,7 @@ def revert_finding_fix(
         )
 
     finding.is_fixed = False
-    
+
     # Create audit trail log
     from sovascan.models.audit_log import AuditLog
     operator_name = current_key.name if current_key else "Developer"
@@ -1124,12 +1122,12 @@ def compliance_report(
         ]
 
     # Query findings
-    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id).filter(Finding.is_fixed == False)
+    query = db.query(Finding).join(Scan, Finding.scan_id == Scan.id).filter(Finding.is_fixed.is_(False))
     if scan_id:
         query = query.filter(Finding.scan_id == scan_id)
     else:
         query = query.filter(Scan.status == ScanStatus.COMPLETED)
-    
+
     findings = query.all()
 
     # Map findings to controls
@@ -1143,7 +1141,7 @@ def compliance_report(
             if f.category.lower() == ctrl["match_cat"]
             and f.severity in (Severity.CRITICAL, Severity.HIGH, Severity.MEDIUM)
         ]
-        
+
         status = "passed"
         finding_ids = []
         if matching_findings:
@@ -1153,7 +1151,7 @@ def compliance_report(
                 if f.id not in seen_finding_ids:
                     seen_finding_ids.add(f.id)
                     compliance_findings.append(f)
-        
+
         response_controls.append({
             "id": ctrl["id"],
             "name": ctrl["name"],
@@ -1423,9 +1421,10 @@ def create_api_key(
     db: Session = Depends(get_db)
 ) -> dict[str, Any]:
     """Generate a new secure API Key, store its hash, and return the plaintext key once."""
-    from sovascan.models.api_key import ApiKey
-    import secrets
     import hashlib
+    import secrets
+
+    from sovascan.models.api_key import ApiKey
 
     name = request_data.get("name")
     if not name or not name.strip():
@@ -1493,7 +1492,7 @@ def get_audit_logs(db: Session = Depends(get_db)) -> list[dict[str, Any]]:
 @router.get("/auth/settings", response_model=dict[str, Any])
 def get_system_settings() -> dict[str, Any]:
     """Retrieve active system settings with sensitive values masked."""
-    from sovascan.config import get_settings, mask_slack_webhook, mask_database_url
+    from sovascan.config import get_settings, mask_database_url, mask_slack_webhook
     settings = get_settings()
     return {
         "slack_webhook_url": mask_slack_webhook(settings.SLACK_WEBHOOK_URL),
@@ -1537,7 +1536,7 @@ def save_system_settings(
         if env_path.exists():
             lines = env_path.read_text(encoding="utf-8").splitlines()
 
-        new_lines = [l for l in lines if not l.startswith("SLACK_WEBHOOK_URL=")]
+        new_lines = [line for line in lines if not line.startswith("SLACK_WEBHOOK_URL=")]
         new_lines.append(f"SLACK_WEBHOOK_URL={slack_url}")
 
         env_path.write_text("\n".join(new_lines), encoding="utf-8")
@@ -1584,7 +1583,7 @@ def test_system_webhook(
             if res.status_code >= 400:
                 raise HTTPException(status_code=400, detail=f"Slack returned error status code: {res.status_code}")
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}") from e
 
     return {"detail": "Test webhook alert sent successfully!"}
 

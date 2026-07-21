@@ -254,7 +254,7 @@ def test_apply_fix_context_replacement(client: TestClient, tmp_path: Path) -> No
     assert findings_resp.status_code == 200
     findings = findings_resp.json()["findings"]
     assert len(findings) > 0
-    
+
     # Find a debug-mode finding (SOVA-WEB-001)
     target_finding = None
     for f in findings:

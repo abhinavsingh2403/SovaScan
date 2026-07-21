@@ -1,7 +1,10 @@
-import uuid
 import datetime
-from sqlalchemy import Column, String, DateTime
+import uuid
+
+from sqlalchemy import Column, DateTime, String
+
 from sovascan.models.base import Base
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"
