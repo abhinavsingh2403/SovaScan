@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { api } from '../api/client';
+import { useStore } from '../store';
 import './Settings.css';
 
 interface SystemSettings {
@@ -11,6 +12,7 @@ interface SystemSettings {
 }
 
 const Settings: React.FC = () => {
+  const { theme, setTheme } = useStore();
   const [slackWebhookUrl, setSlackWebhookUrl] = useState('');
   const [systemInfo, setSystemInfo] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(false);
@@ -101,6 +103,50 @@ const Settings: React.FC = () => {
 
   return (
     <div className="settings animate-fade-in">
+      {/* Visual Theme & Appearance Section */}
+      <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.02s' }}>
+        <div className="settings__section-header">
+          <span className="settings__section-icon">🎨</span>
+          <h2 className="settings__section-title">Visual Theme & Appearance</h2>
+        </div>
+        <p className="settings__section-desc">
+          Choose your preferred dashboard interface theme. Light Theme provides a clean, high-contrast slate layout, while Dark Theme provides deep obsidian glassmorphism.
+        </p>
+
+        <div className="settings__row">
+          <div className="settings__row-info">
+            <div className="settings__row-label">Active Interface Theme</div>
+            <div className="settings__row-hint">
+              Theme selection is saved in browser storage and applied automatically across all pages.
+            </div>
+          </div>
+          <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+            <button
+              className={`settings__btn ${theme === 'light' ? 'settings__btn--primary' : 'settings__btn--secondary'}`}
+              onClick={() => {
+                setTheme('light');
+                setToastMsg('☀️ Light Theme applied');
+                setSaved(true);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              ☀️ Light Theme
+            </button>
+            <button
+              className={`settings__btn ${theme === 'dark' ? 'settings__btn--primary' : 'settings__btn--secondary'}`}
+              onClick={() => {
+                setTheme('dark');
+                setToastMsg('🌙 Dark Theme applied');
+                setSaved(true);
+              }}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              🌙 Dark Theme
+            </button>
+          </div>
+        </div>
+      </section>
+
       {/* Webhook Settings Section */}
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <div className="settings__section-header">

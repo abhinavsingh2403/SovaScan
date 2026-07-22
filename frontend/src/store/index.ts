@@ -281,6 +281,7 @@ interface SovaState {
     pollIntervalId?: ReturnType<typeof setInterval>;
   };
   notifications: SovaNotification[];
+  theme: 'dark' | 'light';
 
   fetchDashboard: () => Promise<void>;
   fetchScans: () => Promise<void>;
@@ -296,6 +297,8 @@ interface SovaState {
   markNotificationAsRead: (id: string) => void;
   markAllNotificationsAsRead: () => void;
   clearNotifications: () => void;
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
 }
 
 /* ============================================================
@@ -332,6 +335,20 @@ const saveNotifications = (notifs: SovaNotification[]) => {
   }
 };
 
+const getInitialTheme = (): 'dark' | 'light' => {
+  try {
+    const saved = localStorage.getItem('sovascan-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.setAttribute('data-theme', saved);
+      return saved;
+    }
+  } catch {
+    // ignore
+  }
+  document.documentElement.setAttribute('data-theme', 'dark');
+  return 'dark';
+};
+
 export const useStore = create<SovaState>((set, get) => ({
   scans: [],
   findings: [],
@@ -339,6 +356,7 @@ export const useStore = create<SovaState>((set, get) => ({
   dashboardSummary: null,
   complianceReports: {},
   notifications: loadNotifications(),
+  theme: getInitialTheme(),
   loading: false,
   error: null,
   selectedScan: null,
@@ -347,6 +365,22 @@ export const useStore = create<SovaState>((set, get) => ({
     phase: '',
     percent: 0,
     findingsCount: 0,
+  },
+
+  setTheme: (theme: 'dark' | 'light') => {
+    try {
+      localStorage.setItem('sovascan-theme', theme);
+    } catch {
+      // ignore
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    set({ theme });
+  },
+
+  toggleTheme: () => {
+    const current = get().theme;
+    const next = current === 'dark' ? 'light' : 'dark';
+    get().setTheme(next);
   },
 
   /* -------------------------------------------------------

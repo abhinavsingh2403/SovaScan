@@ -175,6 +175,8 @@ export default function Layout({ children }: LayoutProps) {
     markNotificationAsRead,
     markAllNotificationsAsRead,
     clearNotifications,
+    theme,
+    toggleTheme,
   } = useStore();
 
   const unreadCount = notifications.filter((n) => !n.read).length;
@@ -260,6 +262,15 @@ export default function Layout({ children }: LayoutProps) {
                 onKeyDown={handleSearchSubmit}
               />
             </div>
+            <button
+              className="topbar__icon-btn"
+              title={`Switch to ${theme === 'dark' ? 'Light' : 'Dark'} Theme`}
+              onClick={toggleTheme}
+              style={{ fontSize: '16px' }}
+            >
+              {theme === 'dark' ? '☀️' : '🌙'}
+            </button>
+
             <div className="topbar__notif-container" ref={notifRef}>
               <button
                 className="topbar__icon-btn"
