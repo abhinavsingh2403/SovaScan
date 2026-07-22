@@ -6,6 +6,7 @@ import { Scan, Finding, SBOMResponse, ComplianceReport, ComplianceControl, Threa
 import './Report.css';
 
 interface ComplianceMap {
+  rbi: ComplianceReport | null;
   nist: ComplianceReport | null;
   soc2: ComplianceReport | null;
   owasp10: ComplianceReport | null;

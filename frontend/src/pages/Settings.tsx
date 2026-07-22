@@ -15,6 +15,7 @@ const Settings: React.FC = () => {
   const [systemInfo, setSystemInfo] = useState<SystemSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [testingWebhook, setTestingWebhook] = useState(false);
+  const [clearingHistory, setClearingHistory] = useState(false);
   const [saved, setSaved] = useState(false);
   const [toastMsg, setToastMsg] = useState('');
 
@@ -72,6 +73,23 @@ const Settings: React.FC = () => {
       setToastMsg('🧹 Local cache cleared.');
       setSaved(true);
       setTimeout(() => window.location.reload(), 1500);
+    }
+  };
+
+  const handleClearScanHistory = async () => {
+    if (!window.confirm('⚠️ This will permanently delete ALL completed and failed scan records and their findings from the database. Running scans will be preserved.\n\nThis action cannot be undone. Continue?')) {
+      return;
+    }
+    setClearingHistory(true);
+    try {
+      const res = await api.clearScanHistory();
+      const detail = res.data?.detail || 'Scan history cleared.';
+      setToastMsg(`🗑️ ${detail}`);
+      setSaved(true);
+    } catch (err: any) {
+      alert(`Failed to clear scan history: ${err.message || err}`);
+    } finally {
+      setClearingHistory(false);
     }
   };
 
@@ -175,10 +193,26 @@ const Settings: React.FC = () => {
           <h2 className="settings__section-title" style={{ color: 'var(--danger)' }}>System Maintenance</h2>
         </div>
         <p className="settings__section-desc">
-          Destructive operations for resetting active configurations.
+          Destructive operations for resetting active configurations and purging historical data.
         </p>
 
         <div className="settings__row" style={{ borderTop: '1px solid rgba(239, 68, 68, 0.08)', paddingTop: '16px' }}>
+          <div className="settings__row-info">
+            <div className="settings__row-label">Clear Scan History</div>
+            <div className="settings__row-hint">
+              Permanently deletes all completed and failed scan records and their associated findings from the database. Running or pending scans are preserved.
+            </div>
+          </div>
+          <button
+            className="settings__btn settings__btn--danger"
+            onClick={handleClearScanHistory}
+            disabled={clearingHistory}
+          >
+            {clearingHistory ? 'Clearing...' : '🗑️ Clear Scan History'}
+          </button>
+        </div>
+
+        <div className="settings__row">
           <div className="settings__row-info">
             <div className="settings__row-label">Clear Browser Session</div>
             <div className="settings__row-hint">
@@ -193,19 +227,7 @@ const Settings: React.FC = () => {
 
       {/* Toast Notification */}
       {saved && (
-        <div className="settings__toast" style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          background: '#10b981',
-          color: '#ffffff',
-          padding: '12px 24px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.2)',
-          zIndex: 1000,
-          fontWeight: 500,
-          animation: 'slideUp 0.3s ease'
-        }}>
+        <div className="settings__toast">
           {toastMsg}
         </div>
       )}

@@ -200,6 +200,46 @@ def cancel_scan_endpoint(
     }
 
 
+@router.delete("/scan/history", response_model=dict[str, Any])
+def clear_scan_history(
+    db: Session = Depends(get_db),
+) -> dict[str, Any]:
+    """Delete all completed and failed scans along with their findings.
+
+    Running or pending scans are preserved. Findings are cascade-deleted
+    automatically via the SQLAlchemy relationship configuration.
+
+    Returns:
+        A summary of how many scans and findings were removed.
+    """
+    terminal_scans = (
+        db.query(Scan)
+        .filter(Scan.status.in_([ScanStatus.COMPLETED, ScanStatus.FAILED]))
+        .all()
+    )
+
+    deleted_scans = 0
+    deleted_findings = 0
+    for scan in terminal_scans:
+        deleted_findings += len(scan.findings) if scan.findings else 0
+        db.delete(scan)
+        deleted_scans += 1
+
+    db.commit()
+
+    logger.info(
+        "Cleared scan history: %d scans, %d findings removed",
+        deleted_scans,
+        deleted_findings,
+    )
+
+    return {
+        "detail": f"Successfully cleared {deleted_scans} scan(s) and {deleted_findings} finding(s).",
+        "deleted_scans": deleted_scans,
+        "deleted_findings": deleted_findings,
+    }
+
+
 @router.get("/scan/{scan_id}/findings", response_model=FindingsListResponse)
 def list_findings(
     scan_id: str,

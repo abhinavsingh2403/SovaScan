@@ -167,6 +167,9 @@ export const api = {
 
   /** POST /api/v1/auth/test-webhook — trigger test notification */
   testWebhook: (slackWebhookUrl: string) => client.post('/auth/test-webhook', { slack_webhook_url: slackWebhookUrl }),
+
+  /** DELETE /api/v1/scan/history — clear all completed/failed scan history */
+  clearScanHistory: () => client.delete('/scan/history'),
 };
 
 /**
