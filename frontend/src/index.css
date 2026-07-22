@@ -145,6 +145,45 @@
   color: #4f46e5 !important;
 }
 
+[data-theme="light"] .glassmorphism {
+  background: rgba(255, 182, 193, 0.5) !important; /* Translucent Light Pink */
+  border: 1px solid rgba(255, 105, 180, 0.25) !important; /* Soft rose border */
+  box-shadow: 0 8px 32px 0 rgba(255, 182, 193, 0.15) !important;
+}
+
+[data-theme="light"] .glassmorphism:hover {
+  background: rgba(255, 182, 193, 0.65) !important;
+  border-color: rgba(255, 105, 180, 0.45) !important;
+  box-shadow: 0 12px 40px 0 rgba(255, 182, 193, 0.25), 0 0 20px rgba(255, 182, 193, 0.15) !important;
+}
+
+/* Ensure best text contrast (dark text/SVG fills on light pink background) */
+[data-theme="light"] .glassmorphism h2,
+[data-theme="light"] .glassmorphism h3,
+[data-theme="light"] .glassmorphism .stat-sub,
+[data-theme="light"] .glassmorphism .sev-label-name,
+[data-theme="light"] .glassmorphism .sev-percent-val,
+[data-theme="light"] .glassmorphism .donut-center-label,
+[data-theme="light"] .glassmorphism .recent-scans-table th,
+[data-theme="light"] .glassmorphism .recent-scans-table td,
+[data-theme="light"] .glassmorphism .vuln-name,
+[data-theme="light"] .glassmorphism .vuln-cat {
+  color: var(--text-primary) !important;
+}
+
+[data-theme="light"] .glassmorphism .stat-number {
+  color: var(--text-primary) !important;
+  text-shadow: none !important;
+}
+
+[data-theme="light"] .glassmorphism .percentage {
+  fill: var(--text-primary) !important;
+}
+
+[data-theme="light"] .glassmorphism .hud-label {
+  fill: var(--text-muted) !important;
+}
+
 /* ============================================================
    Global Reset
    ============================================================ */

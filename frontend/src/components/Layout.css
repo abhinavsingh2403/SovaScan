@@ -164,7 +164,7 @@
   position: sticky;
   top: 0;
   height: var(--header-height);
-  background: rgba(10, 14, 26, 0.85);
+  background: var(--bg-secondary);
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
   border-bottom: 1px solid var(--border-color);

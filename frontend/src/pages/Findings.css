@@ -69,8 +69,8 @@
 }
 
 .filter-select select {
-  background: #0b0f24 !important;
-  border: 1px solid rgba(255, 255, 255, 0.12) !important;
+  background: var(--bg-secondary) !important;
+  border: 1px solid var(--border-color) !important;
   padding: 8px 16px;
   border-radius: 8px;
   color: var(--text-primary) !important;
@@ -78,18 +78,18 @@
   cursor: pointer;
   font-size: 13px;
   transition: all 0.2s ease;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+  box-shadow: var(--shadow-sm);
 }
 
 .filter-select select:focus,
 .filter-select select:hover {
   border-color: var(--accent-primary) !important;
-  box-shadow: 0 0 12px rgba(99, 102, 241, 0.25);
+  box-shadow: 0 0 12px var(--accent-glow);
 }
 
 .filter-select select option {
-  background-color: #0b0f24 !important;
-  color: #f8fafc !important;
+  background-color: var(--bg-secondary) !important;
+  color: var(--text-primary) !important;
   padding: 10px 14px;
   font-size: 13px;
 }
@@ -97,8 +97,8 @@
 .filter-select select option:hover,
 .filter-select select option:focus,
 .filter-select select option:checked {
-  background-color: #1a234a !important;
-  color: #a78bfa !important;
+  background-color: var(--bg-input) !important;
+  color: var(--accent-primary) !important;
 }
 
 .results-summary {
@@ -387,15 +387,27 @@
 }
 
 .evidence-console {
+  background: #0d0f18 !important;
   border-radius: 8px;
   overflow: hidden;
   margin-top: 8px;
-  border: 1px solid rgba(255, 255, 255, 0.05) !important;
+  border: 1px solid rgba(255, 255, 255, 0.1) !important;
+}
+
+.evidence-console .terminal-header {
+  background: #141724 !important;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08) !important;
+  padding: 8px 12px !important;
+}
+
+.evidence-console .terminal-title {
+  color: #ffffff !important;
+  font-weight: 600;
 }
 
 .evidence-console .evidence-pre {
   border: none;
-  background: rgba(0, 0, 0, 0.15);
+  background: #090b10 !important;
   border-radius: 0 0 8px 8px;
   padding: 12px 16px;
 }
@@ -403,7 +415,7 @@
 .evidence-pre code {
   font-family: var(--font-mono);
   font-size: 12.5px;
-  color: var(--success);
+  color: #34d399 !important;
   white-space: pre-wrap;
 }
 
@@ -702,7 +714,6 @@
 }
 
 .split-pane {
-  background: rgba(0, 0, 0, 0.25);
   border-radius: 8px;
   overflow: hidden;
   display: flex;
@@ -711,13 +722,15 @@
 }
 
 .split-pane.original-pane {
-  border: 1px solid rgba(239, 68, 68, 0.18);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(239, 68, 68, 0.04);
+  background: #140b0b !important;
+  border: 1px solid rgba(239, 68, 68, 0.35) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(239, 68, 68, 0.08);
 }
 
 .split-pane.sandbox-pane {
-  border: 1px solid rgba(16, 185, 129, 0.18);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(16, 185, 129, 0.04);
+  background: #0b140d !important;
+  border: 1px solid rgba(16, 185, 129, 0.35) !important;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.35), 0 0 10px rgba(16, 185, 129, 0.08);
 }
 
 .pane-header {
@@ -731,13 +744,13 @@
 }
 
 .header-original {
-  background: rgba(239, 68, 68, 0.08);
-  color: #f87171;
+  background: rgba(239, 68, 68, 0.16) !important;
+  color: #ff8a8a !important;
 }
 
 .header-sandbox {
-  background: rgba(16, 185, 129, 0.08);
-  color: #34d399;
+  background: rgba(16, 185, 129, 0.16) !important;
+  color: #4ade80 !important;
 }
 
 .pane-indicator {
@@ -748,35 +761,43 @@
 
 .file-tag, .edit-badge {
   font-size: 10px;
-  background: rgba(255, 255, 255, 0.06);
+  background: rgba(255, 255, 255, 0.08);
   padding: 2px 6px;
   border-radius: 4px;
-  color: var(--text-secondary);
+  color: #ffffff;
 }
 
 .pane-editor-wrap {
   padding: 12px;
   flex-grow: 1;
   display: flex;
-  background: rgba(0, 0, 0, 0.15);
+}
+
+.original-pane .pane-editor-wrap {
+  background: #0d0606 !important;
+}
+
+.sandbox-pane .pane-editor-wrap {
+  background: #060d08 !important;
 }
 
 .code-display {
   margin: 0;
   font-family: 'Fira Code', 'Courier New', Courier, monospace;
-  font-size: 12px;
-  color: #f87171;
+  font-size: 12.5px;
+  color: #ff8a8a !important;
   white-space: pre-wrap;
   word-break: break-all;
+  line-height: 1.5;
 }
 
 .sandbox-textarea {
   width: 100%;
   background: transparent;
-  color: #34d399;
+  color: #4ade80 !important;
   border: none;
   font-family: 'Fira Code', 'Courier New', Courier, monospace;
-  font-size: 12px;
+  font-size: 12.5px;
   line-height: 1.5;
   resize: vertical;
   outline: none;
@@ -787,7 +808,7 @@
 }
 
 .sandbox-textarea::placeholder {
-  color: rgba(52, 211, 153, 0.3);
+  color: rgba(74, 222, 128, 0.45) !important;
 }
 
 @media (max-width: 768px) {
