@@ -14,6 +14,47 @@ const getReplacementFromPatch = (patch: string): string => {
   return addedLines.join('\n');
 };
 
+/**
+ * Resolves a finding's relative file_path into a full absolute path suitable
+ * for a vscode://file/ URI.  Uses the parent scan's `target` (the original
+ * directory that was scanned) as the root, then appends the relative path.
+ *
+ * For remote git scans (target starts with http) the cloned temp directory
+ * no longer exists, so we return null to signal that opening is unavailable.
+ */
+function resolveAbsolutePath(
+  finding: Finding,
+  scans: Array<{ id: string; target: string }>,
+): string | null {
+  const parentScan = scans.find((s) => s.id === finding.scanId);
+  const scanTarget = parentScan?.target ?? '';
+
+  // Remote git scans — temp clone dir is deleted after scan
+  if (
+    scanTarget.startsWith('http://') ||
+    scanTarget.startsWith('https://') ||
+    scanTarget.startsWith('git@')
+  ) {
+    return null;
+  }
+
+  const filePath = finding.filePath;
+
+  // If the filePath is already absolute (e.g. starts with C:\ or /), use it directly
+  if (/^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith('/')) {
+    return filePath.replace(/\\/g, '/');
+  }
+
+  // Build absolute path: scanTarget + filePath
+  // Normalize separators to forward slashes for the URI
+  const base = scanTarget.replace(/\\/g, '/').replace(/\/+$/, '');
+  const relative = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
+
+  // Avoid double-joining if the relative path already starts with a segment
+  // that is the last segment of the base (edge case with _clean_path stripping)
+  return `${base}/${relative}`;
+}
+
 const Findings: React.FC = () => {
   const {
     findings,
@@ -734,13 +775,29 @@ const Findings: React.FC = () => {
                     )}
                     
                     <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px' }}>
-                      <a
-                        className="editor-link-btn"
-                        href={`vscode://file/${finding.filePath}:${finding.lineNumber}`}
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        🖥️ Open in Editor (VS Code / Antigravity)
-                      </a>
+                      {(() => {
+                        const absPath = resolveAbsolutePath(finding, scans);
+                        if (absPath) {
+                          return (
+                            <a
+                              className="editor-link-btn"
+                              href={`vscode://file/${absPath}:${finding.lineNumber}`}
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              🖥️ Open in Editor (VS Code / Antigravity)
+                            </a>
+                          );
+                        }
+                        return (
+                          <span
+                            className="editor-link-btn"
+                            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                            title="Cannot open remote git scan files — the cloned directory has been cleaned up"
+                          >
+                            🖥️ Open in Editor (remote scan)
+                          </span>
+                        );
+                      })()}
 
                       {finding.isFixed ? (
                         <>
