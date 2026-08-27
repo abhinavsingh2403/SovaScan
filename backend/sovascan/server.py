@@ -64,11 +64,17 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
 
-    # CORS middleware — allow all origins for development
+    # CORS middleware — allow configured origins
+    settings = get_settings()
+    allow_origins = settings.ALLOWED_ORIGINS
+    allow_credentials = True
+    if "*" in allow_origins:
+        allow_credentials = False
+
     application.add_middleware(
         CORSMiddleware,
-        allow_origins=["*"],
-        allow_credentials=True,
+        allow_origins=allow_origins,
+        allow_credentials=allow_credentials,
         allow_methods=["*"],
         allow_headers=["*"],
     )
@@ -84,12 +90,35 @@ def create_app() -> FastAPI:
         """Health check endpoint.
 
         Returns:
-            dict: Health status including version and uptime.
+            dict: Health status including version, database status, and scanner availability.
         """
         uptime = time.time() - _start_time if _start_time > 0 else 0.0
+
+        # Check database health
+        db_status = "ok"
+        try:
+            from sovascan.models.base import SessionLocal
+            from sovascan.models.scan import Scan
+            db = SessionLocal()
+            db.query(Scan).first()
+            db.close()
+        except Exception as e:
+            logger.warning(f"Health check database connection check failed: {e}")
+            db_status = "error"
+
+        # Check scanner CLI availability
+        import shutil
+        scanners = {
+            "semgrep": shutil.which("semgrep") is not None,
+            "bandit": shutil.which("bandit") is not None,
+            "git": shutil.which("git") is not None,
+        }
+
         return {
-            "status": "healthy",
+            "status": "healthy" if db_status == "ok" else "degraded",
             "version": __version__,
+            "database": db_status,
+            "scanners": scanners,
             "uptime": round(uptime, 2),
         }
 

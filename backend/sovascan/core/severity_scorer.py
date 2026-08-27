@@ -90,6 +90,10 @@ PROD_CONFIG_PATTERNS = re.compile(
     r"(?i)(?:prod|production|live|release|deploy|\.env\.prod|application-prod|docker-compose\.prod)"
 )
 
+CRITICAL_BANKING_DIRS = re.compile(
+    r"(?i)[\\/](?:payment|payments|checkout|billing|card|auth|authorization|authentication|login|transaction|transactions|ledger|transfer|transfers|wallet|wallets)(?:[\\/]|$)"
+)
+
 
 class SeverityScorer:
     """Applies contextual severity scoring to security findings."""
@@ -118,6 +122,10 @@ class SeverityScorer:
         file_path = getattr(finding, "file_path", "")
 
         # ── Contextual modifiers ───────────────────────────────────
+
+        # +2 if file is in critical banking module directory (e.g. auth, payments)
+        if CRITICAL_BANKING_DIRS.search(file_path):
+            modifiers.append(("critical_banking_module", 2.0))
 
         # +2 if file is in production config
         if PROD_CONFIG_PATTERNS.search(file_path):
@@ -257,3 +265,19 @@ class SeverityScorer:
         if score >= 1.0:
             return Severity.LOW
         return Severity.INFO
+
+
+def normalize_severity(value: str | None) -> Severity:
+    """Normalizes a raw severity string into a valid Severity enum."""
+    if not value:
+        return Severity.INFO
+    val_clean = str(value).strip().lower()
+    if val_clean in ("critical", "crit"):
+        return Severity.CRITICAL
+    if val_clean in ("high", "h"):
+        return Severity.HIGH
+    if val_clean in ("medium", "med", "moderate"):
+        return Severity.MEDIUM
+    if val_clean in ("low", "l"):
+        return Severity.LOW
+    return Severity.INFO

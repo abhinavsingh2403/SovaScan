@@ -9,6 +9,7 @@ import type {
   ComplianceReport,
   ComplianceControl,
   ScanProgressEvent,
+  SovaNotification,
 } from '../types';
 
 /* ============================================================
@@ -103,6 +104,11 @@ const mapDashboardSummary = (d: Record<string, unknown>): DashboardSummary => {
    ============================================================ */
 
 const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'Governance', 'Network', 'Data Security', 'Vulnerability Management',
+    'Access Control', 'Code Auditing', 'Audit Trails', 'Encryption',
+    'Incident Response', 'Subnet Protection',
+  ],
   'NIST-CSF': [
     'Identify', 'Identify', 'Protect', 'Protect', 'Protect',
     'Detect', 'Detect', 'Respond', 'Respond', 'Recover',
@@ -119,6 +125,13 @@ const FRAMEWORK_CATEGORIES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
+  'RBI-CSF': [
+    'RBI-1.1: Baseline Cybersecurity Controls', 'RBI-2.4: Network Subnet & Access Isolation',
+    'RBI-3.1: Data Integrity & Secret Encryption', 'RBI-4.2: Vulnerability & Dependency Management',
+    'RBI-5.6: User Access Control & Key Security', 'RBI-6.3: Static Application Security Testing (SAST)',
+    'RBI-7.1: Continuous Monitoring & Audit Logs', 'RBI-3.5: Cryptographic Hashing Standards',
+    'RBI-6.8: Real-Time Incident Response Alerts', 'RBI-2.8: SSRF Outbound Firewall Controls',
+  ],
   'NIST-CSF': [
     'Asset Management (ID.AM)', 'Risk Assessment (ID.RA)',
     'Identity Management & Access Control (PR.AC)', 'Data Security & Encryption (PR.DS)',
@@ -143,9 +156,12 @@ const FRAMEWORK_CONTROL_NAMES: Record<string, string[]> = {
 };
 
 const FRAMEWORK_FULL_NAMES: Record<string, string> = {
+  'RBI-CSF': 'Reserve Bank of India Cybersecurity Framework',
   'NIST-CSF': 'NIST Cybersecurity Framework',
   'SOC-2': 'SOC 2 Type II Compliance Standard',
   'OWASP-10': 'OWASP Top 10 Security Risks',
+  'rbi-csf': 'Reserve Bank of India Cybersecurity Framework',
+  'rbi': 'Reserve Bank of India Cybersecurity Framework',
   'nist-csf': 'NIST Cybersecurity Framework',
   'soc-2': 'SOC 2 Type II Compliance Standard',
   'soc2': 'SOC 2 Type II Compliance Standard',
@@ -250,6 +266,7 @@ function generateComplianceControls(framework: string, violatingFindings: Findin
 interface SovaState {
   scans: Scan[];
   findings: Finding[];
+  totalFindingsCount: number;
   dashboardSummary: DashboardSummary | null;
   complianceReports: Record<string, ComplianceReport>;
   loading: boolean;
@@ -260,28 +277,86 @@ interface SovaState {
     phase: string;
     percent: number;
     findingsCount: number;
+    activeScanId?: string;
+    pollIntervalId?: ReturnType<typeof setInterval>;
   };
+  notifications: SovaNotification[];
+  theme: 'dark' | 'light';
 
   fetchDashboard: () => Promise<void>;
   fetchScans: () => Promise<void>;
   fetchFindings: (scanId?: string) => Promise<void>;
   fetchComplianceReport: (framework: string) => Promise<void>;
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
+  cancelScan: (scanId?: string) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
   fixAllFindings: () => Promise<any[]>;
   fixAllScanFindings: (scanId: string) => Promise<any[]>;
+  addNotification: (notification: Omit<SovaNotification, 'id' | 'timestamp' | 'read'>) => void;
+  markNotificationAsRead: (id: string) => void;
+  markAllNotificationsAsRead: () => void;
+  clearNotifications: () => void;
+  setTheme: (theme: 'dark' | 'light') => void;
+  toggleTheme: () => void;
 }
 
 /* ============================================================
    Store Implementation
    ============================================================ */
 
+const getEnableNotificationsSetting = (): boolean => {
+  try {
+    const stored = localStorage.getItem('sovascan-settings');
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      return parsed.enableNotifications !== false;
+    }
+  } catch {
+    // ignore
+  }
+  return true;
+};
+
+const loadNotifications = (): SovaNotification[] => {
+  try {
+    const stored = localStorage.getItem('sovascan-notifications');
+    return stored ? JSON.parse(stored) : [];
+  } catch {
+    return [];
+  }
+};
+
+const saveNotifications = (notifs: SovaNotification[]) => {
+  try {
+    localStorage.setItem('sovascan-notifications', JSON.stringify(notifs));
+  } catch (err) {
+    console.error('Failed to save notifications', err);
+  }
+};
+
+const getInitialTheme = (): 'dark' | 'light' => {
+  try {
+    const saved = localStorage.getItem('sovascan-theme');
+    if (saved === 'light' || saved === 'dark') {
+      document.documentElement.setAttribute('data-theme', saved);
+      return saved;
+    }
+  } catch {
+    // ignore
+  }
+  document.documentElement.setAttribute('data-theme', 'dark');
+  return 'dark';
+};
+
 export const useStore = create<SovaState>((set, get) => ({
   scans: [],
   findings: [],
+  totalFindingsCount: 0,
   dashboardSummary: null,
   complianceReports: {},
+  notifications: loadNotifications(),
+  theme: getInitialTheme(),
   loading: false,
   error: null,
   selectedScan: null,
@@ -290,6 +365,22 @@ export const useStore = create<SovaState>((set, get) => ({
     phase: '',
     percent: 0,
     findingsCount: 0,
+  },
+
+  setTheme: (theme: 'dark' | 'light') => {
+    try {
+      localStorage.setItem('sovascan-theme', theme);
+    } catch {
+      // ignore
+    }
+    document.documentElement.setAttribute('data-theme', theme);
+    set({ theme });
+  },
+
+  toggleTheme: () => {
+    const current = get().theme;
+    const next = current === 'dark' ? 'light' : 'dark';
+    get().setTheme(next);
   },
 
   /* -------------------------------------------------------
@@ -327,13 +418,13 @@ export const useStore = create<SovaState>((set, get) => ({
   fetchFindings: async (scanId?: string) => {
     set({ loading: true, error: null });
     try {
-      const params: Record<string, unknown> = { per_page: 100 };
+      const params: Record<string, unknown> = { per_page: 10000 };
       if (scanId) params.scan_id = scanId;
       const res = await api.getFindings(params as Parameters<typeof api.getFindings>[0]);
-      const findings: Finding[] = (
-        (res.data.findings ?? []) as Record<string, unknown>[]
-      ).map(mapFinding);
-      set({ findings, loading: false });
+      const rawFindings = (res.data.findings ?? []) as Record<string, unknown>[];
+      const findings: Finding[] = rawFindings.map(mapFinding);
+      const total = (res.data.total as number) ?? findings.length;
+      set({ findings, totalFindingsCount: total, loading: false });
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to load findings';
       set({ error: message, loading: false });
@@ -355,18 +446,55 @@ export const useStore = create<SovaState>((set, get) => ({
       const rawFindings = (data.findings ?? []) as Record<string, unknown>[];
       const mappedFindings = rawFindings.map(mapFinding);
 
-      // Generate the 12-row control checklist grid dynamically
-      const controls = generateComplianceControls(framework, mappedFindings);
-      const passedCount = controls.filter((c) => c.status === 'passed').length;
-      const failedCount = controls.filter((c) => c.status === 'failed').length;
-      const naCount = controls.filter((c) => c.status === 'not-applicable').length;
+      // Merge compliance findings into the store so Compliance.tsx
+      // can look up finding details via getControlFindings()
+      if (mappedFindings.length > 0) {
+        set((state) => {
+          const existingIds = new Set(state.findings.map((f) => f.id));
+          const newFindings = mappedFindings.filter((f) => !existingIds.has(f.id));
+          return newFindings.length > 0
+            ? { findings: [...state.findings, ...newFindings] }
+            : {};
+        });
+      }
 
-      // Calculate the compliance score dynamically to align perfectly with the checklist stats.
-      // We exclude N/A (Not Applicable) controls from the baseline, which is standard compliance practice.
-      const totalApplicable = controls.length - naCount;
-      const calculatedScore = totalApplicable > 0 
-        ? Math.round((passedCount / totalApplicable) * 100) 
-        : 100;
+      // Use backend-provided controls directly instead of client-side heuristic
+      const rawControls = (data.controls ?? []) as Record<string, unknown>[];
+      let controls: ComplianceControl[];
+      let passedCount: number;
+      let failedCount: number;
+      let naCount: number;
+      let calculatedScore: number;
+
+      if (rawControls.length > 0) {
+        // Server-authoritative: use backend controls and score
+        controls = rawControls.map((c) => ({
+          id: (c.id as string) ?? '',
+          name: (c.name as string) ?? '',
+          description: (c.description as string) ?? '',
+          status: ((c.status as string) === 'failed'
+            ? 'failed'
+            : (c.status as string) === 'not-applicable'
+              ? 'not-applicable'
+              : 'passed') as ComplianceControl['status'],
+          category: (c.category as string) ?? '',
+          findings: ((c.findings ?? []) as string[]),
+        }));
+        passedCount = (data.passed as number) ?? controls.filter((c) => c.status === 'passed').length;
+        failedCount = (data.failed as number) ?? controls.filter((c) => c.status === 'failed').length;
+        naCount = controls.filter((c) => c.status === 'not-applicable').length;
+        calculatedScore = Math.round((data.score as number) ?? 0);
+      } else {
+        // Fallback: generate controls client-side if backend returns none
+        controls = generateComplianceControls(framework, mappedFindings);
+        passedCount = controls.filter((c) => c.status === 'passed').length;
+        failedCount = controls.filter((c) => c.status === 'failed').length;
+        naCount = controls.filter((c) => c.status === 'not-applicable').length;
+        const totalApplicable = controls.length - naCount;
+        calculatedScore = totalApplicable > 0
+          ? Math.round((passedCount / totalApplicable) * 100)
+          : 100;
+      }
 
       const report: ComplianceReport = {
         framework,
@@ -400,10 +528,14 @@ export const useStore = create<SovaState>((set, get) => ({
      with automatic polling fallback.
      ------------------------------------------------------- */
   startScan: async (target: string, scanType: string, _frameworks: string[]) => {
+    // Clear any existing poll interval from a previous scan
+    const prevPollId = get().scanProgress.pollIntervalId;
+    if (prevPollId) clearInterval(prevPollId);
+
     set({
       loading: true,
       error: null,
-      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0 },
+      scanProgress: { running: true, phase: 'Initializing scan...', percent: 0, findingsCount: 0, pollIntervalId: undefined },
     });
 
     try {
@@ -415,6 +547,16 @@ export const useStore = create<SovaState>((set, get) => ({
       if (!scanId) {
         throw new Error('No scan ID returned from server');
       }
+
+      set((state) => ({
+        scanProgress: { ...state.scanProgress, activeScanId: scanId },
+      }));
+
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Started',
+        message: `Scanning target: ${target.substring(target.lastIndexOf('/') + 1 || target.lastIndexOf('\\') + 1 || 0)}`,
+      });
 
       // Connect to WebSocket for real-time progress
       const ws = createScanWebSocket(scanId);
@@ -437,6 +579,7 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || msg.status || 'Scanning...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
               break;
@@ -448,8 +591,16 @@ export const useStore = create<SovaState>((set, get) => ({
                   phase: msg.phase || 'Analyzing...',
                   percent: msg.percent,
                   findingsCount: msg.findings_count,
+                  activeScanId: scanId,
                 },
               });
+              if (msg.finding) {
+                get().addNotification({
+                  type: 'warning',
+                  title: 'Finding Discovered',
+                  message: `${msg.finding.title} (${msg.finding.severity.toUpperCase()}) found in ${msg.finding.file_path}`,
+                });
+              }
               break;
 
             case 'scan_complete': {
@@ -463,6 +614,11 @@ export const useStore = create<SovaState>((set, get) => ({
                 loading: false,
               });
               ws.close();
+              get().addNotification({
+                type: 'success',
+                title: 'Scan Completed',
+                message: `Scan successfully completed. Found ${msg.findings_count} vulnerabilities.`,
+              });
               // Refresh all data views
               const store = useStore.getState();
               store.fetchDashboard();
@@ -483,6 +639,11 @@ export const useStore = create<SovaState>((set, get) => ({
                 error: msg.error || 'Scan execution failed',
               });
               ws.close();
+              get().addNotification({
+                type: 'error',
+                title: 'Scan Failed',
+                message: msg.error || 'Scan execution failed',
+              });
               break;
 
             case 'keepalive':
@@ -511,8 +672,13 @@ export const useStore = create<SovaState>((set, get) => ({
               if (status === 'completed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
                   loading: false,
+                });
+                get().addNotification({
+                  type: 'success',
+                  title: 'Scan Completed',
+                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
                 });
                 const store = useStore.getState();
                 store.fetchDashboard();
@@ -521,22 +687,30 @@ export const useStore = create<SovaState>((set, get) => ({
               } else if (status === 'failed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
                   loading: false,
                   error: 'Scan execution failed',
+                });
+                get().addNotification({
+                  type: 'error',
+                  title: 'Scan Failed',
+                  message: 'Scan execution failed',
                 });
               }
             } catch (pollErr) {
               console.error('Polling error:', pollErr);
             }
           }, 3000);
+          // Track poll interval so it can be cleaned up
+          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
         }
       };
 
       ws.onclose = () => {
         // Ensure loading state is cleared if WS closes unexpectedly
         const { scanProgress } = useStore.getState();
-        if (scanProgress.running) {
+        // Only start polling if scan is still running AND no poll interval is already active
+        if (scanProgress.running && !scanProgress.pollIntervalId) {
           // WS closed while scan was still running — start polling fallback
           const pollInterval = setInterval(async () => {
             try {
@@ -547,8 +721,13 @@ export const useStore = create<SovaState>((set, get) => ({
               if (status === 'completed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings },
+                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
                   loading: false,
+                });
+                get().addNotification({
+                  type: 'success',
+                  title: 'Scan Completed',
+                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
                 });
                 const store = useStore.getState();
                 store.fetchDashboard();
@@ -557,15 +736,22 @@ export const useStore = create<SovaState>((set, get) => ({
               } else if (status === 'failed') {
                 clearInterval(pollInterval);
                 set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0 },
+                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
                   loading: false,
                   error: 'Scan execution failed',
+                });
+                get().addNotification({
+                  type: 'error',
+                  title: 'Scan Failed',
+                  message: 'Scan execution failed',
                 });
               }
             } catch (pollErr) {
               console.error('Polling error:', pollErr);
             }
           }, 3000);
+          // Track poll interval so it can be cleaned up
+          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
         }
       };
 
@@ -573,7 +759,57 @@ export const useStore = create<SovaState>((set, get) => ({
       set({
         loading: false,
         error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
-        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0 },
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0, activeScanId: undefined },
+      });
+    }
+  },
+
+  /* -------------------------------------------------------
+     cancelScan — abort active running scan
+     ------------------------------------------------------- */
+  cancelScan: async (scanId?: string) => {
+    let targetId = scanId || get().scanProgress.activeScanId;
+    if (!targetId) {
+      const runningScan = get().scans.find((s) => s.status === 'running' || s.status === 'pending');
+      if (runningScan) {
+        targetId = runningScan.id;
+      }
+    }
+    if (!targetId) {
+      console.warn('cancelScan invoked but no active or running scan ID was found');
+      return;
+    }
+
+    try {
+      // Clear any active poll interval before cancelling
+      const pollId = get().scanProgress.pollIntervalId;
+      if (pollId) clearInterval(pollId);
+
+      await api.cancelScan(targetId);
+      set({
+        scanProgress: {
+          running: false,
+          phase: 'Scan cancelled by user',
+          percent: 0,
+          findingsCount: 0,
+          activeScanId: undefined,
+          pollIntervalId: undefined,
+        },
+        loading: false,
+      });
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Cancelled',
+        message: 'Active security scan was terminated.',
+      });
+      get().fetchDashboard();
+      get().fetchScans();
+    } catch (err: any) {
+      console.error('Failed to cancel scan:', err);
+      get().addNotification({
+        type: 'error',
+        title: 'Cancellation Error',
+        message: err?.message || 'Failed to cancel scan',
       });
     }
   },
@@ -629,4 +865,37 @@ export const useStore = create<SovaState>((set, get) => ({
       return [];
     }
   },
+
+  addNotification: (n) => {
+    if (!getEnableNotificationsSetting()) return;
+    const newNotif: SovaNotification = {
+      ...n,
+      id: Math.random().toString(36).substring(2, 9),
+      timestamp: new Date().toISOString(),
+      read: false,
+    };
+    const updated = [newNotif, ...get().notifications];
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  markNotificationAsRead: (id) => {
+    const updated = get().notifications.map((n) =>
+      n.id === id ? { ...n, read: true } : n
+    );
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  markAllNotificationsAsRead: () => {
+    const updated = get().notifications.map((n) => ({ ...n, read: true }));
+    set({ notifications: updated });
+    saveNotifications(updated);
+  },
+
+  clearNotifications: () => {
+    set({ notifications: [] });
+    saveNotifications([]);
+  },
 }));
+
