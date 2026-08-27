@@ -449,6 +449,7 @@ class ScanManager:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
                 target_clean = target.strip().strip("\"'")
                 target_path = Path(target_clean)
+                found_fallback = None
                 if not target_path.exists():
                     # Intelligent cloud sandbox resolution when scanning client folder paths on remote container
                     possible_fallbacks = [
@@ -457,7 +458,6 @@ class ScanManager:
                         Path(__file__).parent.parent.parent / "vulnerable-test-target",
                         Path("backend"),
                     ]
-                    found_fallback = None
                     for fb in possible_fallbacks:
                         if fb.exists() and fb.is_dir():
                             found_fallback = fb

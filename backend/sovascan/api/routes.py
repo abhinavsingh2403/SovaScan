@@ -2,6 +2,7 @@
 
 import json
 import logging
+import os
 import uuid
 from datetime import UTC, datetime
 from pathlib import Path
@@ -126,6 +127,13 @@ async def create_scan(
     else:
         if "://" in target_clean:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
+        is_client_drive = (
+            (len(target_clean) >= 2 and target_clean[1] == ":" and target_clean[0].isalpha())
+            or target_clean.startswith("\\\\")
+            or bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+        )
+        if not is_client_drive and not Path(target_clean).exists():
+            raise HTTPException(status_code=400, detail=f"Target path does not exist: {target_clean}")
 
     scan = Scan(
         id=str(uuid.uuid4()),
