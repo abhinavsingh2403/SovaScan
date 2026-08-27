@@ -102,7 +102,26 @@ const Scan: React.FC = () => {
                   required
                 />
               </div>
-              <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
+              <div className="quick-presets" style={{ display: 'flex', gap: '8px', marginTop: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
+                <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>Quick test targets:</span>
+                <button
+                  type="button"
+                  onClick={() => setTargetPath('./vulnerable-test-target')}
+                  style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(99,102,241,0.35)', background: 'rgba(99,102,241,0.15)', color: 'var(--text-primary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  📦 Demo Vulnerable Target
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
+                  style={{ fontSize: '11px', padding: '4px 10px', borderRadius: '6px', border: '1px solid rgba(16,185,129,0.35)', background: 'rgba(16,185,129,0.15)', color: 'var(--text-primary)', cursor: 'pointer', display: 'inline-flex', alignItems: 'center', gap: '4px' }}
+                >
+                  🔗 SovaScan Repo (GitHub)
+                </button>
+              </div>
+              <p className="field-help" style={{ marginTop: '8px', lineHeight: '1.4' }}>
+                💡 <strong>Cloud vs Local:</strong> On this cloud deployment, enter any GitHub repository URL (e.g. <code>https://github.com/owner/repo</code>) or use the bundled <code>./vulnerable-test-target</code>. Local drive paths (like <code>C:\...</code>) are available when running SovaScan on your local machine.
+              </p>
             </div>
 
             <div className="form-group">

@@ -14,7 +14,6 @@ frontend/.env
 *.pdf
 *.sarif
 .github
-vulnerable-test-target
 walkthrough.md
 BACKEND_CHANGELOG.md
 package-lock.json

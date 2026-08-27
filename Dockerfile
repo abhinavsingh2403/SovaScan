@@ -43,6 +43,9 @@ COPY --from=backend-builder /install /usr/local
 # Copy backend source files
 COPY backend/ ./backend/
 
+# Copy vulnerable demo target for immediate sandbox scanning
+COPY vulnerable-test-target/ ./vulnerable-test-target/
+
 # Copy built frontend dist
 COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 
