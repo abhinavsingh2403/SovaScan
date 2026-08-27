@@ -124,12 +124,23 @@ def create_app() -> FastAPI:
 
     # Mount static frontend React dashboard if built
     import os
+    from pathlib import Path
 
     from fastapi.responses import FileResponse
     from fastapi.staticfiles import StaticFiles
 
-    dist_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../frontend/dist"))
-    if os.path.exists(dist_dir):
+    possible_dist_dirs = [
+        Path(__file__).parent.parent.parent / "frontend" / "dist",
+        Path("/app/frontend/dist"),
+        Path.cwd() / "frontend" / "dist",
+    ]
+    dist_dir = None
+    for candidate in possible_dist_dirs:
+        if candidate.exists() and (candidate / "index.html").exists():
+            dist_dir = str(candidate.resolve())
+            break
+
+    if dist_dir:
         assets_dir = os.path.join(dist_dir, "assets")
         if os.path.exists(assets_dir):
             application.mount("/assets", StaticFiles(directory=assets_dir), name="assets")
