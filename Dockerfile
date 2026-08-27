@@ -7,7 +7,7 @@ FROM node:18-alpine AS frontend-builder
 
 WORKDIR /build/frontend
 COPY frontend/package.json frontend/package-lock.json* ./
-RUN npm ci --no-audit --no-fund
+RUN npm install --no-audit --no-fund
 COPY frontend/ ./
 RUN npm run build
 
@@ -29,7 +29,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends git libpq5 && \
+    apt-get install -y --no-install-recommends git libpq5 curl && \
     rm -rf /var/lib/apt/lists/* && \
     addgroup --system sovascan && \
     adduser --system --ingroup sovascan sovascan
@@ -43,16 +43,17 @@ COPY backend/ ./backend/
 # Copy built frontend dist into the location server.py expects
 COPY --from=frontend-builder /build/frontend/dist ./frontend/dist
 
-# Create data directory for SQLite with proper permissions
-RUN mkdir -p /app/data && chown -R sovascan:sovascan /app
+# Set Python path to find the sovascan package
+ENV PYTHONPATH=/app/backend
+ENV PYTHONUNBUFFERED=1
+ENV PORT=8000
+
+# Fix permissions for SQLite database creation in /app
+RUN chown -R sovascan:sovascan /app
 
 USER sovascan
 
 EXPOSE 8000
 
-# Health check for Render and container orchestrators
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD python -c "import urllib.request; urllib.request.urlopen('http://localhost:8000/health')" || exit 1
-
-# Run uvicorn with production settings
-CMD ["python", "-m", "uvicorn", "backend.sovascan.server:app", "--host", "0.0.0.0", "--port", "8000", "--workers", "1", "--timeout-keep-alive", "65"]
+# Run uvicorn listening on the dynamically assigned $PORT provided by Render/Cloud hosts
+CMD ["sh", "-c", "exec python -m uvicorn sovascan.server:app --host 0.0.0.0 --port ${PORT:-8000}"]
