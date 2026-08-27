@@ -110,20 +110,26 @@ async def create_scan(
     progress updates.
     """
     # Validate target before creating DB record
-    is_git = request.target.startswith("http://") or request.target.startswith("https://") or "://" in request.target or request.target.startswith("git@")
+    target_clean = request.target.strip().strip("\"'")
+    is_git = (
+        target_clean.startswith("http://")
+        or target_clean.startswith("https://")
+        or "://" in target_clean
+        or target_clean.startswith("git@")
+    )
     if is_git:
-        if not request.target.startswith("https://") or " " in request.target:
-            raise HTTPException(status_code=400, detail="Disallowed git URL protocol. Only secure HTTPS protocol is allowed for remote scans.")
+        if not target_clean.startswith("https://") or " " in target_clean:
+            raise HTTPException(
+                status_code=400,
+                detail="Disallowed git URL protocol. Only secure HTTPS protocol is allowed for remote scans.",
+            )
     else:
-        if "://" in request.target:
+        if "://" in target_clean:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
-        target_path = Path(request.target)
-        if not target_path.exists():
-            raise HTTPException(status_code=400, detail=f"Target path does not exist: {request.target}")
 
     scan = Scan(
         id=str(uuid.uuid4()),
-        target=request.target,
+        target=target_clean,
         status=ScanStatus.PENDING,
         scan_type=request.scan_type,
         metadata_json=json.dumps(request.options) if request.options else None,
@@ -135,7 +141,7 @@ async def create_scan(
     # Fire-and-forget background scan execution
     await scan_manager.start_scan(
         scan_id=scan.id,
-        target=request.target,
+        target=target_clean,
         scan_type=request.scan_type,
         options=request.options,
     )

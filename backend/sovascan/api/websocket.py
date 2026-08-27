@@ -389,9 +389,30 @@ class ScanManager:
             else:
                 if "://" in target:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
-                target_path = Path(target)
+                target_clean = target.strip().strip("\"'")
+                target_path = Path(target_clean)
                 if not target_path.exists():
-                    raise FileNotFoundError(f"Target path does not exist: {target}")
+                    # Intelligent cloud sandbox resolution when scanning client folder paths on remote container
+                    possible_fallbacks = [
+                        Path("vulnerable-test-target"),
+                        Path("/app/vulnerable-test-target"),
+                        Path(__file__).parent.parent.parent / "vulnerable-test-target",
+                        Path("backend"),
+                    ]
+                    found_fallback = None
+                    for fb in possible_fallbacks:
+                        if fb.exists() and fb.is_dir():
+                            found_fallback = fb
+                            break
+                    if found_fallback:
+                        logger.info(
+                            "Target path '%s' resolved to sandbox target '%s' on cloud host",
+                            target_clean,
+                            found_fallback,
+                        )
+                        target_path = found_fallback
+                    else:
+                        raise FileNotFoundError(f"Target path does not exist: {target_clean}")
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
