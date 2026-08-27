@@ -152,7 +152,10 @@ class ScanProgressEvent(BaseModel):
 
 def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
     """Sends a real-time webhook alert to Slack/Teams when a scan finishes, ensuring SSRF protection."""
+    import os
+
     from sovascan.config import is_safe_webhook_url
+
     settings = get_settings()
     url = settings.SLACK_WEBHOOK_URL
     if not url:
@@ -160,8 +163,14 @@ def send_slack_alert(scan_target: str, critical_count: int, high_count: int, sca
 
     # Enforce SSRF protection
     if not is_safe_webhook_url(url):
-        logger.warning(f"Aborting Slack webhook dispatch: URL '{url}' is classified as unsafe (internal/loopback/non-HTTPS).")
+        logger.warning("Aborting Slack webhook dispatch: URL '%s' is classified as unsafe (internal/loopback/non-HTTPS).", url)
         return
+
+    base_domain = os.environ.get("RENDER_EXTERNAL_URL", "").strip().rstrip("/")
+    if not base_domain:
+        base_domain = os.environ.get("PUBLIC_APP_URL", "https://sovascan.onrender.com").strip().rstrip("/")
+
+    report_url = f"{base_domain}/report/{scan_id}" if scan_id else f"{base_domain}/report"
 
     payload = {
         "text": f"🚨 *SovaScan Security Alert*\n"
@@ -169,13 +178,13 @@ def send_slack_alert(scan_target: str, critical_count: int, high_count: int, sca
                 f"*Target:* `{scan_target}`\n"
                 f"*Critical Vulnerabilities:* `{critical_count}`\n"
                 f"*High Vulnerabilities:* `{high_count}`\n"
-                f"🔗 <http://localhost:8000/report/{scan_id}|View Audit Report>"
+                f"🔗 <{report_url}|View Audit Report>"
     }
     try:
         with httpx.Client(timeout=5.0) as client:
             client.post(url, json=payload)
     except Exception as e:
-        logger.error(f"Failed to send Slack webhook alert: {e}")
+        logger.error("Failed to send Slack webhook alert: %s", e)
 
 
 def _filter_and_adapt_findings_for_target(
