@@ -127,10 +127,10 @@ def resolve_git_url_and_branch(target: str, options: dict[str, Any] | None = Non
     return repo_url, branch, subpath
 
 
-
 # ---------------------------------------------------------------------------
 # Event schema
 # ---------------------------------------------------------------------------
+
 
 class ScanProgressEvent(BaseModel):
     """A single event sent over the WebSocket during a scan."""
@@ -148,6 +148,7 @@ class ScanProgressEvent(BaseModel):
     def to_json(self) -> str:
         """Serialize to JSON string for WebSocket transmission."""
         return self.model_dump_json()
+
 
 def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
     """Sends a real-time webhook alert to Slack/Teams when a scan finishes, ensuring SSRF protection."""

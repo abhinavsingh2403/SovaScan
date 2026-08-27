@@ -11,6 +11,7 @@ from sovascan.models.base import get_db
 # Define header key lookup
 api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
+
 def verify_api_key(
     api_key_str: str = Security(api_key_header),
     db: Session = Depends(get_db)

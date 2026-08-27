@@ -1626,4 +1626,3 @@ def test_system_webhook(
         raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}") from e
 
     return {"detail": "Test webhook alert sent successfully!"}
-

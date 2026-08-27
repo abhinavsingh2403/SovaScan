@@ -9,6 +9,7 @@ logger = logging.getLogger(__name__)
 # Pattern to normalize and match CVE IDs
 CVE_PATTERN = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
 
+
 @dataclass
 class ThreatIntelRecord:
     cve_id: str
@@ -19,6 +20,7 @@ class ThreatIntelRecord:
     sources: list[str] = field(default_factory=list)
     summary: str = ""
     remediation_urgency: str = ""
+
 
 class ThreatIntelEnricher:
     # URL feeds
