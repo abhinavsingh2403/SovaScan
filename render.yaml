@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: sovascan
+    runtime: docker
+    repo: https://github.com/abhinavsingh2403/SovaScan
+    branch: master
+    dockerfilePath: ./Dockerfile
+    plan: free
+    healthCheckPath: /health
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///./sovascan.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: DEBUG
+        value: "false"
+      - key: API_HOST
+        value: 0.0.0.0
+      - key: API_PORT
+        value: "8000"
+      - key: ALLOWED_ORIGINS
+        value: '["*"]'
