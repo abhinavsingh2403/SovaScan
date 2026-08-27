@@ -9,24 +9,24 @@ Provides:
 from __future__ import annotations
 
 import asyncio
+import hashlib
 import json
 import logging
-import hashlib
 import uuid
-import httpx
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
+import httpx
 from fastapi import WebSocket, WebSocketDisconnect, status
 from pydantic import BaseModel
-from sovascan.models.api_key import ApiKey
-from sovascan.config import get_settings
 
+from sovascan.config import get_settings
 from sovascan.core.git_history_scanner import GitHistoryScanner
 from sovascan.core.orchestrator import ScanOrchestrator
 from sovascan.core.sast_scanner import SASTScanner
 from sovascan.core.severity_scorer import normalize_severity
+from sovascan.models.api_key import ApiKey
 from sovascan.models.base import SessionLocal
 from sovascan.models.finding import Finding as FindingModel
 from sovascan.models.finding import Severity
@@ -151,17 +151,17 @@ class ScanProgressEvent(BaseModel):
 
 def send_slack_alert(scan_target: str, critical_count: int, high_count: int, scan_id: str):
     """Sends a real-time webhook alert to Slack/Teams when a scan finishes, ensuring SSRF protection."""
-    from sovascan.config import get_settings, is_safe_webhook_url
+    from sovascan.config import is_safe_webhook_url
     settings = get_settings()
     url = settings.SLACK_WEBHOOK_URL
     if not url:
         return
-        
+
     # Enforce SSRF protection
     if not is_safe_webhook_url(url):
         logger.warning(f"Aborting Slack webhook dispatch: URL '{url}' is classified as unsafe (internal/loopback/non-HTTPS).")
         return
-        
+
     payload = {
         "text": f"🚨 *SovaScan Security Alert*\n"
                 "🛡️ *RBI CSF & PCI-DSS Audit Status*\n"
@@ -346,9 +346,9 @@ class ScanManager:
             if is_git:
                 if not is_allowed_git_url(target):
                     raise ValueError("Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
-                
+
                 repo_url, branch, subpath = resolve_git_url_and_branch(target, options)
-                
+
                 import subprocess
                 import tempfile
                 temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
@@ -364,12 +364,12 @@ class ScanManager:
                         findings_count=findings_count,
                     ),
                 )
-                
+
                 clone_cmd = ["git", "clone", "--depth", "1"]
                 if branch:
                     clone_cmd.extend(["--branch", branch])
                 clone_cmd.extend([repo_url, str(clone_path)])
-                
+
                 proc = subprocess.run(
                     clone_cmd,
                     capture_output=True,
@@ -378,7 +378,7 @@ class ScanManager:
                 )
                 if proc.returncode != 0:
                     raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
-                
+
                 if subpath:
                     target_path = clone_path / subpath
                     if not target_path.exists():
@@ -429,7 +429,7 @@ class ScanManager:
             for sf in result.findings:
                 sev = normalize_severity(sf.severity.value if hasattr(sf.severity, "value") else str(sf.severity))
                 clean_file_path = _clean_path(sf.file_path, target_path)
-                
+
                 evidence = sf.evidence or ""
                 if not evidence or evidence.strip() == "requires login":
                     try:
@@ -443,7 +443,7 @@ class ScanManager:
                         logger.warning("Failed to fallback evidence reading: %s", e)
 
                 evidence_prefix = evidence[:120]
-                
+
                 dedup_key = (
                     sf.id,
                     clean_file_path,
@@ -510,7 +510,7 @@ class ScanManager:
                 for sast_finding_dict in self._run_sast_to_dicts(sast, target_path):
                     sev = normalize_severity(sast_finding_dict["severity"])
                     clean_file_path = _clean_path(sast_finding_dict.get("file_path", ""), target_path)
-                    
+
                     evidence = sast_finding_dict.get("evidence", "") or ""
                     if not evidence or evidence.strip() == "requires login":
                         try:
@@ -524,7 +524,7 @@ class ScanManager:
                             logger.warning("Failed to fallback evidence reading: %s", e)
 
                     evidence_prefix = evidence[:120]
-                    
+
                     dedup_key = (
                         sast_finding_dict["rule_id"],
                         clean_file_path,
@@ -666,7 +666,7 @@ class ScanManager:
                 if scan_row:
                     scan_row.status = ScanStatus.FAILED
                     scan_row.completed_at = datetime.now(UTC)
-                    
+
                     metadata = {}
                     if scan_row.metadata_json:
                         try:
@@ -767,7 +767,7 @@ async def scan_websocket(websocket: WebSocket, scan_id: str) -> None:
         key_hash = hashlib.sha256(api_key_str.encode("utf-8")).hexdigest()
         db_key = db.query(ApiKey).filter(
             ApiKey.key_hash == key_hash,
-            ApiKey.is_active == True
+            ApiKey.is_active.is_(True),
         ).first()
 
         if not db_key:

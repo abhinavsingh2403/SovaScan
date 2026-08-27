@@ -1,7 +1,8 @@
-import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
+
 from sovascan.models.api_key import ApiKey
+
 
 def test_api_key_authentication_required(client: TestClient) -> None:
     """Verify that requests without a valid X-API-Key header fail with 401 Unauthorized."""

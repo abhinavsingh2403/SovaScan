@@ -1,6 +1,6 @@
 """Pydantic v2 request / response schemas for the SovaScan API."""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from pydantic import BaseModel, Field, field_serializer
@@ -89,7 +89,7 @@ class ScanResponse(BaseModel):
     def serialize_datetime(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         return tz_aware.isoformat().replace("+00:00", "Z")
 
     model_config = {"from_attributes": True}
@@ -126,7 +126,7 @@ class FindingResponse(BaseModel):
     def serialize_datetime(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         return tz_aware.isoformat().replace("+00:00", "Z")
 
     model_config = {"from_attributes": True}
@@ -160,7 +160,7 @@ class SBOMResponse(BaseModel):
 
     @field_serializer("generated_at")
     def serialize_datetime(self, dt: datetime) -> str:
-        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         return tz_aware.isoformat().replace("+00:00", "Z")
 
 
@@ -252,7 +252,7 @@ class ScanProgressEvent(BaseModel):
     def serialize_datetime(self, dt: datetime | None) -> str | None:
         if dt is None:
             return None
-        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         return tz_aware.isoformat().replace("+00:00", "Z")
 
 
@@ -273,7 +273,7 @@ class ThreatIntelScanResponse(BaseModel):
 
     @field_serializer("generated_at")
     def serialize_datetime(self, dt: datetime) -> str:
-        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+        tz_aware = dt if dt.tzinfo else dt.replace(tzinfo=UTC)
         return tz_aware.isoformat().replace("+00:00", "Z")
     total_cves: int
     known_exploited_count: int

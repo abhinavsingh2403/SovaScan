@@ -1,7 +1,7 @@
 import logging
 import re
 from dataclasses import dataclass, field
-from typing import Dict, List, Optional
+
 import httpx
 
 logger = logging.getLogger(__name__)
@@ -13,10 +13,10 @@ CVE_PATTERN = re.compile(r"CVE-\d{4}-\d{4,7}", re.IGNORECASE)
 class ThreatIntelRecord:
     cve_id: str
     known_exploited: bool = False
-    epss_score: Optional[float] = None
-    epss_percentile: Optional[float] = None
+    epss_score: float | None = None
+    epss_percentile: float | None = None
     priority: str = "monitor"
-    sources: List[str] = field(default_factory=list)
+    sources: list[str] = field(default_factory=list)
     summary: str = ""
     remediation_urgency: str = ""
 
@@ -26,12 +26,12 @@ class ThreatIntelEnricher:
     EPSS_API_URL = "https://api.first.org/data/v1/epss"
 
     # Thread-safe in-memory cache for CISA KEV catalog lookup
-    _cisa_kev_cache: Optional[Dict[str, dict]] = None
+    _cisa_kev_cache: dict[str, dict] | None = None
 
     def __init__(self):
         pass
 
-    def _load_cisa_kev_cache(self) -> Dict[str, dict]:
+    def _load_cisa_kev_cache(self) -> dict[str, dict]:
         """Loads and caches the CISA KEV catalog in memory using httpx."""
         if ThreatIntelEnricher._cisa_kev_cache is not None:
             return ThreatIntelEnricher._cisa_kev_cache
@@ -58,7 +58,7 @@ class ThreatIntelEnricher:
         ThreatIntelEnricher._cisa_kev_cache = cache
         return cache
 
-    def _fetch_epss_scores(self, cve_ids: List[str]) -> Dict[str, dict]:
+    def _fetch_epss_scores(self, cve_ids: list[str]) -> dict[str, dict]:
         """Queries the FIRST EPSS API for scores of given CVE list."""
         scores = {}
         if not cve_ids:
@@ -88,8 +88,8 @@ class ThreatIntelEnricher:
         self,
         cve_id: str,
         known_exploited: bool,
-        epss_score: Optional[float],
-        cvss_score: Optional[float] = None
+        epss_score: float | None,
+        cvss_score: float | None = None
     ) -> tuple[str, str]:
         """Calculates remediation priority and urgency string based on CISA KEV status,
 
@@ -115,9 +115,9 @@ class ThreatIntelEnricher:
 
     def enrich_cves(
         self,
-        cve_ids: List[str],
-        cvss_scores: Optional[Dict[str, float]] = None
-    ) -> Dict[str, ThreatIntelRecord]:
+        cve_ids: list[str],
+        cvss_scores: dict[str, float] | None = None
+    ) -> dict[str, ThreatIntelRecord]:
         """Enriches a list of CVE IDs with CISA KEV and EPSS intelligence data."""
         enriched = {}
         if not cve_ids:

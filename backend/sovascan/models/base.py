@@ -57,9 +57,9 @@ def init_db() -> None:
     is a no-op for tables that already exist.
     """
     # Import models so they register with Base.metadata
+    from sovascan.models import api_key as _api_key_mod  # noqa: F401
     from sovascan.models import finding as _finding_mod  # noqa: F401
     from sovascan.models import scan as _scan_mod  # noqa: F401
-    from sovascan.models import api_key as _api_key_mod  # noqa: F401
 
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables created / verified")

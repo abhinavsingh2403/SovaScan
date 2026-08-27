@@ -1,6 +1,9 @@
 import datetime
-from sqlalchemy import Column, String, DateTime, Boolean
+
+from sqlalchemy import Boolean, Column, DateTime, String
+
 from sovascan.models.base import Base
+
 
 class ApiKey(Base):
     """SQLAlchemy model representing API Keys used for authentication."""
