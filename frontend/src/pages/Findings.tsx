@@ -1,6 +1,20 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
-import { Search, FileText } from 'lucide-react';
+import {
+  Search,
+  FileText,
+  Zap,
+  CheckCheck,
+  CheckCircle2,
+  Check,
+  RotateCcw,
+  ExternalLink,
+  ChevronDown,
+  FileCode,
+  AlertTriangle,
+  Sparkles,
+  Edit3,
+} from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import { Finding } from '../types';
@@ -397,16 +411,26 @@ const Findings: React.FC = () => {
           onClick={() => setCollapsedContext(prev => ({ ...prev, [finding.id]: !isCollapsed }))}
           style={{ cursor: 'pointer', userSelect: 'none' }}
         >
-          <span className="context-file-label">
-            📄 {ctx.filePath} {finding.isFixed && <span className="fixed-indicator-badge">✓ Applied</span>}
+          <span className="context-file-label" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            <FileCode size={14} style={{ color: 'var(--accent-primary)' }} />
+            <span>{ctx.filePath}</span>
+            {finding.isFixed && (
+              <span className="fixed-indicator-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+                <CheckCheck size={11} strokeWidth={2.5} /> Applied
+              </span>
+            )}
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <span className="context-line-range">Lines {ctx.lines[0]?.num}–{ctx.lines[ctx.lines.length - 1]?.num}</span>
-            <span className="collapse-chevron" style={{ 
-              transform: isCollapsed ? 'rotate(0deg)' : 'rotate(180deg)', 
-              transition: 'transform 0.2s',
-              display: 'inline-block'
-            }}>▼</span>
+            <ChevronDown
+              size={14}
+              className="collapse-chevron"
+              style={{
+                transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                display: 'inline-block',
+              }}
+            />
           </div>
         </div>
 
@@ -444,8 +468,10 @@ const Findings: React.FC = () => {
       <div className="split-diff-container" style={{ marginTop: '16px', marginBottom: '12px' }}>
         {/* Left Pane: Original Code */}
         <div className="split-pane original-pane" style={{ background: 'rgba(0, 0, 0, 0.25)' }}>
-          <div className="pane-header header-original" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#FF003C' }}>
-            <span className="pane-indicator">🔴 Original Code</span>
+          <div className="pane-header header-original" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#FF003C', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="pane-indicator" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <AlertTriangle size={13} strokeWidth={2} /> Original Code
+            </span>
             <span className="file-tag">Original</span>
           </div>
           <div className="pane-editor-wrap" style={{ padding: '12px', background: 'rgba(0, 0, 0, 0.15)' }}>
@@ -457,9 +483,13 @@ const Findings: React.FC = () => {
 
         {/* Right Pane: Proposed Sandbox Editor */}
         <div className="split-pane sandbox-pane" style={{ background: 'rgba(0, 0, 0, 0.25)' }}>
-          <div className="pane-header header-sandbox" style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#34d399' }}>
-            <span className="pane-indicator">🟢 Sandbox / Proposed Fix</span>
-            <span className="edit-badge">Editable ✏️</span>
+          <div className="pane-header header-sandbox" style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#34d399', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <span className="pane-indicator" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Sparkles size={13} strokeWidth={2} /> Sandbox / Proposed Fix
+            </span>
+            <span className="edit-badge" style={{ display: 'inline-flex', alignItems: 'center', gap: '4px' }}>
+              Editable <Edit3 size={11} strokeWidth={2} />
+            </span>
           </div>
           <div className="pane-editor-wrap" style={{ padding: '12px', background: 'rgba(0, 0, 0, 0.15)' }}>
             <textarea
@@ -681,8 +711,10 @@ const Findings: React.FC = () => {
             className="fix-all-btn"
             onClick={handleFixAll}
             disabled={applyingBulkFix}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {applyingBulkFix ? 'Applying Bulk Fixes...' : '⚡ Fix All (1-Go)'}
+            <Zap size={13} strokeWidth={2.2} />
+            {applyingBulkFix ? 'Applying Bulk Fixes...' : 'Fix All (1-Go)'}
           </button>
         )}
       </div>
@@ -728,17 +760,28 @@ const Findings: React.FC = () => {
                       <span className="cvss-badge">CVSS {finding.cvssScore}</span>
                     )}
                     {finding.isFixed ? (
-                      <span className="fixed-pill">✓ Fixed</span>
+                      <span className="fixed-pill" style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}>
+                        <CheckCheck size={12} strokeWidth={2.2} /> Fixed
+                      </span>
                     ) : (
                       <button
                         className="auto-fix-btn"
                         onClick={(e) => requestFixSuggestion(finding, e)}
                         disabled={loadingFixId === finding.id || applyingFixId === finding.id}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px' }}
                       >
-                        {loadingFixId === finding.id ? 'Loading...' : '⚡ Auto Fix'}
+                        <Zap size={12} strokeWidth={2.2} />
+                        {loadingFixId === finding.id ? 'Loading...' : 'Auto Fix'}
                       </button>
                     )}
-                    <span className={`chevron ${isExpanded ? 'up' : 'down'}`}>▼</span>
+                    <ChevronDown
+                      size={15}
+                      className={`chevron ${isExpanded ? 'up' : 'down'}`}
+                      style={{
+                        transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    />
                   </div>
                 </div>
 
@@ -787,18 +830,19 @@ const Findings: React.FC = () => {
                               className="editor-link-btn"
                               href={`vscode://file/${absPath}:${finding.lineNumber}`}
                               onClick={(e) => e.stopPropagation()}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                             >
-                              🖥️ Open in Editor (VS Code / Antigravity)
+                              <ExternalLink size={13} strokeWidth={2} /> Open in VS Code / Editor
                             </a>
                           );
                         }
                         return (
                           <span
                             className="editor-link-btn"
-                            style={{ opacity: 0.5, cursor: 'not-allowed' }}
+                            style={{ opacity: 0.5, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                             title="Cannot open remote git scan files — the cloned directory has been cleaned up"
                           >
-                            🖥️ Open in Editor (remote scan)
+                            <ExternalLink size={13} strokeWidth={2} /> Open in Editor (remote scan)
                           </span>
                         );
                       })()}
@@ -808,9 +852,9 @@ const Findings: React.FC = () => {
                           <button
                             className="confirm-fix-btn success-applied"
                             disabled={true}
-                            style={{ marginRight: '8px' }}
+                            style={{ marginRight: '8px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           >
-                            ✓ Applied to Disk
+                            <CheckCircle2 size={13} strokeWidth={2.2} /> Applied to Disk
                           </button>
                           <button
                             className="revert-fix-btn"
@@ -823,10 +867,14 @@ const Findings: React.FC = () => {
                               padding: '8px 16px',
                               borderRadius: '6px',
                               fontWeight: '600',
-                              cursor: 'pointer'
+                              cursor: 'pointer',
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '6px',
                             }}
                           >
-                            {applyingFixId === finding.id ? 'Reverting...' : '↩ Revert Fix'}
+                            <RotateCcw size={13} strokeWidth={2} />
+                            {applyingFixId === finding.id ? 'Reverting...' : 'Revert Fix'}
                           </button>
                         </>
                       ) : (
@@ -835,8 +883,10 @@ const Findings: React.FC = () => {
                             className="confirm-fix-btn"
                             onClick={() => confirmApplyFix(finding)}
                             disabled={applyingFixId === finding.id || loadingContextId === finding.id}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                           >
-                            {applyingFixId === finding.id ? 'Applying to disk...' : '✓ Confirm & Apply Fix'}
+                            <Check size={13} strokeWidth={2.2} />
+                            {applyingFixId === finding.id ? 'Applying to disk...' : 'Confirm & Apply Fix'}
                           </button>
                           
                           <button

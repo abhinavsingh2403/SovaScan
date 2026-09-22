@@ -10,9 +10,20 @@ import {
   Play,
   XCircle,
   Terminal,
+  Landmark,
+  ShieldCheck,
+  Lock,
+  ShieldAlert,
 } from 'lucide-react';
 import { useStore } from '../store';
 import './Scan.css';
+
+const fwIcons: Record<string, React.ReactNode> = {
+  'RBI-CSF': <Landmark size={14} strokeWidth={2} />,
+  'NIST-CSF': <ShieldCheck size={14} strokeWidth={2} />,
+  'SOC-2': <Lock size={14} strokeWidth={2} />,
+  'OWASP-10': <ShieldAlert size={14} strokeWidth={2} />,
+};
 
 const Scan: React.FC = () => {
   const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
@@ -237,6 +248,7 @@ const Scan: React.FC = () => {
                       onChange={() => handleFrameworkToggle(fw)}
                       disabled={scanProgress.running}
                     />
+                    <span className="checkbox-icon">{fwIcons[fw]}</span>
                     <span>{fw}</span>
                   </label>
                 ))}
@@ -273,8 +285,19 @@ const Scan: React.FC = () => {
               type="submit"
               className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() ? 'glow-cta' : ''}`}
               disabled={scanProgress.running || !targetPath.trim()}
+              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
             >
-              {scanProgress.running ? 'Scanning Execution in Progress...' : '🦉 Launch SovaScan'}
+              {scanProgress.running ? (
+                <>
+                  <div className="spinner" style={{ width: 16, height: 16, borderTopColor: '#fff' }} />
+                  <span>Scanning Execution in Progress...</span>
+                </>
+              ) : (
+                <>
+                  <Play size={16} fill="currentColor" />
+                  <span>Launch SovaScan Analysis</span>
+                </>
+              )}
             </button>
           </form>
         </div>

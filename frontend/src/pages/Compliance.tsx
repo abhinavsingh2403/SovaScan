@@ -10,6 +10,9 @@ import {
   XCircle,
   ChevronDown,
   ChevronUp,
+  Minus,
+  ArrowRight,
+  Shield,
 } from 'lucide-react';
 import { useStore } from '../store';
 import './Compliance.css';
@@ -209,7 +212,7 @@ const Compliance: React.FC = () => {
 
           <div className="controls-summary-breakdown">
             <div className="breakdown-stat passed">
-              <span className="stat-bullet">✔</span>
+              <span className="stat-bullet"><CheckCircle2 size={16} strokeWidth={2.2} /></span>
               <div className="stat-desc">
                 <strong>{report.passed} passed</strong>
                 <span>Audit aligned controls</span>
@@ -217,7 +220,7 @@ const Compliance: React.FC = () => {
               <span className="stat-pct">{report.totalControls > 0 ? Math.round((report.passed / report.totalControls) * 100) : 0}%</span>
             </div>
             <div className="breakdown-stat failed">
-              <span className="stat-bullet">✖</span>
+              <span className="stat-bullet"><XCircle size={16} strokeWidth={2.2} /></span>
               <div className="stat-desc">
                 <strong>{report.failed} failed</strong>
                 <span>Requires remediation</span>
@@ -225,7 +228,7 @@ const Compliance: React.FC = () => {
               <span className="stat-pct">{report.totalControls > 0 ? Math.round((report.failed / report.totalControls) * 100) : 0}%</span>
             </div>
             <div className="breakdown-stat na">
-              <span className="stat-bullet">●</span>
+              <span className="stat-bullet"><Minus size={16} strokeWidth={2.2} /></span>
               <div className="stat-desc">
                 <strong>{report.notApplicable} N/A</strong>
                 <span>Excluded from scope</span>
@@ -271,8 +274,8 @@ const Compliance: React.FC = () => {
           <div className="checklist-header">
             <h2>Audit Controls Checklist</h2>
             <div className="checklist-header-meta">
-              <span className="checklist-mini-pill passed">{report.passed} ✔</span>
-              <span className="checklist-mini-pill failed">{report.failed} ✖</span>
+              <span className="checklist-mini-pill passed"><CheckCircle2 size={12} strokeWidth={2.5} style={{ marginRight: 4 }} /> {report.passed}</span>
+              <span className="checklist-mini-pill failed"><XCircle size={12} strokeWidth={2.5} style={{ marginRight: 4 }} /> {report.failed}</span>
               <span className="checklist-count-tag">{report.totalControls} Controls</span>
             </div>
           </div>
@@ -291,7 +294,13 @@ const Compliance: React.FC = () => {
                 >
                   <div className="control-header-line">
                     <span className={`control-status-dot ${control.status}`}>
-                      {control.status === 'passed' ? '✔' : control.status === 'failed' ? '✖' : '—'}
+                      {control.status === 'passed' ? (
+                        <CheckCircle2 size={14} strokeWidth={2.2} />
+                      ) : control.status === 'failed' ? (
+                        <XCircle size={14} strokeWidth={2.2} />
+                      ) : (
+                        <Minus size={14} strokeWidth={2.2} />
+                      )}
                     </span>
                     
                     <div className="control-meta-info">
@@ -306,7 +315,9 @@ const Compliance: React.FC = () => {
 
                     <div className="control-right-meta">
                       <span className="control-id">{control.id}</span>
-                      <span className={`accordion-chevron ${isExpanded ? 'rotated' : ''}`}>▼</span>
+                      <span className={`accordion-chevron ${isExpanded ? 'rotated' : ''}`}>
+                        <ChevronDown size={16} strokeWidth={2} />
+                      </span>
                     </div>
                   </div>
 
@@ -340,7 +351,7 @@ const Compliance: React.FC = () => {
                                 <span className={`severity-bullet ${f.severity}`}></span>
                                 <span className="vuln-title-ref">{f.title}</span>
                                 <span className="vuln-path-ref">{f.filePath.split(/[/\\]/).pop()}:{f.lineNumber}</span>
-                                <span className="vuln-arrow">→</span>
+                                <span className="vuln-arrow"><ArrowRight size={13} strokeWidth={2} /></span>
                               </div>
                             ))}
                           </div>
@@ -359,12 +370,12 @@ const Compliance: React.FC = () => {
                           >
                             <span className="severity-bullet critical"></span>
                             <span className="vuln-title-ref">{control.name}</span>
-                            <span className="vuln-path-ref">Inspect findings →</span>
+                            <span className="vuln-path-ref">Inspect findings <ArrowRight size={13} strokeWidth={2} style={{ display: 'inline', verticalAlign: 'middle' }} /></span>
                           </div>
                         </div>
                       ) : (
                         <div className="control-status-success-box">
-                          <span className="success-icon">🛡️</span>
+                          <span className="success-icon"><Shield size={20} strokeWidth={2} color="#10B981" /></span>
                           <p>No active security findings violate this control baseline. Alignment verified.</p>
                         </div>
                       )}

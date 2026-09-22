@@ -179,9 +179,21 @@
 }
 
 .checkbox-card.active {
-  border-color: var(--accent-secondary);
-  background: rgba(139, 92, 246, 0.05);
+  border-color: var(--accent-primary);
+  background: rgba(245, 158, 11, 0.08);
   color: var(--text-primary);
+}
+
+.checkbox-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-muted);
+  transition: color 0.2s ease;
+}
+
+.checkbox-card.active .checkbox-icon {
+  color: var(--accent-primary);
 }
 
 .checkbox-card input[type="checkbox"] {
@@ -233,13 +245,13 @@
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
   overflow: hidden;
-  box-shadow: 0 4px 14px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 4px 14px var(--accent-glow);
 }
 
 .submit-scan-btn:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 8px 25px rgba(0, 240, 255, 0.4),
-              0 0 15px rgba(0, 240, 255, 0.2);
+  box-shadow: 0 8px 25px rgba(245, 158, 11, 0.4),
+              0 0 15px rgba(245, 158, 11, 0.2);
 }
 
 .submit-scan-btn:disabled {

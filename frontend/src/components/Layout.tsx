@@ -211,6 +211,8 @@ export default function Layout({ children }: LayoutProps) {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (notifRef.current && !notifRef.current.contains(event.target as Node)) {
@@ -220,8 +222,22 @@ export default function Layout({ children }: LayoutProps) {
         setAvatarOpen(false);
       }
     }
+
+    function handleGlobalKeyDown(event: KeyboardEvent) {
+      if ((event.metaKey || event.ctrlKey) && event.key === 'k') {
+        event.preventDefault();
+        searchInputRef.current?.focus();
+        searchInputRef.current?.select();
+      }
+    }
+
     document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    window.addEventListener('keydown', handleGlobalKeyDown);
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      window.removeEventListener('keydown', handleGlobalKeyDown);
+    };
   }, []);
 
   const pageTitle = location.pathname.startsWith('/report') ? 'Security Report' : (pageTitles[location.pathname] || 'SovaScan');
@@ -290,13 +306,15 @@ export default function Layout({ children }: LayoutProps) {
                 <Search size={15} strokeWidth={2} />
               </span>
               <input
+                ref={searchInputRef}
                 type="text"
                 className="topbar__search-input"
-                placeholder="Search rule, path, title... [Enter]"
+                placeholder="Search rule, path, title..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 onKeyDown={handleSearchSubmit}
               />
+              <kbd className="topbar__search-kbd">⌘K</kbd>
             </div>
             <button
               className="topbar__icon-btn"
