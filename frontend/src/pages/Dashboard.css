@@ -48,45 +48,45 @@
 
 /* Background glows for each card */
 .risk-card {
-  background: linear-gradient(135deg, rgba(99, 102, 241, 0.05) 0%, rgba(26, 31, 53, 0.4) 100%);
-  border-color: rgba(99, 102, 241, 0.1);
+  background: linear-gradient(135deg, rgba(245, 158, 11, 0.06) 0%, rgba(18, 21, 30, 0.8) 100%);
+  border-color: rgba(245, 158, 11, 0.2);
 }
 .scans-card {
-  background: linear-gradient(135deg, rgba(37, 99, 235, 0.04) 0%, rgba(26, 31, 53, 0.4) 100%);
-  border-color: rgba(37, 99, 235, 0.1);
+  background: linear-gradient(135deg, rgba(6, 182, 212, 0.05) 0%, rgba(18, 21, 30, 0.8) 100%);
+  border-color: rgba(6, 182, 212, 0.2);
 }
 .findings-card {
-  background: linear-gradient(135deg, rgba(245, 158, 11, 0.04) 0%, rgba(26, 31, 53, 0.4) 100%);
-  border-color: rgba(245, 158, 11, 0.1);
+  background: linear-gradient(135deg, rgba(251, 146, 60, 0.05) 0%, rgba(18, 21, 30, 0.8) 100%);
+  border-color: rgba(251, 146, 60, 0.2);
 }
 .critical-card {
-  background: linear-gradient(135deg, rgba(220, 38, 38, 0.05) 0%, rgba(26, 31, 53, 0.4) 100%);
-  border-color: rgba(220, 38, 38, 0.1);
+  background: linear-gradient(135deg, rgba(244, 63, 94, 0.06) 0%, rgba(18, 21, 30, 0.8) 100%);
+  border-color: rgba(244, 63, 94, 0.2);
 }
 
 /* Hover glow effects per stat theme */
 .risk-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(99, 102, 241, 0.35);
-  box-shadow: 0 12px 30px rgba(99, 102, 241, 0.12), 0 0 1px rgba(99, 102, 241, 0.3);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 12px 30px rgba(245, 158, 11, 0.15), 0 0 1px rgba(245, 158, 11, 0.4);
 }
 
 .scans-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(37, 99, 235, 0.35);
-  box-shadow: 0 12px 30px rgba(37, 99, 235, 0.12), 0 0 1px rgba(37, 99, 235, 0.3);
+  border-color: rgba(6, 182, 212, 0.45);
+  box-shadow: 0 12px 30px rgba(6, 182, 212, 0.15), 0 0 1px rgba(6, 182, 212, 0.4);
 }
 
 .findings-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 12px 30px rgba(245, 158, 11, 0.12), 0 0 1px rgba(245, 158, 11, 0.3);
+  border-color: rgba(251, 146, 60, 0.45);
+  box-shadow: 0 12px 30px rgba(251, 146, 60, 0.15), 0 0 1px rgba(251, 146, 60, 0.4);
 }
 
 .critical-card:hover {
   transform: translateY(-4px);
-  border-color: rgba(220, 38, 38, 0.35);
-  box-shadow: 0 12px 30px rgba(220, 38, 38, 0.12), 0 0 1px rgba(220, 38, 38, 0.3);
+  border-color: rgba(244, 63, 94, 0.45);
+  box-shadow: 0 12px 30px rgba(244, 63, 94, 0.15), 0 0 1px rgba(244, 63, 94, 0.4);
 }
 
 /* Stat Icon Custom Gradient Accents */
@@ -98,25 +98,28 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  border: 1px solid rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 .count-icon {
-  background: rgba(37, 99, 235, 0.1);
-  border-color: rgba(37, 99, 235, 0.2);
-  box-shadow: 0 0 12px rgba(37, 99, 235, 0.08);
+  background: rgba(6, 182, 212, 0.12);
+  border-color: rgba(6, 182, 212, 0.25);
+  box-shadow: 0 0 12px rgba(6, 182, 212, 0.1);
+  color: var(--accent-telemetry);
 }
 
 .finding-icon {
-  background: rgba(245, 158, 11, 0.1);
-  border-color: rgba(245, 158, 11, 0.2);
-  box-shadow: 0 0 12px rgba(245, 158, 11, 0.08);
+  background: rgba(251, 146, 60, 0.12);
+  border-color: rgba(251, 146, 60, 0.25);
+  box-shadow: 0 0 12px rgba(251, 146, 60, 0.1);
+  color: var(--warning);
 }
 
 .critical-icon {
-  background: rgba(220, 38, 38, 0.1);
-  border-color: rgba(220, 38, 38, 0.2);
-  box-shadow: 0 0 12px rgba(220, 38, 38, 0.08);
+  background: rgba(244, 63, 94, 0.12);
+  border-color: rgba(244, 63, 94, 0.25);
+  box-shadow: 0 0 12px rgba(244, 63, 94, 0.1);
+  color: var(--critical);
 }
 
 .stat-details h3 {
@@ -132,25 +135,25 @@
   margin: 0 0 4px 0;
 }
 
-/* Neon glow on numbers */
+/* Specular glow on numbers */
 .risk-card .stat-number {
-  color: #ffffff;
-  text-shadow: 0 0 12px rgba(99, 102, 241, 0.45);
-}
-
-.scans-card .stat-number {
-  color: #ffffff;
-  text-shadow: 0 0 12px rgba(37, 99, 235, 0.45);
-}
-
-.findings-card .stat-number {
   color: #ffffff;
   text-shadow: 0 0 12px rgba(245, 158, 11, 0.45);
 }
 
+.scans-card .stat-number {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(6, 182, 212, 0.45);
+}
+
+.findings-card .stat-number {
+  color: #ffffff;
+  text-shadow: 0 0 12px rgba(251, 146, 60, 0.45);
+}
+
 .critical-card .stat-number {
   color: #ffffff;
-  text-shadow: 0 0 12px rgba(220, 38, 38, 0.45);
+  text-shadow: 0 0 12px rgba(244, 63, 94, 0.45);
 }
 
 .stat-sub {
@@ -320,7 +323,7 @@
 }
 
 .recent-scans-table tr:hover td {
-  background: rgba(99, 102, 241, 0.03);
+  background: rgba(245, 158, 11, 0.04);
 }
 
 .monospace-td {
@@ -651,6 +654,6 @@
 .interactive-vuln-card:hover {
   transform: translateX(4px);
   background-color: rgba(255, 255, 255, 0.04) !important;
-  border-color: rgba(99, 102, 241, 0.2) !important;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+  border-color: rgba(245, 158, 11, 0.3) !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(245, 158, 11, 0.1);
 }

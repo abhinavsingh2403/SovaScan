@@ -190,7 +190,8 @@
 }
 
 .finding-row-card.expanded {
-  border-color: rgba(99, 102, 241, 0.4);
+  border-color: rgba(245, 158, 11, 0.45);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4), 0 0 16px rgba(245, 158, 11, 0.1);
 }
 
 .finding-row-card.fixed {
@@ -579,11 +580,11 @@
    ================================================ */
 .code-context-viewer {
   background: linear-gradient(135deg, rgba(10, 12, 18, 0.95) 0%, rgba(18, 20, 28, 0.98) 100%);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(6, 182, 212, 0.25);
   border-radius: 8px;
   overflow: hidden;
   margin-bottom: 12px;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 15px rgba(99, 102, 241, 0.05);
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5), 0 0 15px rgba(6, 182, 212, 0.08);
   backdrop-filter: blur(12px);
   transition: border-color 0.3s ease, box-shadow 0.3s ease;
 }
@@ -598,9 +599,9 @@
   justify-content: space-between;
   align-items: center;
   padding: 10px 14px;
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
-  border-bottom: 1px solid rgba(99, 102, 241, 0.12);
-  border-left: 3px solid #6366f1;
+  background: linear-gradient(90deg, rgba(6, 182, 212, 0.08) 0%, rgba(0, 0, 0, 0) 100%);
+  border-bottom: 1px solid rgba(6, 182, 212, 0.15);
+  border-left: 3px solid var(--accent-telemetry);
   font-size: 11px;
   color: var(--text-secondary);
 }
@@ -613,7 +614,8 @@
 
 .context-file-label {
   font-weight: 600;
-  color: #a5b4fc;
+  color: #38bdf8;
+  font-family: var(--font-mono);
 }
 
 .code-context-viewer.fixed-state .context-file-label {
@@ -622,11 +624,12 @@
 
 .context-line-range {
   font-size: 10px;
-  background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
+  background: rgba(6, 182, 212, 0.12);
+  color: #38bdf8;
   padding: 2px 6px;
   border-radius: 4px;
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  border: 1px solid rgba(6, 182, 212, 0.25);
+  font-family: var(--font-mono);
 }
 
 .code-context-viewer.fixed-state .context-line-range {
