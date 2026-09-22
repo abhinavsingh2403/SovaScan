@@ -20,19 +20,19 @@ import { useNavigate, Link } from 'react-router-dom';
 import { Activity, ShieldAlert, Flame } from 'lucide-react';
 
 const SEVERITY_COLORS = {
-  critical: '#FF1E56',
-  high: '#FF9F1C',
-  medium: '#FFD600',
-  low: '#00F2FE',
-  info: '#8B5CF6',
+  critical: '#F43F5E',
+  high: '#FB923C',
+  medium: '#FACC15',
+  low: '#38BDF8',
+  info: '#94A3B8',
 };
 
 const SEVERITY_RGBS = {
-  critical: '255, 30, 86',
-  high: '255, 159, 28',
-  medium: '255, 214, 0',
-  low: '0, 242, 254',
-  info: '139, 92, 246',
+  critical: '244, 63, 94',
+  high: '251, 146, 60',
+  medium: '250, 204, 21',
+  low: '56, 189, 248',
+  info: '148, 163, 184',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -117,9 +117,9 @@ const Dashboard: React.FC = () => {
             <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
               <defs>
                 <linearGradient id="risk-grad" x1="0" y1="1" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#00F0FF" />
-                  <stop offset="50%" stopColor="#FF8C00" />
-                  <stop offset="100%" stopColor="#FF003C" />
+                  <stop offset="0%" stopColor="#10B981" />
+                  <stop offset="50%" stopColor="#F59E0B" />
+                  <stop offset="100%" stopColor="#F43F5E" />
                 </linearGradient>
                 <filter id="glow-filter">
                   <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
@@ -134,7 +134,7 @@ const Dashboard: React.FC = () => {
                 cx="18"
                 cy="18"
                 r="17"
-                stroke="rgba(0, 240, 255, 0.25)"
+                stroke="currentColor"
                 strokeWidth="0.5"
                 strokeDasharray="4, 2"
                 fill="none"
@@ -224,24 +224,24 @@ const Dashboard: React.FC = () => {
                 >
                   <defs>
                     <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF1E56" />
-                      <stop offset="100%" stopColor="#99002C" />
+                      <stop offset="0%" stopColor="#F43F5E" />
+                      <stop offset="100%" stopColor="#9F1239" />
                     </linearGradient>
                     <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF9F1C" />
-                      <stop offset="100%" stopColor="#B36800" />
+                      <stop offset="0%" stopColor="#FB923C" />
+                      <stop offset="100%" stopColor="#C2410C" />
                     </linearGradient>
                     <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FFD600" />
-                      <stop offset="100%" stopColor="#B29500" />
+                      <stop offset="0%" stopColor="#FACC15" />
+                      <stop offset="100%" stopColor="#A16207" />
                     </linearGradient>
                     <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00F2FE" />
-                      <stop offset="100%" stopColor="#008499" />
+                      <stop offset="0%" stopColor="#38BDF8" />
+                      <stop offset="100%" stopColor="#0369A1" />
                     </linearGradient>
                     <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8B5CF6" />
-                      <stop offset="100%" stopColor="#5521B5" />
+                      <stop offset="0%" stopColor="#94A3B8" />
+                      <stop offset="100%" stopColor="#475569" />
                     </linearGradient>
                     
                     {/* Glow filter for hovered bar */}

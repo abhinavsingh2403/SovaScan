@@ -309,3 +309,31 @@
     width: 100%;
   }
 }
+
+/* ============================================================
+   Light Theme Settings Polish
+   ============================================================ */
+[data-theme="light"] .settings__input,
+[data-theme="light"] .settings__select {
+  background: #F1F5F9;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #0F172A;
+}
+
+[data-theme="light"] .settings__input:focus,
+[data-theme="light"] .settings__select:focus {
+  background: #FFFFFF;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+[data-theme="light"] .settings__btn--secondary {
+  background: #F1F5F9;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #475569;
+}
+
+[data-theme="light"] .settings__btn--secondary:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}

@@ -28,6 +28,7 @@ import './Layout.css';
 
 function NetworkBackground() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const { theme } = useStore();
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -45,7 +46,7 @@ function NetworkBackground() {
     };
     window.addEventListener('resize', handleResize);
 
-    const particleCount = 45;
+    const particleCount = 40;
     const particles: Array<{
       x: number;
       y: number;
@@ -79,6 +80,8 @@ function NetworkBackground() {
     window.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseleave', handleMouseLeave);
 
+    const isLight = theme === 'light';
+
     const draw = () => {
       ctx.clearRect(0, 0, width, height);
 
@@ -92,7 +95,7 @@ function NetworkBackground() {
 
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(0, 242, 254, 0.25)';
+        ctx.fillStyle = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(245, 158, 11, 0.28)';
         ctx.fill();
 
         const dxMouse = p1.x - mouse.x;
@@ -102,7 +105,9 @@ function NetworkBackground() {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(mouse.x, mouse.y);
-          ctx.strokeStyle = `rgba(255, 159, 28, ${0.22 * (1 - distMouse / 180)})`;
+          ctx.strokeStyle = isLight
+            ? `rgba(217, 119, 6, ${0.18 * (1 - distMouse / 180)})`
+            : `rgba(245, 158, 11, ${0.22 * (1 - distMouse / 180)})`;
           ctx.lineWidth = 0.6;
           ctx.stroke();
         }
@@ -117,7 +122,9 @@ function NetworkBackground() {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(0, 242, 254, ${0.10 * (1 - dist / 120)})`;
+            ctx.strokeStyle = isLight
+              ? `rgba(2, 132, 199, ${0.08 * (1 - dist / 120)})`
+              : `rgba(6, 182, 212, ${0.10 * (1 - dist / 120)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -135,7 +142,7 @@ function NetworkBackground() {
       document.removeEventListener('mouseleave', handleMouseLeave);
       cancelAnimationFrame(animationFrameId);
     };
-  }, []);
+  }, [theme]);
 
   return (
     <canvas

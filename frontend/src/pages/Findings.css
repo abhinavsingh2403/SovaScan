@@ -943,3 +943,71 @@
   overflow-x: auto;
 }
 
+/* ============================================================
+   Light Theme Findings Polish
+   ============================================================ */
+[data-theme="light"] .finding-row-card {
+  background: #FFFFFF !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03) !important;
+}
+
+[data-theme="light"] .finding-row-card:hover {
+  background: #FFFFFF !important;
+  border-color: rgba(217, 119, 6, 0.35) !important;
+  box-shadow: 0 6px 20px -2px rgba(15, 23, 42, 0.08) !important;
+}
+
+[data-theme="light"] .finding-row-card.expanded {
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 8px 24px -4px rgba(217, 119, 6, 0.15) !important;
+}
+
+[data-theme="light"] .search-bar,
+[data-theme="light"] .filter-select {
+  background: #F1F5F9 !important;
+  border-color: rgba(15, 23, 42, 0.08) !important;
+  color: #0F172A !important;
+}
+
+[data-theme="light"] .search-bar:focus-within {
+  background: #FFFFFF !important;
+  border-color: var(--accent-primary) !important;
+  box-shadow: 0 0 0 3px var(--accent-glow) !important;
+}
+
+[data-theme="light"] .code-context-viewer {
+  background: #F8FAFC !important;
+  border-color: rgba(2, 132, 199, 0.25) !important;
+  box-shadow: 0 4px 16px rgba(15, 23, 42, 0.06) !important;
+}
+
+[data-theme="light"] .context-header {
+  background: linear-gradient(90deg, rgba(2, 132, 199, 0.08) 0%, #F8FAFC 100%) !important;
+  border-bottom-color: rgba(2, 132, 199, 0.15) !important;
+}
+
+[data-theme="light"] .context-file-label {
+  color: #0284C7 !important;
+}
+
+[data-theme="light"] .context-line-range {
+  background: rgba(2, 132, 199, 0.10) !important;
+  color: #0284C7 !important;
+  border-color: rgba(2, 132, 199, 0.25) !important;
+}
+
+[data-theme="light"] .code-editor-gutter {
+  background: #F1F5F9 !important;
+  border-right-color: rgba(15, 23, 42, 0.08) !important;
+  color: #64748B !important;
+}
+
+[data-theme="light"] .code-editor-line {
+  color: #1E293B !important;
+}
+
+[data-theme="light"] .code-editor-line.target-highlight {
+  background: rgba(225, 29, 72, 0.08) !important;
+}
+

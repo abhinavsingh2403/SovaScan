@@ -680,3 +680,97 @@
     padding: 16px;
   }
 }
+
+/* ============================================================
+   Light Theme Chrome Refinements
+   ============================================================ */
+[data-theme="light"] .sidebar {
+  background: #FFFFFF;
+  border-right-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 2px 0 12px rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] .sidebar__brand {
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .sidebar__link {
+  color: #475569;
+}
+
+[data-theme="light"] .sidebar__link:hover {
+  color: #0F172A;
+  background: rgba(15, 23, 42, 0.04);
+}
+
+[data-theme="light"] .sidebar__link--active {
+  color: #0F172A;
+  background: rgba(245, 158, 11, 0.12);
+  border: 1px solid rgba(217, 119, 6, 0.35);
+  box-shadow: inset 3px 0 0 0 var(--accent-primary), 0 2px 8px rgba(217, 119, 6, 0.12);
+}
+
+[data-theme="light"] .sidebar__link--active .sidebar__link-icon {
+  color: var(--accent-primary);
+  filter: drop-shadow(0 0 4px rgba(217, 119, 6, 0.35));
+}
+
+[data-theme="light"] .sidebar__footer {
+  border-top-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .sidebar__settings:hover {
+  background: rgba(15, 23, 42, 0.04);
+  color: #0F172A;
+}
+
+[data-theme="light"] .topbar {
+  background: rgba(255, 255, 255, 0.88);
+  border-bottom-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] .topbar__toggle:hover,
+[data-theme="light"] .topbar__icon-btn:hover {
+  background: rgba(15, 23, 42, 0.05);
+  color: #0F172A;
+}
+
+[data-theme="light"] .topbar__search {
+  background: #F1F5F9;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .topbar__search:focus-within {
+  background: #FFFFFF;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+[data-theme="light"] .notifications-dropdown,
+[data-theme="light"] .avatar-dropdown {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.10);
+  box-shadow: 0 12px 36px -4px rgba(15, 23, 42, 0.16), 0 4px 12px -2px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .notifications-dropdown__header,
+[data-theme="light"] .notifications-dropdown__footer,
+[data-theme="light"] .avatar-dropdown__header,
+[data-theme="light"] .avatar-dropdown__stats,
+[data-theme="light"] .avatar-dropdown__footer {
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .notif-item {
+  border-bottom-color: rgba(15, 23, 42, 0.05);
+}
+
+[data-theme="light"] .notif-item:hover,
+[data-theme="light"] .avatar-dropdown__link:hover {
+  background: rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] .notif-item--unread {
+  background: rgba(245, 158, 11, 0.04);
+}

@@ -577,3 +577,62 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+
+/* ============================================================
+   Light Theme Scan View Refinements
+   ============================================================ */
+[data-theme="light"] .input-with-icon {
+  background: #F1F5F9;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .input-with-icon:focus-within {
+  background: #FFFFFF;
+  border-color: var(--accent-primary);
+  box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+[data-theme="light"] .scan-type-card {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.03);
+}
+
+[data-theme="light"] .scan-type-card:hover {
+  background: #FFFFFF;
+  border-color: rgba(217, 119, 6, 0.35);
+  box-shadow: 0 6px 18px -2px rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .scan-type-card.active {
+  background: linear-gradient(135deg, rgba(254, 243, 199, 0.7) 0%, #FFFFFF 100%);
+  border-color: var(--accent-primary);
+  box-shadow: 0 4px 16px rgba(217, 119, 6, 0.15);
+}
+
+[data-theme="light"] .checkbox-card {
+  background: #FFFFFF;
+  border-color: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .checkbox-card:hover {
+  border-color: rgba(217, 119, 6, 0.30);
+}
+
+[data-theme="light"] .checkbox-card.active {
+  background: rgba(245, 158, 11, 0.12);
+  border-color: var(--accent-primary);
+  color: #B45309;
+}
+
+[data-theme="light"] .scan-history-table td {
+  border-bottom-color: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .scan-history-table tr:hover td {
+  background: rgba(15, 23, 42, 0.02);
+}
+
+[data-theme="light"] .idle-reticle-ring-2 {
+  border-color: rgba(15, 23, 42, 0.06);
+}
