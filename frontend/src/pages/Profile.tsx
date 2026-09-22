@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { User, KeyRound, Clock, Copy, Plus, Trash2 } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import './Profile.css';
@@ -218,31 +219,21 @@ const Profile: React.FC = () => {
           className={`profile-page__tab-btn ${activeTab === 'profile' ? 'active' : ''}`}
           onClick={() => setActiveTab('profile')}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-            <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-            <circle cx="12" cy="7" r="4" />
-          </svg>
+          <User size={15} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
           Account Info
         </button>
         <button
           className={`profile-page__tab-btn ${activeTab === 'api-keys' ? 'active' : ''}`}
           onClick={() => setActiveTab('api-keys')}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-            <circle cx="7.5" cy="15.5" r="4.5" />
-            <path d="M21 2l-9.6 9.6" />
-            <path d="M15.5 7.5l3 3L22 7l-3-3" />
-          </svg>
+          <KeyRound size={15} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
           CLI & API Keys
         </button>
         <button
           className={`profile-page__tab-btn ${activeTab === 'activity' ? 'active' : ''}`}
           onClick={() => setActiveTab('activity')}
         >
-          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-            <circle cx="12" cy="12" r="10" />
-            <polyline points="12 6 12 12 16 14" />
-          </svg>
+          <Clock size={15} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
           User Activity
         </button>
       </div>

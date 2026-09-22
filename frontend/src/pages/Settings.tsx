@@ -1,4 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import {
+  Palette,
+  Bell,
+  Server,
+  AlertTriangle,
+  Sun,
+  Moon,
+  Zap,
+  Trash2,
+  Database,
+  Globe,
+  ShieldAlert,
+} from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
 import './Settings.css';
@@ -42,7 +55,7 @@ const Settings: React.FC = () => {
     setLoading(true);
     try {
       await api.saveSystemSettings(slackWebhookUrl);
-      setToastMsg('✅ Settings saved successfully');
+      setToastMsg('Settings saved successfully');
       setSaved(true);
       fetchSettings();
     } catch (err: any) {
@@ -54,27 +67,30 @@ const Settings: React.FC = () => {
 
   const handleTestWebhook = async () => {
     if (!slackWebhookUrl.trim()) {
-      alert("Please enter a Slack Webhook URL first.");
+      alert('Please enter a Slack Webhook URL first.');
       return;
     }
     setTestingWebhook(true);
     try {
-      await api.testWebhook(slackWebhookUrl);
-      setToastMsg('⚡ Test Slack alert sent successfully!');
+      const res = await api.testWebhook(slackWebhookUrl);
+      const detail = res.data?.detail || 'Test alert dispatched to channel.';
+      setToastMsg(detail);
       setSaved(true);
     } catch (err: any) {
-      alert(`Slack Notification failed: ${err.response?.data?.detail || err.message}`);
+      alert(`Webhook test failed: ${err.message || err}`);
     } finally {
       setTestingWebhook(false);
     }
   };
 
   const handleClearData = () => {
-    if (window.confirm('Are you sure you want to clear all locally cached browser states? This will reset active keys.')) {
-      localStorage.clear();
-      setToastMsg('🧹 Local cache cleared.');
-      setSaved(true);
-      setTimeout(() => window.location.reload(), 1500);
+    if (window.confirm('Clear all cached application settings, theme, and saved scan filters? (This does not affect backend scan history)')) {
+      localStorage.removeItem('sovascan-settings');
+      localStorage.removeItem('sovascan-theme');
+      localStorage.removeItem('sovascan-api-keys');
+      localStorage.removeItem('sovascan-active-key');
+      alert('Local storage data cleared. Page will now refresh.');
+      window.location.reload();
     }
   };
 
@@ -86,7 +102,7 @@ const Settings: React.FC = () => {
     try {
       const res = await api.clearScanHistory();
       const detail = res.data?.detail || 'Scan history cleared.';
-      setToastMsg(`🗑️ ${detail}`);
+      setToastMsg(detail);
       setSaved(true);
     } catch (err: any) {
       alert(`Failed to clear scan history: ${err.message || err}`);
@@ -106,7 +122,9 @@ const Settings: React.FC = () => {
       {/* Visual Theme & Appearance Section */}
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.02s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">🎨</span>
+          <span className="settings__section-icon">
+            <Palette size={18} strokeWidth={1.8} />
+          </span>
           <h2 className="settings__section-title">Visual Theme & Appearance</h2>
         </div>
         <p className="settings__section-desc">
@@ -125,23 +143,23 @@ const Settings: React.FC = () => {
               className={`settings__btn ${theme === 'light' ? 'settings__btn--primary' : 'settings__btn--secondary'}`}
               onClick={() => {
                 setTheme('light');
-                setToastMsg('☀️ Light Theme applied');
+                setToastMsg('Light Theme applied');
                 setSaved(true);
               }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              ☀️ Light Theme
+              <Sun size={14} strokeWidth={2} /> Light Theme
             </button>
             <button
               className={`settings__btn ${theme === 'dark' ? 'settings__btn--primary' : 'settings__btn--secondary'}`}
               onClick={() => {
                 setTheme('dark');
-                setToastMsg('🌙 Dark Theme applied');
+                setToastMsg('Dark Theme applied');
                 setSaved(true);
               }}
               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
             >
-              🌙 Dark Theme
+              <Moon size={14} strokeWidth={2} /> Dark Theme
             </button>
           </div>
         </div>
@@ -151,10 +169,7 @@ const Settings: React.FC = () => {
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-            </svg>
+            <Bell size={18} strokeWidth={1.8} />
           </span>
           <h2 className="settings__section-title">Audit Notifications (Slack / Teams)</h2>
         </div>
@@ -191,8 +206,10 @@ const Settings: React.FC = () => {
             className="settings__btn settings__btn--secondary" 
             onClick={handleTestWebhook}
             disabled={testingWebhook}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {testingWebhook ? 'Testing...' : '⚡ Test Webhook Alert'}
+            <Zap size={14} strokeWidth={2} />
+            {testingWebhook ? 'Testing...' : 'Test Webhook Alert'}
           </button>
         </div>
       </section>
@@ -201,11 +218,7 @@ const Settings: React.FC = () => {
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.12s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-              <line x1="8" y1="21" x2="16" y2="21" />
-              <line x1="12" y1="17" x2="12" y2="21" />
-            </svg>
+            <Server size={18} strokeWidth={1.8} />
           </span>
           <h2 className="settings__section-title">System Environment & Ledger Status</h2>
         </div>
@@ -223,7 +236,7 @@ const Settings: React.FC = () => {
           }}>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Engine</div>
-              <div style={{ fontFamily: 'monospace', color: '#00F0FF' }}>SQLite 3 (Local Audit Ledger)</div>
+              <div style={{ fontFamily: 'monospace', color: '#00F2FE' }}>SQLite 3 (Local Audit Ledger)</div>
             </div>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Path</div>
@@ -235,7 +248,7 @@ const Settings: React.FC = () => {
             </div>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Active API Host Mode</div>
-              <div style={{ color: systemInfo.debug ? '#FF8C00' : '#00FF41', fontWeight: 600 }}>
+              <div style={{ color: systemInfo.debug ? '#FF9F1C' : '#00FF88', fontWeight: 600 }}>
                 {systemInfo.debug ? 'DEVELOPMENT / DEBUG' : 'PRODUCTION HARDENED'}
               </div>
             </div>
@@ -247,11 +260,7 @@ const Settings: React.FC = () => {
       <section className="settings__section settings__section--danger glassmorphism animate-slide-up" style={{ animationDelay: '0.19s' }}>
         <div className="settings__section-header">
           <span className="settings__section-icon">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
+            <AlertTriangle size={18} strokeWidth={1.8} color="var(--danger)" />
           </span>
           <h2 className="settings__section-title" style={{ color: 'var(--danger)' }}>System Maintenance</h2>
         </div>
@@ -270,8 +279,10 @@ const Settings: React.FC = () => {
             className="settings__btn settings__btn--danger"
             onClick={handleClearScanHistory}
             disabled={clearingHistory}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
           >
-            {clearingHistory ? 'Clearing...' : '🗑️ Clear Scan History'}
+            <Trash2 size={14} strokeWidth={2} />
+            {clearingHistory ? 'Clearing...' : 'Clear Scan History'}
           </button>
         </div>
 

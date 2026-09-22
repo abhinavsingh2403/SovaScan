@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
+import { Printer, Download, BarChart3, Code2, FileText } from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
 import { Scan, Finding, SBOMResponse, ComplianceReport, ComplianceControl, ThreatIntelResponse, ThreatIntelRecord } from '../types';
@@ -641,19 +642,11 @@ const Report: React.FC = () => {
         </div>
         <div className="report-actions">
           <button className="settings__btn settings__btn--secondary" onClick={() => window.print()}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-              <polyline points="6 9 6 2 18 2 18 9" />
-              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
-              <rect x="6" y="14" width="12" height="8" />
-            </svg>
+            <Printer size={14} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
             Print Report
           </button>
           <button className="settings__btn settings__btn--primary" onClick={handleExportJSON}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
+            <Download size={14} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
             Export JSON
           </button>
         </div>
@@ -665,21 +658,14 @@ const Report: React.FC = () => {
           className={`report-tab-btn ${activeTab === 'visual' ? 'active' : ''}`}
           onClick={() => setActiveTab('visual')}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
+          <BarChart3 size={14} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
           Visual Report
         </button>
         <button 
           className={`report-tab-btn ${activeTab === 'json' ? 'active' : ''}`}
           onClick={() => setActiveTab('json')}
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
-            <polyline points="16 18 22 12 16 6" />
-            <polyline points="8 6 2 12 8 18" />
-          </svg>
+          <Code2 size={14} strokeWidth={1.8} style={{ marginRight: '6px', verticalAlign: 'text-bottom' }} />
           JSON Payload View
         </button>
       </div>
@@ -687,9 +673,11 @@ const Report: React.FC = () => {
       {activeTab === 'json' ? (
         <div className="list-card glassmorphism" style={{ padding: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }} className="sbom-header-row">
-            <h3 style={{ margin: 0 }}>⚙️ JSON Payload Output</h3>
-            <button className="settings__btn settings__btn--primary report-actions" onClick={handleExportJSON}>
-              📥 Download JSON Report
+            <h3 style={{ margin: 0, display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <Code2 size={16} strokeWidth={2} /> JSON Payload Output
+            </h3>
+            <button className="settings__btn settings__btn--primary report-actions" onClick={handleExportJSON} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+              <Download size={14} strokeWidth={1.8} /> Download JSON Report
             </button>
           </div>
           <SyntaxHighlightedJSON data={reportPayload} />

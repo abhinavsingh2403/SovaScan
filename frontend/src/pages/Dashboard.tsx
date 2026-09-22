@@ -17,21 +17,22 @@ import {
 import './Dashboard.css';
 
 import { useNavigate, Link } from 'react-router-dom';
+import { Activity, ShieldAlert, Flame } from 'lucide-react';
 
 const SEVERITY_COLORS = {
-  critical: '#FF003C',
-  high: '#FF6D00',
+  critical: '#FF1E56',
+  high: '#FF9F1C',
   medium: '#FFD600',
-  low: '#00E5FF',
-  info: '#78909C',
+  low: '#00F2FE',
+  info: '#8B5CF6',
 };
 
 const SEVERITY_RGBS = {
-  critical: '255, 0, 60',
-  high: '255, 109, 0',
+  critical: '255, 30, 86',
+  high: '255, 159, 28',
   medium: '255, 214, 0',
-  low: '0, 229, 255',
-  info: '120, 144, 156',
+  low: '0, 242, 254',
+  info: '139, 92, 246',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -173,9 +174,7 @@ const Dashboard: React.FC = () => {
 
         <div className="stat-card glassmorphism scans-card">
           <div className="stat-icon count-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-            </svg>
+            <Activity size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Total Scans</h3>
@@ -186,11 +185,7 @@ const Dashboard: React.FC = () => {
 
         <div className="stat-card glassmorphism findings-card">
           <div className="stat-icon finding-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-              <line x1="12" y1="9" x2="12" y2="13" />
-              <line x1="12" y1="17" x2="12.01" y2="17" />
-            </svg>
+            <ShieldAlert size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Active Findings</h3>
@@ -201,9 +196,7 @@ const Dashboard: React.FC = () => {
 
         <div className="stat-card glassmorphism critical-card">
           <div className="stat-icon critical-icon">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
-            </svg>
+            <Flame size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Critical & High</h3>
@@ -231,24 +224,24 @@ const Dashboard: React.FC = () => {
                 >
                   <defs>
                     <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF003C" />
-                      <stop offset="100%" stopColor="#990024" />
+                      <stop offset="0%" stopColor="#FF1E56" />
+                      <stop offset="100%" stopColor="#99002C" />
                     </linearGradient>
                     <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#FF6D00" />
-                      <stop offset="100%" stopColor="#B34C00" />
+                      <stop offset="0%" stopColor="#FF9F1C" />
+                      <stop offset="100%" stopColor="#B36800" />
                     </linearGradient>
                     <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
                       <stop offset="0%" stopColor="#FFD600" />
                       <stop offset="100%" stopColor="#B29500" />
                     </linearGradient>
                     <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#00E5FF" />
-                      <stop offset="100%" stopColor="#008899" />
+                      <stop offset="0%" stopColor="#00F2FE" />
+                      <stop offset="100%" stopColor="#008499" />
                     </linearGradient>
                     <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#90A4AE" />
-                      <stop offset="100%" stopColor="#546E7A" />
+                      <stop offset="0%" stopColor="#8B5CF6" />
+                      <stop offset="100%" stopColor="#5521B5" />
                     </linearGradient>
                     
                     {/* Glow filter for hovered bar */}
@@ -376,12 +369,12 @@ const Dashboard: React.FC = () => {
               <AreaChart data={trendData}>
                 <defs>
                   <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF003C" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#FF003C" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#FF1E56" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#FF1E56" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorHigh" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF6D00" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#FF6D00" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#FF9F1C" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#FF9F1C" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
@@ -399,24 +392,24 @@ const Dashboard: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="critical"
-                  stroke="#FF003C"
+                  stroke="#FF1E56"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorCritical)"
                   name="Critical"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#06080F' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF003C' }}
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF1E56' }}
                 />
                 <Area
                   type="monotone"
                   dataKey="high"
-                  stroke="#FF6D00"
+                  stroke="#FF9F1C"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorHigh)"
                   name="High"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#06080F' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF6D00' }}
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF9F1C' }}
                 />
               </AreaChart>
             </ResponsiveContainer>

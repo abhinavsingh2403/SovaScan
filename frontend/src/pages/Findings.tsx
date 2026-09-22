@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useLocation, Link } from 'react-router-dom';
+import { Search, FileText } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import { Finding } from '../types';
@@ -587,7 +588,9 @@ const Findings: React.FC = () => {
       {/* Filters Bar */}
       <div className="filters-bar glassmorphism animate-fade-in">
         <div className="search-box">
-          <span className="search-icon">🔍</span>
+          <span className="search-icon">
+            <Search size={15} strokeWidth={2} />
+          </span>
           <input
             type="text"
             placeholder="Search by title, file path, rule ID..."
@@ -626,10 +629,11 @@ const Findings: React.FC = () => {
                     height: '35px',
                     boxSizing: 'border-box',
                     whiteSpace: 'nowrap',
+                    gap: '5px',
                   }}
                   title="View Scan Report"
                 >
-                  📄 Report
+                  <FileText size={13} strokeWidth={1.8} /> Report
                 </Link>
               )}
             </div>

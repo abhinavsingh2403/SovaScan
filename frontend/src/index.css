@@ -5,53 +5,54 @@
    ============================================================ */
 
 :root {
-  /* ---- Background — Deep space navy void ---- */
-  --bg-primary: #06080F;
-  --bg-secondary: #0B0E18;
-  --bg-card: rgba(12, 18, 32, 0.55);
-  --bg-card-hover: rgba(18, 28, 48, 0.72);
-  --bg-input: #0D1120;
-  --bg-overlay: rgba(3, 4, 8, 0.85);
+  /* ---- Background — Deep Tactical Cyber Abyss ---- */
+  --bg-primary: #050811;
+  --bg-secondary: #0A0F1D;
+  --bg-card: rgba(13, 20, 36, 0.85);
+  --bg-card-hover: rgba(18, 28, 50, 0.92);
+  --bg-input: #0B1122;
+  --bg-overlay: rgba(3, 5, 10, 0.88);
 
   /* ---- Border ---- */
-  --border-color: rgba(0, 240, 255, 0.08);
-  --border-color-hover: rgba(0, 240, 255, 0.18);
+  --border-color: rgba(0, 242, 254, 0.14);
+  --border-color-hover: rgba(0, 242, 254, 0.35);
 
   /* ---- Text ---- */
-  --text-primary: #E8ECF4;
-  --text-secondary: #9BA4B8;
-  --text-muted: #5A6478;
-  --text-inverse: #06080F;
+  --text-primary: #F1F5F9;
+  --text-secondary: #94A3B8;
+  --text-muted: #64748B;
+  --text-inverse: #050811;
 
-  /* ---- Accent — Kali Cyan + Burp Amber ---- */
-  --accent-primary: #00F0FF;
-  --accent-secondary: #FF8C00;
-  --accent-gradient: linear-gradient(135deg, #00F0FF, #0088AA);
-  --accent-glow: rgba(0, 240, 255, 0.20);
+  /* ---- Accent — Plasma Cyan + Exploit Amber + Ultraviolet ---- */
+  --accent-primary: #00F2FE;
+  --accent-secondary: #FF9F1C;
+  --accent-violet: #8B5CF6;
+  --accent-gradient: linear-gradient(135deg, #00F2FE 0%, #4FACFE 50%, #8B5CF6 100%);
+  --accent-glow: rgba(0, 242, 254, 0.28);
 
   /* ---- Status ---- */
-  --success: #00FF41;
-  --success-bg: rgba(0, 255, 65, 0.10);
-  --warning: #FF8C00;
-  --warning-bg: rgba(255, 140, 0, 0.10);
-  --danger: #FF003C;
-  --danger-bg: rgba(255, 0, 60, 0.10);
-  --critical: #FF003C;
-  --critical-bg: rgba(255, 0, 60, 0.12);
-  --info: #00F0FF;
-  --info-bg: rgba(0, 240, 255, 0.10);
+  --success: #00FF88;
+  --success-bg: rgba(0, 255, 136, 0.12);
+  --warning: #FF9F1C;
+  --warning-bg: rgba(255, 159, 28, 0.12);
+  --danger: #FF1E56;
+  --danger-bg: rgba(255, 30, 86, 0.12);
+  --critical: #FF1E56;
+  --critical-bg: rgba(255, 30, 86, 0.15);
+  --info: #00F2FE;
+  --info-bg: rgba(0, 242, 254, 0.12);
 
-  /* ---- Severity — Cybersecurity-calibrated ---- */
-  --severity-critical: #FF003C;
-  --severity-critical-bg: rgba(255, 0, 60, 0.14);
-  --severity-high: #FF6D00;
-  --severity-high-bg: rgba(255, 109, 0, 0.14);
+  /* ---- Severity — High-Contrast Offensive Security Palette ---- */
+  --severity-critical: #FF1E56;
+  --severity-critical-bg: rgba(255, 30, 86, 0.16);
+  --severity-high: #FF9F1C;
+  --severity-high-bg: rgba(255, 159, 28, 0.16);
   --severity-medium: #FFD600;
-  --severity-medium-bg: rgba(255, 214, 0, 0.12);
-  --severity-low: #00E5FF;
-  --severity-low-bg: rgba(0, 229, 255, 0.12);
-  --severity-info: #78909C;
-  --severity-info-bg: rgba(120, 144, 156, 0.12);
+  --severity-medium-bg: rgba(255, 214, 0, 0.14);
+  --severity-low: #00F2FE;
+  --severity-low-bg: rgba(0, 242, 254, 0.14);
+  --severity-info: #8B5CF6;
+  --severity-info-bg: rgba(139, 92, 246, 0.14);
 
   /* ---- Sizing ---- */
   --sidebar-width: 240px;
@@ -63,11 +64,11 @@
   --radius-xl: 20px;
   --radius-full: 9999px;
 
-  /* ---- Shadows — Cyan glow ---- */
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --shadow-lg: 0 8px 32px rgba(0, 0, 0, 0.6);
-  --shadow-glow: 0 0 20px rgba(0, 240, 255, 0.12);
+  /* ---- Shadows — Cyan & Violet glow ---- */
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5);
+  --shadow-md: 0 4px 14px rgba(0, 0, 0, 0.6);
+  --shadow-lg: 0 10px 36px rgba(0, 0, 0, 0.7);
+  --shadow-glow: 0 0 25px rgba(0, 242, 254, 0.20);
 
   /* ---- Typography ---- */
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
@@ -204,6 +205,13 @@ html {
 body {
   font-family: var(--font-sans);
   background-color: var(--bg-primary);
+  background-image: 
+    radial-gradient(ellipse 90% 50% at 50% -10%, rgba(0, 242, 254, 0.12), transparent 70%),
+    radial-gradient(ellipse 70% 50% at 90% 90%, rgba(139, 92, 246, 0.08), transparent 70%),
+    linear-gradient(rgba(0, 242, 254, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 242, 254, 0.025) 1px, transparent 1px);
+  background-size: 100% 100%, 100% 100%, 32px 32px, 32px 32px;
+  background-attachment: fixed;
   color: var(--text-primary);
   line-height: 1.6;
   min-height: 100vh;
@@ -689,37 +697,37 @@ tbody td {
    ============================================================ */
 
 .glassmorphism {
-  background: rgba(12, 18, 32, 0.55) !important;
-  backdrop-filter: blur(16px) saturate(180%) !important;
-  -webkit-backdrop-filter: blur(16px) saturate(180%) !important;
-  border: 1px solid rgba(0, 240, 255, 0.08) !important;
-  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4) !important;
-  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  background: linear-gradient(135deg, rgba(13, 20, 36, 0.85) 0%, rgba(8, 12, 24, 0.92) 100%) !important;
+  backdrop-filter: blur(20px) saturate(190%) !important;
+  -webkit-backdrop-filter: blur(20px) saturate(190%) !important;
+  border: 1px solid rgba(0, 242, 254, 0.14) !important;
+  box-shadow: 0 10px 36px 0 rgba(0, 0, 0, 0.65), inset 0 1px 0 rgba(255, 255, 255, 0.06) !important;
+  transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
 }
 
 .glassmorphism:hover {
-  background: rgba(18, 28, 48, 0.72) !important;
-  border-color: rgba(0, 240, 255, 0.25) !important;
-  transform: translateY(-4px) scale(1.01);
-  box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.6), 0 0 20px rgba(0, 240, 255, 0.15) !important;
+  background: linear-gradient(135deg, rgba(18, 28, 50, 0.90) 0%, rgba(11, 17, 34, 0.96) 100%) !important;
+  border-color: rgba(0, 242, 254, 0.35) !important;
+  transform: translateY(-3px);
+  box-shadow: 0 14px 44px 0 rgba(0, 0, 0, 0.75), 0 0 25px rgba(0, 242, 254, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.12) !important;
 }
 
 /* Neon glow badges */
 .neon-glow-critical {
-  box-shadow: 0 0 12px rgba(255, 0, 60, 0.45) !important;
-  text-shadow: 0 0 6px rgba(255, 0, 60, 0.6) !important;
+  box-shadow: 0 0 14px rgba(255, 30, 86, 0.5) !important;
+  text-shadow: 0 0 8px rgba(255, 30, 86, 0.6) !important;
 }
 .neon-glow-high {
-  box-shadow: 0 0 12px rgba(255, 109, 0, 0.45) !important;
-  text-shadow: 0 0 6px rgba(255, 109, 0, 0.6) !important;
+  box-shadow: 0 0 14px rgba(255, 159, 28, 0.5) !important;
+  text-shadow: 0 0 8px rgba(255, 159, 28, 0.6) !important;
 }
 .neon-glow-medium {
-  box-shadow: 0 0 12px rgba(255, 214, 0, 0.45) !important;
-  text-shadow: 0 0 6px rgba(255, 214, 0, 0.6) !important;
+  box-shadow: 0 0 14px rgba(255, 214, 0, 0.45) !important;
+  text-shadow: 0 0 8px rgba(255, 214, 0, 0.6) !important;
 }
 .neon-glow-low {
-  box-shadow: 0 0 12px rgba(0, 229, 255, 0.45) !important;
-  text-shadow: 0 0 6px rgba(0, 229, 255, 0.6) !important;
+  box-shadow: 0 0 14px rgba(0, 242, 254, 0.45) !important;
+  text-shadow: 0 0 8px rgba(0, 242, 254, 0.6) !important;
 }
 
 /* Animations */

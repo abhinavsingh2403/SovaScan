@@ -190,11 +190,44 @@
   background: rgba(255, 255, 255, 0.05);
 }
 
+.topbar__title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-right: auto;
+}
+
 .topbar__title {
   font-size: 1.2rem;
   font-weight: 700;
   color: var(--text-primary);
-  margin-right: auto;
+}
+
+.topbar__status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-full);
+  background: rgba(0, 255, 136, 0.08);
+  border: 1px solid rgba(0, 255, 136, 0.25);
+}
+
+.topbar__status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #00FF88;
+  box-shadow: 0 0 8px #00FF88;
+  animation: radar-pulse 2s infinite ease-in-out;
+}
+
+.topbar__status-label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  color: #00FF88;
+  letter-spacing: 0.75px;
 }
 
 .topbar__actions {
