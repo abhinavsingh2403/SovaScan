@@ -443,12 +443,12 @@ const Findings: React.FC = () => {
       <div className="split-diff-container" style={{ marginTop: '16px', marginBottom: '12px' }}>
         {/* Left Pane: Original Code */}
         <div className="split-pane original-pane" style={{ background: 'rgba(0, 0, 0, 0.25)' }}>
-          <div className="pane-header header-original" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#f87171' }}>
+          <div className="pane-header header-original" style={{ background: 'rgba(239, 68, 68, 0.08)', color: '#FF003C' }}>
             <span className="pane-indicator">🔴 Original Code</span>
             <span className="file-tag">Original</span>
           </div>
           <div className="pane-editor-wrap" style={{ padding: '12px', background: 'rgba(0, 0, 0, 0.15)' }}>
-            <pre className="code-display" style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#f87171' }}>
+            <pre className="code-display" style={{ margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-all', color: '#FF003C' }}>
               <code>{originalCode}</code>
             </pre>
           </div>

@@ -150,7 +150,12 @@ const Settings: React.FC = () => {
       {/* Webhook Settings Section */}
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.05s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">🔔</span>
+          <span className="settings__section-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
+              <path d="M13.73 21a2 2 0 0 1-3.46 0" />
+            </svg>
+          </span>
           <h2 className="settings__section-title">Audit Notifications (Slack / Teams)</h2>
         </div>
         <p className="settings__section-desc">
@@ -195,7 +200,13 @@ const Settings: React.FC = () => {
       {/* System Information Section */}
       <section className="settings__section glassmorphism animate-slide-up" style={{ animationDelay: '0.12s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">🖥️</span>
+          <span className="settings__section-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
+              <line x1="8" y1="21" x2="16" y2="21" />
+              <line x1="12" y1="17" x2="12" y2="21" />
+            </svg>
+          </span>
           <h2 className="settings__section-title">System Environment & Ledger Status</h2>
         </div>
         <p className="settings__section-desc">
@@ -212,7 +223,7 @@ const Settings: React.FC = () => {
           }}>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Engine</div>
-              <div style={{ fontFamily: 'monospace', color: '#3b82f6' }}>SQLite 3 (Local Audit Ledger)</div>
+              <div style={{ fontFamily: 'monospace', color: '#00F0FF' }}>SQLite 3 (Local Audit Ledger)</div>
             </div>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Database Path</div>
@@ -224,7 +235,7 @@ const Settings: React.FC = () => {
             </div>
             <div className="info-box" style={{ background: 'rgba(0,0,0,0.15)', padding: '12px', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.03)' }}>
               <div style={{ color: 'var(--text-secondary)', marginBottom: '4px' }}>Active API Host Mode</div>
-              <div style={{ color: systemInfo.debug ? '#f59e0b' : '#10b981', fontWeight: 600 }}>
+              <div style={{ color: systemInfo.debug ? '#FF8C00' : '#00FF41', fontWeight: 600 }}>
                 {systemInfo.debug ? 'DEVELOPMENT / DEBUG' : 'PRODUCTION HARDENED'}
               </div>
             </div>
@@ -235,7 +246,13 @@ const Settings: React.FC = () => {
       {/* Danger Zone Section */}
       <section className="settings__section settings__section--danger glassmorphism animate-slide-up" style={{ animationDelay: '0.19s' }}>
         <div className="settings__section-header">
-          <span className="settings__section-icon">⚠️</span>
+          <span className="settings__section-icon">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </span>
           <h2 className="settings__section-title" style={{ color: 'var(--danger)' }}>System Maintenance</h2>
         </div>
         <p className="settings__section-desc">

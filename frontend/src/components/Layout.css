@@ -93,10 +93,11 @@
 }
 
 .sidebar__link--active {
-  color: #fff;
+  color: #06080F;
   background: var(--accent-gradient);
-  box-shadow: 0 2px 12px var(--accent-glow),
-              0 0 20px rgba(99, 102, 241, 0.1);
+  font-weight: 700;
+  box-shadow: 0 2px 14px var(--accent-glow),
+              0 0 24px rgba(0, 240, 255, 0.25);
   transform: translateX(0);
 }
 
@@ -216,8 +217,8 @@
 
 .topbar__search:focus-within {
   border-color: var(--accent-primary);
-  box-shadow: 0 0 0 3px var(--accent-glow),
-              0 0 15px rgba(99, 102, 241, 0.08);
+  box-shadow: 0 0 0 2px var(--accent-glow),
+              0 0 16px rgba(0, 240, 255, 0.15);
 }
 
 .topbar__search-icon {
@@ -552,11 +553,11 @@
 }
 
 .notif-item--unread {
-  background: rgba(99, 102, 241, 0.03);
+  background: rgba(0, 240, 255, 0.04);
 }
 
 .notif-item--unread:hover {
-  background: rgba(99, 102, 241, 0.06);
+  background: rgba(0, 240, 255, 0.08);
   transform: translateX(3px);
 }
 

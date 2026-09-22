@@ -69,7 +69,7 @@ function NetworkBackground() {
 
         ctx.beginPath();
         ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI * 2);
-        ctx.fillStyle = 'rgba(99, 102, 241, 0.25)';
+        ctx.fillStyle = 'rgba(0, 240, 255, 0.20)';
         ctx.fill();
 
         const dxMouse = p1.x - mouse.x;
@@ -79,7 +79,7 @@ function NetworkBackground() {
           ctx.beginPath();
           ctx.moveTo(p1.x, p1.y);
           ctx.lineTo(mouse.x, mouse.y);
-          ctx.strokeStyle = `rgba(99, 102, 241, ${0.15 * (1 - distMouse / 180)})`;
+          ctx.strokeStyle = `rgba(255, 140, 0, ${0.18 * (1 - distMouse / 180)})`;
           ctx.lineWidth = 0.5;
           ctx.stroke();
         }
@@ -94,7 +94,7 @@ function NetworkBackground() {
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = `rgba(99, 102, 241, ${0.1 * (1 - dist / 120)})`;
+            ctx.strokeStyle = `rgba(0, 240, 255, ${0.08 * (1 - dist / 120)})`;
             ctx.lineWidth = 0.5;
             ctx.stroke();
           }
@@ -135,12 +135,61 @@ interface LayoutProps {
   children: React.ReactNode;
 }
 
+const SvgRadar = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <circle cx="12" cy="12" r="10" opacity="0.3" />
+    <circle cx="12" cy="12" r="6" opacity="0.5" />
+    <circle cx="12" cy="12" r="2" />
+    <line x1="12" y1="2" x2="12" y2="6" />
+    <line x1="12" y1="12" x2="18" y2="6" />
+  </svg>
+);
+
+const SvgBug = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="8" y="6" width="8" height="14" rx="4" />
+    <path d="M6 10H4" /><path d="M6 18H2" /><path d="M6 14H3" />
+    <path d="M18 10h2" /><path d="M18 18h4" /><path d="M18 14h3" />
+    <path d="M9 2l1.5 4" /><path d="M15 2l-1.5 4" />
+  </svg>
+);
+
+const SvgTerminal = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <rect x="2" y="4" width="20" height="16" rx="2" />
+    <path d="M6 10l4 2-4 2" />
+    <line x1="12" y1="16" x2="18" y2="16" />
+  </svg>
+);
+
+const SvgShield = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M12 2L3 7v6c0 5.25 3.75 10.08 9 11 5.25-.92 9-5.75 9-11V7l-9-5z" />
+    <path d="M9 12l2 2 4-4" />
+  </svg>
+);
+
+const SvgHexDoc = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+    <polyline points="14 2 14 8 20 8" />
+    <path d="M8 13h2" /><path d="M8 17h2" />
+    <path d="M14 13h2" /><path d="M14 17h2" />
+  </svg>
+);
+
+const SvgWrench = () => (
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z" />
+  </svg>
+);
+
 const navItems = [
-  { path: '/', label: 'Dashboard', icon: '📊' },
-  { path: '/findings', label: 'Findings', icon: '🔍' },
-  { path: '/scan', label: 'New Scan', icon: '🚀' },
-  { path: '/compliance', label: 'Compliance', icon: '📋' },
-  { path: '/report', label: 'Reports', icon: '📄' },
+  { path: '/', label: 'Dashboard', icon: <SvgRadar /> },
+  { path: '/findings', label: 'Findings', icon: <SvgBug /> },
+  { path: '/scan', label: 'New Scan', icon: <SvgTerminal /> },
+  { path: '/compliance', label: 'Compliance', icon: <SvgShield /> },
+  { path: '/report', label: 'Reports', icon: <SvgHexDoc /> },
 ];
 
 const pageTitles: Record<string, string> = {
@@ -233,7 +282,7 @@ export default function Layout({ children }: LayoutProps) {
             }
             title="Settings"
           >
-            ⚙️ <span className="sidebar__link-label">Settings</span>
+            <SvgWrench /> <span className="sidebar__link-label">Settings</span>
           </NavLink>
         </div>
       </aside>

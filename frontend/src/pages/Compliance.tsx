@@ -3,12 +3,39 @@ import { useNavigate } from 'react-router-dom';
 import { useStore } from '../store';
 import './Compliance.css';
 
-/* Framework icon mapping for visual distinction */
-const frameworkIcons: Record<string, string> = {
-  'RBI-CSF': '🏦',
-  'NIST-CSF': '🏛️',
-  'SOC-2': '🔐',
-  'OWASP-10': '🕸️',
+/* Framework SVG emblems for visual distinction */
+const frameworkIcons: Record<string, React.ReactNode> = {
+  'RBI-CSF': (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="3" y1="21" x2="21" y2="21" />
+      <line x1="3" y1="10" x2="21" y2="10" />
+      <polyline points="5 10 5 21" />
+      <polyline points="19 10 19 21" />
+      <polyline points="10 10 10 21" />
+      <polyline points="14 10 14 21" />
+      <polygon points="12 2 20 7 4 7" />
+    </svg>
+  ),
+  'NIST-CSF': (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+      <path d="M12 8v4" />
+      <path d="M12 16h.01" />
+    </svg>
+  ),
+  'SOC-2': (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+    </svg>
+  ),
+  'OWASP-10': (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="12" cy="12" r="10" />
+      <line x1="12" y1="8" x2="12" y2="12" />
+      <line x1="12" y1="16" x2="12.01" y2="16" />
+    </svg>
+  ),
 };
 
 const Compliance: React.FC = () => {
@@ -83,7 +110,13 @@ const Compliance: React.FC = () => {
               className={`fw-tab glassmorphism ${isActive ? 'active' : ''}`}
               onClick={() => setSelectedFramework(fw)}
             >
-              <div className="fw-icon-badge">{frameworkIcons[fw] || '🛡️'}</div>
+              <div className="fw-icon-badge">
+                {frameworkIcons[fw] || (
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                  </svg>
+                )}
+              </div>
               <div className="fw-tab-info">
                 <h3>{fw}</h3>
                 <div className="fw-score-progress-wrap">

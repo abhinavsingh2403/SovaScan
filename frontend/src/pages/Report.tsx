@@ -641,10 +641,20 @@ const Report: React.FC = () => {
         </div>
         <div className="report-actions">
           <button className="settings__btn settings__btn--secondary" onClick={() => window.print()}>
-            🖨️ Print Report
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
+              <polyline points="6 9 6 2 18 2 18 9" />
+              <path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2" />
+              <rect x="6" y="14" width="12" height="8" />
+            </svg>
+            Print Report
           </button>
           <button className="settings__btn settings__btn--primary" onClick={handleExportJSON}>
-            📥 Export JSON
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
+              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+              <polyline points="7 10 12 15 17 10" />
+              <line x1="12" y1="15" x2="12" y2="3" />
+            </svg>
+            Export JSON
           </button>
         </div>
       </div>
@@ -655,13 +665,22 @@ const Report: React.FC = () => {
           className={`report-tab-btn ${activeTab === 'visual' ? 'active' : ''}`}
           onClick={() => setActiveTab('visual')}
         >
-          📊 Visual Report
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
+            <line x1="18" y1="20" x2="18" y2="10" />
+            <line x1="12" y1="20" x2="12" y2="4" />
+            <line x1="6" y1="20" x2="6" y2="14" />
+          </svg>
+          Visual Report
         </button>
         <button 
           className={`report-tab-btn ${activeTab === 'json' ? 'active' : ''}`}
           onClick={() => setActiveTab('json')}
         >
-          ⚙️ JSON Payload View
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ marginRight: '6px', verticalAlign: 'text-bottom' }}>
+            <polyline points="16 18 22 12 16 6" />
+            <polyline points="8 6 2 12 8 18" />
+          </svg>
+          JSON Payload View
         </button>
       </div>
 

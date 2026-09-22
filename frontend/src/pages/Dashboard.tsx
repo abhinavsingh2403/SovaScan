@@ -19,19 +19,19 @@ import './Dashboard.css';
 import { useNavigate, Link } from 'react-router-dom';
 
 const SEVERITY_COLORS = {
-  critical: '#f43f5e',
-  high: '#fb923c',
-  medium: '#60a5fa',
-  low: '#c084fc',
-  info: '#64748b',
+  critical: '#FF003C',
+  high: '#FF6D00',
+  medium: '#FFD600',
+  low: '#00E5FF',
+  info: '#78909C',
 };
 
 const SEVERITY_RGBS = {
-  critical: '220, 38, 38',
-  high: '234, 88, 12',
-  medium: '37, 99, 235',
-  low: '139, 92, 246',
-  info: '100, 116, 139',
+  critical: '255, 0, 60',
+  high: '255, 109, 0',
+  medium: '255, 214, 0',
+  low: '0, 229, 255',
+  info: '120, 144, 156',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -116,9 +116,9 @@ const Dashboard: React.FC = () => {
             <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
               <defs>
                 <linearGradient id="risk-grad" x1="0" y1="1" x2="1" y2="0">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="50%" stopColor="#ea580c" />
-                  <stop offset="100%" stopColor="#dc2626" />
+                  <stop offset="0%" stopColor="#00F0FF" />
+                  <stop offset="50%" stopColor="#FF8C00" />
+                  <stop offset="100%" stopColor="#FF003C" />
                 </linearGradient>
                 <filter id="glow-filter">
                   <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
@@ -133,7 +133,7 @@ const Dashboard: React.FC = () => {
                 cx="18"
                 cy="18"
                 r="17"
-                stroke="rgba(99, 102, 241, 0.25)"
+                stroke="rgba(0, 240, 255, 0.25)"
                 strokeWidth="0.5"
                 strokeDasharray="4, 2"
                 fill="none"
@@ -172,7 +172,11 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="stat-card glassmorphism scans-card">
-          <div className="stat-icon count-icon">🔍</div>
+          <div className="stat-icon count-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+            </svg>
+          </div>
           <div className="stat-details">
             <h3>Total Scans</h3>
             <p className="stat-number">{dashboardSummary.totalScans}</p>
@@ -181,7 +185,13 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="stat-card glassmorphism findings-card">
-          <div className="stat-icon finding-icon">🦉</div>
+          <div className="stat-icon finding-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+          </div>
           <div className="stat-details">
             <h3>Active Findings</h3>
             <p className="stat-number">{dashboardSummary.totalFindings}</p>
@@ -190,7 +200,11 @@ const Dashboard: React.FC = () => {
         </div>
 
         <div className="stat-card glassmorphism critical-card">
-          <div className="stat-icon critical-icon">🔥</div>
+          <div className="stat-icon critical-icon">
+            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z" />
+            </svg>
+          </div>
           <div className="stat-details">
             <h3>Critical & High</h3>
             <p className="stat-number">
@@ -217,24 +231,24 @@ const Dashboard: React.FC = () => {
                 >
                   <defs>
                     <linearGradient id="grad-critical" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ff453a" />
-                      <stop offset="100%" stopColor="#ff2d55" />
+                      <stop offset="0%" stopColor="#FF003C" />
+                      <stop offset="100%" stopColor="#990024" />
                     </linearGradient>
                     <linearGradient id="grad-high" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#ff9f0a" />
-                      <stop offset="100%" stopColor="#ff7b00" />
+                      <stop offset="0%" stopColor="#FF6D00" />
+                      <stop offset="100%" stopColor="#B34C00" />
                     </linearGradient>
                     <linearGradient id="grad-medium" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#6366f1" />
-                      <stop offset="100%" stopColor="#3b82f6" />
+                      <stop offset="0%" stopColor="#FFD600" />
+                      <stop offset="100%" stopColor="#B29500" />
                     </linearGradient>
                     <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#af52de" />
-                      <stop offset="100%" stopColor="#8b5cf6" />
+                      <stop offset="0%" stopColor="#00E5FF" />
+                      <stop offset="100%" stopColor="#008899" />
                     </linearGradient>
                     <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#94a3b8" />
-                      <stop offset="100%" stopColor="#64748b" />
+                      <stop offset="0%" stopColor="#90A4AE" />
+                      <stop offset="100%" stopColor="#546E7A" />
                     </linearGradient>
                     
                     {/* Glow filter for hovered bar */}
@@ -306,14 +320,14 @@ const Dashboard: React.FC = () => {
                   );
                 } else if (sevKey === 'medium') {
                   icon = (
-                    <svg className="sev-icon blue-icon" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="8" r="3" fill="#2563eb" />
+                    <svg className="sev-icon yellow-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#FFD600" />
                     </svg>
                   );
                 } else if (sevKey === 'low') {
                   icon = (
-                    <svg className="sev-icon purple-icon" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="8" r="3" fill="#8b5cf6" />
+                    <svg className="sev-icon cyan-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#00E5FF" />
                     </svg>
                   );
                 } else {
@@ -362,12 +376,12 @@ const Dashboard: React.FC = () => {
               <AreaChart data={trendData}>
                 <defs>
                   <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#dc2626" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#dc2626" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#FF003C" stopOpacity={0.4} />
+                    <stop offset="95%" stopColor="#FF003C" stopOpacity={0} />
                   </linearGradient>
                   <linearGradient id="colorHigh" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#ea580c" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#ea580c" stopOpacity={0} />
+                    <stop offset="5%" stopColor="#FF6D00" stopOpacity={0.3} />
+                    <stop offset="95%" stopColor="#FF6D00" stopOpacity={0} />
                   </linearGradient>
                 </defs>
                 <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
@@ -385,24 +399,24 @@ const Dashboard: React.FC = () => {
                 <Area
                   type="monotone"
                   dataKey="critical"
-                  stroke="#dc2626"
+                  stroke="#FF003C"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorCritical)"
                   name="Critical"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#dc2626' }}
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#06080F' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF003C' }}
                 />
                 <Area
                   type="monotone"
                   dataKey="high"
-                  stroke="#ea580c"
+                  stroke="#FF6D00"
                   strokeWidth={2}
                   fillOpacity={1}
                   fill="url(#colorHigh)"
                   name="High"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#1e293b' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#ea580c' }}
+                  dot={{ r: 3, strokeWidth: 1.5, fill: '#06080F' }}
+                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF6D00' }}
                 />
               </AreaChart>
             </ResponsiveContainer>
