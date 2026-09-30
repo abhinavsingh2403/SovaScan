@@ -89,6 +89,7 @@ const Settings: React.FC = () => {
       localStorage.removeItem('sovascan-theme');
       localStorage.removeItem('sovascan-api-keys');
       localStorage.removeItem('sovascan-active-key');
+      localStorage.removeItem('sovascan-target-path');
       alert('Local storage data cleared. Page will now refresh.');
       window.location.reload();
     }

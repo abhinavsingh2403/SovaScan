@@ -128,24 +128,26 @@ const Profile: React.FC = () => {
   // Sort by timestamp descending
   activity.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
 
-  // Fallback default list if no events are recorded yet
+  // Dynamic initial event if no audit logs are recorded yet
   if (activity.length === 0) {
-    activity.push(
-      {
-        id: 'mock-1',
-        action: 'Vulnerability scan initiated',
-        target: 'C:/Projects/bank-api',
+    if (scans && scans.length > 0) {
+      const latestScan = scans[0];
+      activity.push({
+        id: `scan-${latestScan.id}`,
+        action: `Security scan (${latestScan.scanType})`,
+        target: latestScan.target,
+        timestamp: latestScan.completedAt || latestScan.createdAt,
+        status: latestScan.status === 'completed' ? 'success' : 'info',
+      });
+    } else {
+      activity.push({
+        id: 'sys-session-start',
+        action: 'SovaScan Security Engine Session Initialized',
+        target: 'System Environment',
         timestamp: new Date().toISOString(),
-        status: 'info',
-      },
-      {
-        id: 'mock-2',
-        action: 'SovaScan Dashboard initialized',
-        target: 'SovaScan Client Web App',
-        timestamp: new Date(Date.now() - 3600000).toISOString(),
         status: 'success',
-      }
-    );
+      });
+    }
   }
 
   const handleGenerateKey = async (e: React.FormEvent) => {

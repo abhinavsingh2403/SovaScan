@@ -366,7 +366,7 @@
 }
 
 .finding-body.show {
-  max-height: 1600px;
+  max-height: 4000px;
   opacity: 1;
   padding: 20px;
   border-top-color: var(--border-color);

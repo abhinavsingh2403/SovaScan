@@ -34,7 +34,15 @@ const fwIcons: Record<string, React.ReactNode> = {
 
 const Scan: React.FC = () => {
   const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
-  const [targetPath, setTargetPath] = useState('https://github.com/abhinavsingh2403/SovaScan');
+  const [targetPath, setTargetPath] = useState(() => {
+    try {
+      const stored = localStorage.getItem('sovascan-target-path');
+      if (stored) return stored;
+    } catch {
+      // ignore
+    }
+    return '.';
+  });
   const [scanType, setScanType] = useState(() => {
     try {
       const stored = localStorage.getItem('sovascan-settings');
@@ -132,8 +140,14 @@ const Scan: React.FC = () => {
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!targetPath.trim()) return;
-    startScan(targetPath, scanType, frameworks);
+    const cleanTarget = targetPath.trim();
+    if (!cleanTarget) return;
+    try {
+      localStorage.setItem('sovascan-target-path', cleanTarget);
+    } catch {
+      // ignore
+    }
+    startScan(cleanTarget, scanType, frameworks);
   };
 
   return (
@@ -147,7 +161,10 @@ const Scan: React.FC = () => {
           <div className="target-mode-pill-row" style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
+              onClick={() => {
+                const lastGit = scans.find((s) => s.target.startsWith('http://') || s.target.startsWith('https://'))?.target;
+                setTargetPath(lastGit || 'https://github.com/abhinavsingh2403/SovaScan');
+              }}
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
@@ -190,9 +207,8 @@ const Scan: React.FC = () => {
             <button
               type="button"
               onClick={() => {
-                if (targetPath.includes('github.com') || targetPath === '.') {
-                  setTargetPath(deploymentMode === 'cloud' ? 'https://github.com/abhinavsingh2403/SovaScan' : 'C:\\Users\\ss\\Documents\\SovaScan');
-                }
+                const lastLocal = scans.find((s) => !s.target.includes('://') && s.target !== '.')?.target;
+                setTargetPath(lastLocal || '.');
               }}
               style={{
                 display: 'inline-flex',
@@ -259,7 +275,10 @@ const Scan: React.FC = () => {
                     <div style={{ marginTop: '8px' }}>
                       <button
                         type="button"
-                        onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
+                        onClick={() => {
+                          const lastGit = scans.find((s) => s.target.startsWith('http://') || s.target.startsWith('https://'))?.target;
+                          setTargetPath(lastGit || 'https://github.com/abhinavsingh2403/SovaScan');
+                        }}
                         style={{
                           background: '#f59e0b',
                           color: '#000',

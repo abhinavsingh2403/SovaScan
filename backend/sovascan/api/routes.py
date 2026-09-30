@@ -138,7 +138,7 @@ async def create_scan(
                 raise HTTPException(
                     status_code=400,
                     detail=f"Target path does not exist on server: {target_clean}. "
-                           f"To scan code, please enter a GitHub repository URL (e.g. https://github.com/abhinavsingh2403/SovaScan) or '.' to scan the application codebase."
+                           f"To scan code, please enter a Git repository URL (e.g. https://github.com/owner/repository) or '.' to scan the application codebase."
                 )
 
     scan = Scan(

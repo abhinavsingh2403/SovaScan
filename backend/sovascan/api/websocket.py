@@ -433,7 +433,7 @@ class ScanManager:
                     else:
                         raise FileNotFoundError(
                             f"Target path '{target_clean}' does not exist on the server. "
-                            f"To scan remote code, please provide a GitHub repository URL (e.g. https://github.com/abhinavsingh2403/SovaScan) or enter '.' to scan the server codebase."
+                            f"To scan remote code, please provide a Git repository URL (e.g. https://github.com/owner/repository) or enter '.' to scan the server codebase."
                         )
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------

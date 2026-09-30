@@ -50,6 +50,13 @@ const SyntaxHighlightedJSON: React.FC<{ data: any }> = ({ data }) => {
   );
 };
 
+const cleanFilePath = (path: string): string => {
+  if (!path) return '';
+  return path
+    .replace(/^(?:.*[\\/])?vulnerable-test-target[\\/]/, '')
+    .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
+    .replace(/^\/app\//, '');
+};
 
 const severityRank: Record<string, number> = {
   critical: 5,
@@ -814,7 +821,7 @@ const Report: React.FC = () => {
                   <span className="report-risk-meta">{f.category.toUpperCase()}</span>
                 </div>
                 <div className="report-risk-meta" style={{ color: 'var(--text-secondary)' }}>
-                  Location: <code>{f.filePath}:L{f.lineNumber}</code>
+                  Location: <code>{cleanFilePath(f.filePath)}:L{f.lineNumber}</code>
                 </div>
                 <div className="report-risk-why">
                   <strong>Why it matters:</strong> {getWhyItMatters(f.category)}
@@ -1167,8 +1174,8 @@ const Report: React.FC = () => {
                       <td><span className={`severity-badge-lbl ${f.severity}`}>{f.severity}</span></td>
                       <td style={{ fontWeight: 500 }}>{f.title}</td>
                       <td><span className="badge-type">{f.category}</span></td>
-                      <td className="monospace-td" style={{ maxWidth: '280px' }} title={f.filePath}>
-                        {f.filePath}:L{f.lineNumber}
+                      <td className="monospace-td" style={{ maxWidth: '280px' }} title={cleanFilePath(f.filePath)}>
+                        {cleanFilePath(f.filePath)}:L{f.lineNumber}
                       </td>
                       <td>
                         <span className={`status-badge ${f.isFixed ? 'completed' : 'failed'}`}>
@@ -1199,12 +1206,12 @@ const Report: React.FC = () => {
       <div className="print-only">
         {/* Helper variables */}
         {(() => {
-          const scanTarget = scan.target || 'vulnerable-test-target/vulnerable_demo.py (repository scope)';
+          const scanTarget = scan.target || 'Repository Scope (.)';
           const assessmentDateStr = scan.completedAt 
             ? new Date(scan.completedAt).toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' })
-            : '12 July 2026';
+            : new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
           const reportDateStr = new Date().toLocaleDateString('en-US', { day: 'numeric', month: 'long', year: 'numeric' });
-          const engagementRef = 'SVS-2026-0712-001';
+          const engagementRef = `SVS-${scan.id ? scan.id.slice(0, 8).toUpperCase() : 'AUDIT'}`;
 
           return (
             <>
@@ -1637,17 +1644,16 @@ const Report: React.FC = () => {
                       ))
                     ) : (
                       <tr>
-                        <td style={{ fontFamily: 'monospace' }}>vulnerable-test-target/vulnerable_demo.py</td>
-                        <td>0.0.0</td>
-                        <td>PyPI</td>
-                        <td>N/A</td>
+                        <td colSpan={4} style={{ textAlign: 'center', color: '#64748b', fontStyle: 'italic', padding: '16px' }}>
+                          No third-party dependency manifests detected in this scan scope.
+                        </td>
                       </tr>
                     )}
                   </tbody>
                 </table>
 
                 <p className="audit-paragraph" style={{ marginTop: '15px', fontStyle: 'italic', color: '#64748b' }}>
-                  Total dependencies listed: {sbom?.packages?.length || 1} (top 8 shown where applicable).
+                  Total dependencies listed: {sbom?.packages?.length || 0} (top 8 shown where applicable).
                 </p>
 
                 {renderAuditPageFooter(9)}
@@ -1678,7 +1684,7 @@ const Report: React.FC = () => {
                         </td>
                         <td style={{ fontWeight: 600 }}>{f.title}</td>
                         <td style={{ color: '#475569' }}>{f.category.toUpperCase()}</td>
-                        <td style={{ fontFamily: 'monospace', fontSize: '7.5pt' }}>{f.filePath}:L{f.lineNumber}</td>
+                        <td style={{ fontFamily: 'monospace', fontSize: '7.5pt' }}>{cleanFilePath(f.filePath)}:L{f.lineNumber}</td>
                       </tr>
                     ))}
                   </tbody>

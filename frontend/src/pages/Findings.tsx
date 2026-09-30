@@ -166,9 +166,9 @@ const Findings: React.FC = () => {
     const params = new URLSearchParams(location.search);
     const scanParam = params.get('scan');
     if (!scanParam && scans.length > 0 && scanFilter === 'all') {
-      const latestRealScan = scans.find((s) => !s.target.includes('vulnerable-test-target')) || scans[0];
-      if (latestRealScan) {
-        setScanFilter(latestRealScan.id);
+      const latestScan = scans[0];
+      if (latestScan) {
+        setScanFilter(latestScan.id);
       }
     }
   }, [scans]);
