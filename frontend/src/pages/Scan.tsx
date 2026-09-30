@@ -21,7 +21,10 @@ import {
   ExternalLink,
   UploadCloud,
   FileUp,
+  FolderUp,
+  Sparkles,
 } from 'lucide-react';
+import { zipFolderFiles } from '../utils/folderZip';
 import { api } from '../api/client';
 import { useStore } from '../store';
 import { CyberRadarHUD } from '../components/CyberRadarHUD';
@@ -36,8 +39,13 @@ const fwIcons: Record<string, React.ReactNode> = {
 
 const Scan: React.FC = () => {
   const { startScan, startUploadScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFile, setSelectedFile] = useState<File | Blob | null>(null);
+  const [selectedFileName, setSelectedFileName] = useState<string>('');
+  const [selectedFileSize, setSelectedFileSize] = useState<number>(0);
+  const [isZippingFolder, setIsZippingFolder] = useState<boolean>(false);
+  const [zipProgressText, setZipProgressText] = useState<string>('');
   const fileInputRef = React.useRef<HTMLInputElement | null>(null);
+  const folderInputRef = React.useRef<HTMLInputElement | null>(null);
   const [targetPath, setTargetPath] = useState(() => {
     try {
       const stored = localStorage.getItem('sovascan-target-path');
@@ -142,14 +150,59 @@ const Scan: React.FC = () => {
     }
   };
 
+  const getDetectedFolderName = (path: string): string => {
+    const trimmed = path.trim().replace(/[\\/]+$/, '');
+    const parts = trimmed.split(/[\\/]/);
+    return parts[parts.length - 1] || 'folder';
+  };
+
+  const handleFolderSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    try {
+      setIsZippingFolder(true);
+      setZipProgressText('Analyzing directory contents...');
+      const result = await zipFolderFiles(files, (_pct, status) => {
+        setZipProgressText(status);
+      });
+
+      setSelectedFile(result.blob);
+      setSelectedFileName(result.filename);
+      setSelectedFileSize(result.blob.size);
+      setTargetPath(`[Folder] ${result.folderName} (${result.totalFiles} files)`);
+    } catch (err: any) {
+      console.error('Folder packaging failed:', err);
+      alert(`Could not package selected folder: ${err.message || err}`);
+    } finally {
+      setIsZippingFolder(false);
+      setZipProgressText('');
+      if (e.target) e.target.value = '';
+    }
+  };
+
+  const clearSelectedFile = () => {
+    setSelectedFile(null);
+    setSelectedFileName('');
+    setSelectedFileSize(0);
+    setTargetPath('.');
+  };
+
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
     if (selectedFile) {
-      startUploadScan(selectedFile, scanType, frameworks);
+      startUploadScan(selectedFile, scanType, frameworks, selectedFileName || undefined);
       return;
     }
     const cleanTarget = targetPath.trim();
     if (!cleanTarget) return;
+
+    // If cloud deployment and local drive path is provided, automatically trigger folder picker
+    if (deploymentMode === 'cloud' && isLocalPath(cleanTarget)) {
+      folderInputRef.current?.click();
+      return;
+    }
+
     try {
       localStorage.setItem('sovascan-target-path', cleanTarget);
     } catch {
@@ -227,28 +280,52 @@ const Scan: React.FC = () => {
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
                 <label htmlFor="targetPath" style={{ margin: 0 }}>Target Directory, File, or Archive:</label>
                 {!targetPath.startsWith('http://') && !targetPath.startsWith('https://') && (
-                  <button
-                    type="button"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={scanProgress.running}
-                    style={{
-                      background: 'rgba(99, 102, 241, 0.12)',
-                      border: '1px solid rgba(99, 102, 241, 0.35)',
-                      color: 'var(--accent-primary)',
-                      padding: '4px 10px',
-                      borderRadius: '6px',
-                      fontSize: '12px',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '5px',
-                      transition: 'all 0.2s ease',
-                    }}
-                  >
-                    <UploadCloud size={13} />
-                    <span>Upload File / ZIP</span>
-                  </button>
+                  <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                    <button
+                      type="button"
+                      onClick={() => folderInputRef.current?.click()}
+                      disabled={scanProgress.running || isZippingFolder}
+                      style={{
+                        background: 'rgba(99, 102, 241, 0.12)',
+                        border: '1px solid rgba(99, 102, 241, 0.35)',
+                        color: 'var(--accent-primary)',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <FolderUp size={13} />
+                      <span>Select Folder</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={scanProgress.running || isZippingFolder}
+                      style={{
+                        background: 'rgba(255, 255, 255, 0.04)',
+                        border: '1px solid var(--border-color)',
+                        color: 'var(--text-secondary)',
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '5px',
+                        transition: 'all 0.2s ease',
+                      }}
+                    >
+                      <UploadCloud size={13} />
+                      <span>Upload ZIP / File</span>
+                    </button>
+                  </div>
                 )}
               </div>
 
@@ -260,10 +337,40 @@ const Scan: React.FC = () => {
                   const file = e.target.files?.[0];
                   if (file) {
                     setSelectedFile(file);
+                    setSelectedFileName(file.name);
+                    setSelectedFileSize(file.size);
                     setTargetPath(`[Uploaded] ${file.name}`);
                   }
+                  if (e.target) e.target.value = '';
                 }}
               />
+
+              <input
+                type="file"
+                ref={folderInputRef}
+                style={{ display: 'none' }}
+                {...({ webkitdirectory: '', directory: '', multiple: true } as any)}
+                onChange={handleFolderSelect}
+              />
+
+              {isZippingFolder && (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '10px',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(99, 102, 241, 0.4)',
+                    background: 'rgba(99, 102, 241, 0.1)',
+                    color: 'var(--text-primary)',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <div className="spinner" style={{ width: 16, height: 16, borderTopColor: 'var(--accent-primary)' }} />
+                  <span style={{ fontSize: '12px', fontWeight: 600 }}>{zipProgressText || 'Packaging directory in browser...'}</span>
+                </div>
+              )}
 
               {selectedFile ? (
                 <div
@@ -281,17 +388,14 @@ const Scan: React.FC = () => {
                 >
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
                     <FileUp size={18} style={{ color: '#10b981' }} />
-                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{selectedFile.name}</span>
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{selectedFileName || 'selected-target.zip'}</span>
                     <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
-                      ({(selectedFile.size / 1024).toFixed(1)} KB)
+                      ({(selectedFileSize / 1024).toFixed(1)} KB)
                     </span>
                   </div>
                   <button
                     type="button"
-                    onClick={() => {
-                      setSelectedFile(null);
-                      setTargetPath('.');
-                    }}
+                    onClick={clearSelectedFile}
                     style={{
                       background: 'transparent',
                       border: 'none',
@@ -323,7 +427,7 @@ const Scan: React.FC = () => {
                     }
                     value={targetPath}
                     onChange={(e) => {
-                      setSelectedFile(null);
+                      clearSelectedFile();
                       setTargetPath(e.target.value);
                     }}
                     disabled={scanProgress.running}
@@ -331,6 +435,62 @@ const Scan: React.FC = () => {
                   />
                 </div>
               )}
+
+              {/* Intelligent Local Folder Detection Helper */}
+              {isLocalPath(targetPath) && !selectedFile && !targetPath.startsWith('http://') && !targetPath.startsWith('https://') && (
+                <div
+                  style={{
+                    marginTop: '10px',
+                    padding: '12px 14px',
+                    borderRadius: '8px',
+                    background: 'rgba(99, 102, 241, 0.08)',
+                    border: '1px solid rgba(99, 102, 241, 0.3)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '10px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                    <FolderUp size={20} style={{ color: 'var(--accent-primary)', flexShrink: 0 }} />
+                    <div>
+                      <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                        Local Folder Detected: <span style={{ color: 'var(--accent-primary)', fontFamily: 'var(--font-mono)' }}>{getDetectedFolderName(targetPath)}</span>
+                      </div>
+                      <div style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                        {deploymentMode === 'cloud'
+                          ? 'Select this folder from your machine to automatically package and scan in the cloud.'
+                          : 'Click below to package and scan directly from your device.'}
+                      </div>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => folderInputRef.current?.click()}
+                    disabled={isZippingFolder || scanProgress.running}
+                    style={{
+                      background: 'var(--accent-primary)',
+                      color: '#ffffff',
+                      border: 'none',
+                      padding: '7px 14px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      transition: 'all 0.2s ease',
+                      boxShadow: '0 2px 8px rgba(99, 102, 241, 0.35)',
+                    }}
+                  >
+                    <FolderUp size={14} />
+                    <span>Select & Scan '{getDetectedFolderName(targetPath)}'</span>
+                  </button>
+                </div>
+              )}
+
 
               {/* Quick Preset Chips for local scans */}
               {!targetPath.startsWith('http://') && !targetPath.startsWith('https://') && !selectedFile && (

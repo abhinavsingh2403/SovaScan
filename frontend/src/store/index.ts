@@ -288,7 +288,7 @@ interface SovaState {
   fetchFindings: (scanId?: string) => Promise<void>;
   fetchComplianceReport: (framework: string) => Promise<void>;
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
-  startUploadScan: (file: File, scanType: string, frameworks: string[]) => Promise<void>;
+  startUploadScan: (file: File | Blob, scanType: string, frameworks: string[], filenameOverride?: string) => Promise<void>;
   _attachScanStreaming: (scanId: string) => void;
   cancelScan: (scanId?: string) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
@@ -576,19 +576,21 @@ export const useStore = create<SovaState>((set, get) => ({
      startUploadScan — POST /api/v1/scan/upload (202 Accepted)
      Uploads a file or ZIP archive and connects to WebSocket.
      ------------------------------------------------------- */
-  startUploadScan: async (file: File, scanType: string, _frameworks: string[]) => {
+  startUploadScan: async (file: File | Blob, scanType: string, _frameworks: string[], filenameOverride?: string) => {
     const prevPollId = get().scanProgress.pollIntervalId;
     if (prevPollId) clearInterval(prevPollId);
+
+    const displayName = filenameOverride || (file instanceof File ? file.name : 'upload.zip');
 
     set({
       loading: true,
       error: null,
-      scanProgress: { running: true, phase: `Uploading ${file.name}...`, percent: 5, findingsCount: 0, pollIntervalId: undefined },
+      scanProgress: { running: true, phase: `Uploading ${displayName}...`, percent: 5, findingsCount: 0, pollIntervalId: undefined },
     });
 
     try {
       const formData = new FormData();
-      formData.append('file', file);
+      formData.append('file', file, displayName);
       formData.append('scan_type', scanType);
 
       const response = await api.uploadScan(formData);
@@ -606,7 +608,7 @@ export const useStore = create<SovaState>((set, get) => ({
       get().addNotification({
         type: 'info',
         title: 'Upload Received',
-        message: `Analyzing uploaded target: ${file.name}`,
+        message: `Analyzing uploaded target: ${displayName}`,
       });
 
       // Stream via WebSocket with polling fallback
