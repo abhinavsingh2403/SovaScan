@@ -1758,7 +1758,7 @@ def get_deployment_info() -> dict[str, Any]:
     Git URL scanning (cloud) or allow local path entry (local).
     """
     is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
-    project_root = str(Path(__file__).parents[2].resolve()).replace("\\", "/")
+    project_root = str(get_project_root().resolve()).replace("\\", "/")
     return {
         "mode": "cloud" if is_cloud else "local",
         "server_platform": os.name,

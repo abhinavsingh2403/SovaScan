@@ -106,6 +106,17 @@ function resolveTargetAction(
     };
   }
 
+  if (scanTarget.startsWith('upload:')) {
+    return {
+      type: 'none',
+      url: '',
+      cleanPath: cleaned,
+      fullPath: rawPath,
+      label: 'Uploaded Target',
+      isGitCommitFinding: false,
+    };
+  }
+
   // Local filesystem target — compute canonical absolute path so VS Code never 404s
   const normRaw = rawPath.replace(/\\/g, '/');
   let fullPath = normRaw;
@@ -114,12 +125,19 @@ function resolveTargetAction(
   if (!isAbsolute) {
     const normTarget = scanTarget.replace(/\\/g, '/');
     const isTargetAbsolute = /^[a-zA-Z]:\//i.test(normTarget) || normTarget.startsWith('/');
-    if (isTargetAbsolute) {
-      const base = normTarget.replace(/\/+$/, '');
-      fullPath = `${base}/${cleaned}`;
-    } else if (projectRoot) {
-      const base = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '');
-      fullPath = `${base}/${cleaned}`;
+    const base = isTargetAbsolute
+      ? normTarget.replace(/\/+$/, '')
+      : (projectRoot ? projectRoot.replace(/\\/g, '/').replace(/\/+$/, '') : '');
+
+    if (base) {
+      // Avoid duplicating folder names (e.g. base ends with /backend and cleaned starts with backend/)
+      const baseDirName = base.split('/').pop() || '';
+      if (baseDirName && cleaned.startsWith(`${baseDirName}/`)) {
+        const rest = cleaned.slice(baseDirName.length + 1);
+        fullPath = `${base}/${rest}`;
+      } else {
+        fullPath = `${base}/${cleaned}`;
+      }
     } else {
       fullPath = cleaned;
     }
