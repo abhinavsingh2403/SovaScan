@@ -41,94 +41,328 @@ function NetworkBackground() {
     let height = (canvas.height = window.innerHeight);
 
     const handleResize = () => {
+      if (!canvas) return;
       width = canvas.width = window.innerWidth;
       height = canvas.height = window.innerHeight;
     };
     window.addEventListener('resize', handleResize);
 
-    const particleCount = 40;
-    const particles: Array<{
+    // 3D Space & Projection Configuration
+    const FOCAL_LENGTH = 650;
+    const BOUNDS_X = 900;
+    const BOUNDS_Y = 600;
+    const BOUNDS_Z = 700;
+    const PARTICLE_COUNT = 65;
+
+    interface Particle3D {
       x: number;
       y: number;
+      z: number;
       vx: number;
       vy: number;
+      vz: number;
       radius: number;
-    }> = [];
+      pulsePhase: number;
+      colorType: 'amber' | 'cyan' | 'emerald';
+    }
 
-    for (let i = 0; i < particleCount; i++) {
+    const particles: Particle3D[] = [];
+    for (let i = 0; i < PARTICLE_COUNT; i++) {
       particles.push({
-        x: Math.random() * width,
-        y: Math.random() * height,
-        vx: (Math.random() - 0.5) * 0.35,
-        vy: (Math.random() - 0.5) * 0.35,
-        radius: Math.random() * 1.5 + 1,
+        x: (Math.random() - 0.5) * BOUNDS_X * 2,
+        y: (Math.random() - 0.5) * BOUNDS_Y * 2,
+        z: (Math.random() - 0.5) * BOUNDS_Z * 2,
+        vx: (Math.random() - 0.5) * 0.45,
+        vy: (Math.random() - 0.5) * 0.45,
+        vz: (Math.random() - 0.5) * 0.5,
+        radius: Math.random() * 2.2 + 1.2,
+        pulsePhase: Math.random() * Math.PI * 2,
+        colorType: i % 5 === 0 ? 'cyan' : i % 8 === 0 ? 'emerald' : 'amber',
       });
     }
 
-    const mouse = { x: -1000, y: -1000 };
+    // Interactive 3D Camera Controls with Inertia
+    let mouseX = 0;
+    let mouseY = 0;
+    let targetRotY = 0;
+    let targetRotX = 0;
+    let rotY = 0;
+    let rotX = 0;
 
     const handleMouseMove = (e: MouseEvent) => {
-      mouse.x = e.clientX;
-      mouse.y = e.clientY;
+      const normX = (e.clientX / width - 0.5) * 2;
+      const normY = (e.clientY / height - 0.5) * 2;
+      mouseX = e.clientX;
+      mouseY = e.clientY;
+      targetRotY = normX * 0.35; // yaw (-0.35 to +0.35 rad)
+      targetRotX = -normY * 0.22; // pitch (-0.22 to +0.22 rad)
     };
 
     const handleMouseLeave = () => {
-      mouse.x = -1000;
-      mouse.y = -1000;
+      targetRotX = 0;
+      targetRotY = 0;
     };
 
     window.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('mouseleave', handleMouseLeave);
 
     const isLight = theme === 'light';
+    let frame = 0;
 
     const draw = () => {
+      frame++;
+      // Smooth camera interpolation
+      rotY += (targetRotY - rotY) * 0.05;
+      rotX += (targetRotX - rotX) * 0.05;
+
+      const cosY = Math.cos(rotY);
+      const sinY = Math.sin(rotY);
+      const cosX = Math.cos(rotX);
+      const sinX = Math.sin(rotX);
+
       ctx.clearRect(0, 0, width, height);
 
-      for (let i = 0; i < particleCount; i++) {
-        const p1 = particles[i];
-        p1.x += p1.vx;
-        p1.y += p1.vy;
+      const cx = width / 2;
+      const cy = height / 2;
 
-        if (p1.x < 0 || p1.x > width) p1.vx *= -1;
-        if (p1.y < 0 || p1.y > height) p1.vy *= -1;
+      // --- 1. Draw 3D Perspective Ground Grid (Horizon Matrix) ---
+      const gridZStart = 100;
+      const gridZEnd = 900;
+      const gridZStep = 130;
+      const gridY = 280; // ground plane below center
+      const gridExtent = 900;
+      const gridXStep = 180;
 
-        ctx.beginPath();
-        ctx.arc(p1.x, p1.y, p1.radius, 0, Math.PI * 2);
-        ctx.fillStyle = isLight ? 'rgba(217, 119, 6, 0.22)' : 'rgba(245, 158, 11, 0.28)';
-        ctx.fill();
+      ctx.save();
+      const gridAlphaBase = isLight ? 0.04 : 0.07;
 
-        const dxMouse = p1.x - mouse.x;
-        const dyMouse = p1.y - mouse.y;
-        const distMouse = Math.sqrt(dxMouse * dxMouse + dyMouse * dyMouse);
-        if (distMouse < 180) {
+      // Longitudinal lines (Z-depth lines)
+      for (let gx = -gridExtent; gx <= gridExtent; gx += gridXStep) {
+        // Near point
+        const nx = gx * cosY - gridZStart * sinY;
+        const nz = gx * sinY + gridZStart * cosY;
+        const ny = gridY * cosX - nz * sinX;
+        const nrz = gridY * sinX + nz * cosX + FOCAL_LENGTH;
+
+        // Far point
+        const fx = gx * cosY - gridZEnd * sinY;
+        const fz = gx * sinY + gridZEnd * cosY;
+        const fy = gridY * cosX - fz * sinX;
+        const frz = gridY * sinX + fz * cosX + FOCAL_LENGTH;
+
+        if (nrz > 50 && frz > 50) {
+          const ns = FOCAL_LENGTH / nrz;
+          const fs = FOCAL_LENGTH / frz;
+
           ctx.beginPath();
-          ctx.moveTo(p1.x, p1.y);
-          ctx.lineTo(mouse.x, mouse.y);
+          ctx.moveTo(cx + nx * ns, cy + ny * ns);
+          ctx.lineTo(cx + fx * fs, cy + fy * fs);
           ctx.strokeStyle = isLight
-            ? `rgba(217, 119, 6, ${0.18 * (1 - distMouse / 180)})`
-            : `rgba(245, 158, 11, ${0.22 * (1 - distMouse / 180)})`;
+            ? `rgba(2, 132, 199, ${gridAlphaBase * 0.8})`
+            : `rgba(6, 182, 212, ${gridAlphaBase})`;
+          ctx.lineWidth = 0.5;
+          ctx.stroke();
+        }
+      }
+
+      // Latitudinal lines (X-horizontal rings)
+      for (let gz = gridZStart; gz <= gridZEnd; gz += gridZStep) {
+        const x1 = -gridExtent;
+        const x2 = gridExtent;
+
+        const rx1 = x1 * cosY - gz * sinY;
+        const rz1 = x1 * sinY + gz * cosY;
+        const ry1 = gridY * cosX - rz1 * sinX;
+        const fz1 = gridY * sinX + rz1 * cosX + FOCAL_LENGTH;
+
+        const rx2 = x2 * cosY - gz * sinY;
+        const rz2 = x2 * sinY + gz * cosY;
+        const ry2 = gridY * cosX - rz2 * sinX;
+        const fz2 = gridY * sinX + rz2 * cosX + FOCAL_LENGTH;
+
+        if (fz1 > 50 && fz2 > 50) {
+          const s1 = FOCAL_LENGTH / fz1;
+          const s2 = FOCAL_LENGTH / fz2;
+          const depthFade = Math.max(0, 1 - gz / gridZEnd);
+
+          ctx.beginPath();
+          ctx.moveTo(cx + rx1 * s1, cy + ry1 * s1);
+          ctx.lineTo(cx + rx2 * s2, cy + ry2 * s2);
+          ctx.strokeStyle = isLight
+            ? `rgba(217, 119, 6, ${gridAlphaBase * depthFade})`
+            : `rgba(245, 158, 11, ${gridAlphaBase * 1.2 * depthFade})`;
           ctx.lineWidth = 0.6;
           ctx.stroke();
         }
+      }
+      ctx.restore();
 
-        for (let j = i + 1; j < particleCount; j++) {
-          const p2 = particles[j];
-          const dx = p1.x - p2.x;
-          const dy = p1.y - p2.y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
+      // --- 2. Update and Project 3D Particles ---
+      interface ProjectedNode {
+        sx: number;
+        sy: number;
+        sz: number;
+        scale: number;
+        radius: number;
+        alpha: number;
+        colorType: 'amber' | 'cyan' | 'emerald';
+        pRef: Particle3D;
+      }
 
-          if (dist < 120) {
+      const projected: ProjectedNode[] = [];
+
+      for (let i = 0; i < PARTICLE_COUNT; i++) {
+        const p = particles[i];
+
+        // Motion update
+        p.x += p.vx;
+        p.y += p.vy;
+        p.z += p.vz;
+        p.pulsePhase += 0.02;
+
+        // Wrap around bounds
+        if (p.x < -BOUNDS_X) p.x = BOUNDS_X;
+        if (p.x > BOUNDS_X) p.x = -BOUNDS_X;
+        if (p.y < -BOUNDS_Y) p.y = BOUNDS_Y;
+        if (p.y > BOUNDS_Y) p.y = -BOUNDS_Y;
+        if (p.z < -BOUNDS_Z) p.z = BOUNDS_Z;
+        if (p.z > BOUNDS_Z) p.z = -BOUNDS_Z;
+
+        // 3D Rotation Transform (Yaw around Y, then Pitch around X)
+        const xRot = p.x * cosY - p.z * sinY;
+        const zRot = p.x * sinY + p.z * cosY;
+        const yRot = p.y * cosX - zRot * sinX;
+        const finalZ = p.y * sinX + zRot * cosX;
+
+        // Perspective Projection
+        const distanceZ = finalZ + FOCAL_LENGTH;
+        if (distanceZ <= 60) continue; // Behind camera or clipping plane
+
+        const scale = FOCAL_LENGTH / distanceZ;
+        const sx = cx + xRot * scale;
+        const sy = cy + yRot * scale;
+
+        // Volumetric depth fading & size scaling
+        const depthNorm = Math.max(0, Math.min(1, (distanceZ - 100) / (BOUNDS_Z * 2)));
+        const depthAlpha = (1 - depthNorm * 0.75) * (0.85 + Math.sin(p.pulsePhase) * 0.15);
+
+        projected.push({
+          sx,
+          sy,
+          sz: distanceZ,
+          scale,
+          radius: p.radius * scale,
+          alpha: Math.max(0.08, depthAlpha),
+          colorType: p.colorType,
+          pRef: p,
+        });
+      }
+
+      // Depth sort so distant nodes render first (painter's algorithm)
+      projected.sort((a, b) => b.sz - a.sz);
+
+      // --- 3. Render 3D Constellation Laser Struts ---
+      const maxConnectDist = 180;
+      for (let i = 0; i < projected.length; i++) {
+        const n1 = projected[i];
+        for (let j = i + 1; j < projected.length; j++) {
+          const n2 = projected[j];
+
+          // 3D Euclidean distance in world space
+          const dx = n1.pRef.x - n2.pRef.x;
+          const dy = n1.pRef.y - n2.pRef.y;
+          const dz = n1.pRef.z - n2.pRef.z;
+          const dist3D = Math.sqrt(dx * dx + dy * dy + dz * dz);
+
+          if (dist3D < maxConnectDist) {
+            const proximityFactor = 1 - dist3D / maxConnectDist;
+            const linkAlpha = proximityFactor * Math.min(n1.alpha, n2.alpha) * (isLight ? 0.35 : 0.45);
+
             ctx.beginPath();
-            ctx.moveTo(p1.x, p1.y);
-            ctx.lineTo(p2.x, p2.y);
-            ctx.strokeStyle = isLight
-              ? `rgba(2, 132, 199, ${0.08 * (1 - dist / 120)})`
-              : `rgba(6, 182, 212, ${0.10 * (1 - dist / 120)})`;
-            ctx.lineWidth = 0.5;
+            ctx.moveTo(n1.sx, n1.sy);
+            ctx.lineTo(n2.sx, n2.sy);
+
+            if (n1.colorType === 'cyan' || n2.colorType === 'cyan') {
+              ctx.strokeStyle = isLight
+                ? `rgba(2, 132, 199, ${linkAlpha})`
+                : `rgba(6, 182, 212, ${linkAlpha})`;
+            } else if (n1.colorType === 'emerald' || n2.colorType === 'emerald') {
+              ctx.strokeStyle = isLight
+                ? `rgba(16, 185, 129, ${linkAlpha})`
+                : `rgba(52, 211, 153, ${linkAlpha})`;
+            } else {
+              ctx.strokeStyle = isLight
+                ? `rgba(217, 119, 6, ${linkAlpha})`
+                : `rgba(245, 158, 11, ${linkAlpha})`;
+            }
+
+            ctx.lineWidth = Math.max(0.4, 1.2 * n1.scale);
             ctx.stroke();
           }
         }
+
+        // Mouse interactive 3D tractor beam
+        const mouseDist = Math.hypot(n1.sx - mouseX, n1.sy - mouseY);
+        if (mouseDist < 160 && mouseX > 0) {
+          const beamFactor = (1 - mouseDist / 160) * n1.alpha;
+          ctx.beginPath();
+          ctx.moveTo(n1.sx, n1.sy);
+          ctx.lineTo(mouseX, mouseY);
+          ctx.strokeStyle = isLight
+            ? `rgba(217, 119, 6, ${beamFactor * 0.4})`
+            : `rgba(245, 158, 11, ${beamFactor * 0.55})`;
+          ctx.lineWidth = 0.8;
+          ctx.stroke();
+        }
+      }
+
+      // --- 4. Render 3D Volumetric Glowing Nodes ---
+      for (const node of projected) {
+        ctx.save();
+        ctx.beginPath();
+        ctx.arc(node.sx, node.sy, Math.max(1, node.radius), 0, Math.PI * 2);
+
+        // Core fill & outer glow
+        if (node.colorType === 'cyan') {
+          ctx.fillStyle = isLight
+            ? `rgba(2, 132, 199, ${node.alpha * 0.9})`
+            : `rgba(6, 182, 212, ${node.alpha})`;
+          ctx.shadowColor = '#06b6d4';
+        } else if (node.colorType === 'emerald') {
+          ctx.fillStyle = isLight
+            ? `rgba(16, 185, 129, ${node.alpha * 0.9})`
+            : `rgba(52, 211, 153, ${node.alpha})`;
+          ctx.shadowColor = '#10b981';
+        } else {
+          ctx.fillStyle = isLight
+            ? `rgba(217, 119, 6, ${node.alpha * 0.95})`
+            : `rgba(245, 158, 11, ${node.alpha})`;
+          ctx.shadowColor = '#f59e0b';
+        }
+
+        ctx.shadowBlur = Math.max(3, 8 * node.scale);
+        ctx.fill();
+
+        // 3D Orbital ring on select hero nodes
+        if (node.scale > 0.8 && node.colorType === 'amber') {
+          ctx.beginPath();
+          ctx.ellipse(
+            node.sx,
+            node.sy,
+            node.radius * 2.8,
+            node.radius * 1.2,
+            (frame * 0.02) % (Math.PI * 2),
+            0,
+            Math.PI * 2
+          );
+          ctx.strokeStyle = isLight
+            ? `rgba(217, 119, 6, ${node.alpha * 0.35})`
+            : `rgba(245, 158, 11, ${node.alpha * 0.45})`;
+          ctx.lineWidth = 0.7;
+          ctx.stroke();
+        }
+
+        ctx.restore();
       }
 
       animationFrameId = requestAnimationFrame(draw);
@@ -155,7 +389,7 @@ function NetworkBackground() {
         height: '100vh',
         pointerEvents: 'none',
         zIndex: 0,
-        opacity: 0.85,
+        opacity: 0.9,
       }}
     />
   );

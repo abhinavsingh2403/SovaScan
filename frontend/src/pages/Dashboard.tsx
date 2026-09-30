@@ -18,6 +18,7 @@ import './Dashboard.css';
 
 import { useNavigate, Link } from 'react-router-dom';
 import { Activity, ShieldAlert, Flame } from 'lucide-react';
+import { TiltCard } from '../components/TiltCard';
 
 const SEVERITY_COLORS = {
   critical: '#F43F5E',
@@ -112,7 +113,7 @@ const Dashboard: React.FC = () => {
     <div className="dashboard-container">
       {/* Top Stats Cards */}
       <div className="stats-grid animate-fade-in stagger-children">
-        <div className="stat-card glassmorphism risk-card animate-scan-glow">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism risk-card animate-scan-glow">
           <div className="risk-score-circle">
             <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
               <defs>
@@ -170,9 +171,9 @@ const Dashboard: React.FC = () => {
             <h3>Overall Security Risk</h3>
             <p className="risk-desc">Calculated based on active findings and severity levels.</p>
           </div>
-        </div>
+        </TiltCard>
 
-        <div className="stat-card glassmorphism scans-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism scans-card">
           <div className="stat-icon count-icon">
             <Activity size={22} strokeWidth={2} />
           </div>
@@ -181,9 +182,9 @@ const Dashboard: React.FC = () => {
             <p className="stat-number">{dashboardSummary.totalScans}</p>
             <span className="stat-sub">Completed codebases & dependencies</span>
           </div>
-        </div>
+        </TiltCard>
 
-        <div className="stat-card glassmorphism findings-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism findings-card">
           <div className="stat-icon finding-icon">
             <ShieldAlert size={22} strokeWidth={2} />
           </div>
@@ -192,9 +193,9 @@ const Dashboard: React.FC = () => {
             <p className="stat-number">{dashboardSummary.totalFindings}</p>
             <span className="stat-sub font-orange">Requires review</span>
           </div>
-        </div>
+        </TiltCard>
 
-        <div className="stat-card glassmorphism critical-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism critical-card">
           <div className="stat-icon critical-icon">
             <Flame size={22} strokeWidth={2} />
           </div>
@@ -206,7 +207,7 @@ const Dashboard: React.FC = () => {
             </p>
             <span className="stat-sub font-red">Immediate fixing required</span>
           </div>
-        </div>
+        </TiltCard>
       </div>
 
       {/* Middle Visualizations */}

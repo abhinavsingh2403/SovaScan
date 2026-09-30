@@ -273,12 +273,14 @@
 
 .idle-reticle-container {
   position: relative;
-  width: 120px;
-  height: 120px;
-  margin: 0 auto 24px auto;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 28px auto;
   display: flex;
   align-items: center;
   justify-content: center;
+  perspective: 900px;
+  transform-style: preserve-3d;
 }
 
 .idle-reticle-ring-1 {
@@ -286,30 +288,46 @@
   width: 100%;
   height: 100%;
   border-radius: 50%;
-  border: 1px dashed rgba(245, 158, 11, 0.3);
-  transform-origin: center;
+  border: 1.5px dashed rgba(245, 158, 11, 0.45);
+  box-shadow: 0 0 20px rgba(245, 158, 11, 0.2), inset 0 0 16px rgba(245, 158, 11, 0.1);
+  transform: rotateX(58deg) translateZ(0px);
+  animation: radar-spin 12s linear infinite;
 }
 
 .idle-reticle-ring-2 {
   position: absolute;
-  width: 80%;
-  height: 80%;
+  width: 78%;
+  height: 78%;
   border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  box-shadow: 0 0 14px rgba(6, 182, 212, 0.15);
+  transform: rotateX(58deg) translateZ(12px);
+  animation: radar-spin-reverse 8s linear infinite;
 }
 
 .owl-mascot {
-  font-size: 48px;
-  z-index: 2;
-  animation: float-slow 4s ease-in-out infinite;
+  font-size: 52px;
+  z-index: 10;
+  transform: translateZ(42px);
+  animation: float-3d-slow 4s ease-in-out infinite;
+  filter: drop-shadow(0 14px 18px rgba(0, 0, 0, 0.65)) drop-shadow(0 0 24px rgba(245, 158, 11, 0.3));
 }
 
-@keyframes float-slow {
+@keyframes float-3d-slow {
   0%, 100% {
-    transform: translateY(0) scale(1);
+    transform: translateZ(42px) translateY(0) scale(1);
   }
   50% {
-    transform: translateY(-4px) scale(1.02);
+    transform: translateZ(52px) translateY(-8px) scale(1.04);
+  }
+}
+
+@keyframes radar-spin-reverse {
+  from {
+    transform: rotateX(58deg) translateZ(12px) rotate(360deg);
+  }
+  to {
+    transform: rotateX(58deg) translateZ(12px) rotate(0deg);
   }
 }
 
@@ -331,58 +349,76 @@
   width: 100%;
 }
 
-/* Radar HUD Spinner Overlay */
+/* 3D Isometric Holographic Radar HUD */
 .radar-hud-container {
   position: relative;
-  width: 100px;
-  height: 100px;
-  border-radius: 50%;
-  border: 1px solid rgba(0, 240, 255, 0.25);
-  margin: 0 auto 20px auto;
+  width: 140px;
+  height: 140px;
+  margin: 0 auto 28px auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  background: rgba(6, 8, 15, 0.6);
+  perspective: 900px;
+  transform-style: preserve-3d;
 }
 
 .radar-ping-ring {
   position: absolute;
-  top: -1px;
-  left: -1px;
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  border: 1.5px solid var(--accent-primary);
+  border: 2px solid var(--accent-primary);
+  box-shadow: 0 0 24px var(--accent-primary), inset 0 0 16px var(--accent-primary);
+  transform: rotateX(58deg) translateZ(0px);
 }
 
 .radar-ping-ring-2 {
   position: absolute;
-  width: 70px;
-  height: 70px;
+  width: 75%;
+  height: 75%;
   border-radius: 50%;
-  border: 0.5px dashed rgba(255, 255, 255, 0.05);
+  border: 1px dashed rgba(6, 182, 212, 0.5);
+  box-shadow: 0 0 14px rgba(6, 182, 212, 0.3);
+  transform: rotateX(58deg) translateZ(14px);
+  animation: radar-spin-reverse 6s linear infinite;
 }
 
 .radar-sweep-line {
   position: absolute;
-  width: 100px;
-  height: 100px;
+  width: 100%;
+  height: 100%;
   border-radius: 50%;
-  background: conic-gradient(from 0deg at 50% 50%, rgba(0, 240, 255, 0.35) 0deg, rgba(0, 240, 255, 0) 90deg);
+  background: conic-gradient(from 0deg at 50% 50%, rgba(245, 158, 11, 0.55) 0deg, rgba(6, 182, 212, 0.25) 45deg, transparent 110deg);
+  transform: rotateX(58deg) translateZ(22px);
+  animation: radar-spin-3d 2.8s linear infinite;
+  box-shadow: 0 0 30px rgba(245, 158, 11, 0.35);
+}
+
+@keyframes radar-spin-3d {
+  from {
+    transform: rotateX(58deg) translateZ(22px) rotate(0deg);
+  }
+  to {
+    transform: rotateX(58deg) translateZ(22px) rotate(360deg);
+  }
 }
 
 .radar-core-glow {
   position: absolute;
-  width: 10px;
-  height: 10px;
+  width: 16px;
+  height: 16px;
   border-radius: 50%;
   background: var(--accent-primary);
-  box-shadow: 0 0 10px var(--accent-primary);
+  box-shadow: 0 0 16px var(--accent-primary), 0 0 32px var(--accent-primary);
+  transform: rotateX(58deg) translateZ(28px);
 }
 
 .radar-icon-center {
-  font-size: 24px;
-  z-index: 2;
+  font-size: 38px;
+  z-index: 10;
+  transform: translateZ(48px);
+  animation: float-3d-slow 3s ease-in-out infinite;
+  filter: drop-shadow(0 16px 20px rgba(0, 0, 0, 0.7)) drop-shadow(0 0 28px rgba(245, 158, 11, 0.45));
 }
 
 /* Hacker Console Logs Terminal */
