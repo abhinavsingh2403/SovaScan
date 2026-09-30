@@ -33,6 +33,8 @@ export interface Finding {
   cvssScore: number | null;
   isFixed: boolean;
   createdAt: string;
+  metadata?: Record<string, any>;
+  tags?: string[];
 }
 
 export interface SeverityDistribution {

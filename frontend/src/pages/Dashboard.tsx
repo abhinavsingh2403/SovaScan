@@ -54,6 +54,38 @@ const CustomTooltip = ({ active, payload, label }: any) => {
   return null;
 };
 
+/**
+ * Smooth Numeric Roll Counter Hook (0 → target)
+ * Soft ease-out cubic animation over duration ms on mount/update.
+ */
+function useCountUp(value: number, duration: number = 650): number {
+  const [displayValue, setDisplayValue] = useState(0);
+
+  useEffect(() => {
+    let start: number | null = null;
+    let frameId: number;
+
+    const step = (ts: number) => {
+      if (!start) start = ts;
+      const progress = Math.min((ts - start) / duration, 1);
+      // easeOutCubic: 1 - (1 - progress)^3
+      const eased = 1 - Math.pow(1 - progress, 3);
+      setDisplayValue(Math.round(value * eased));
+
+      if (progress < 1) {
+        frameId = requestAnimationFrame(step);
+      } else {
+        setDisplayValue(value);
+      }
+    };
+
+    frameId = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(frameId);
+  }, [value, duration]);
+
+  return displayValue;
+}
+
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
@@ -62,6 +94,14 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  const animatedRiskScore = useCountUp(dashboardSummary?.riskScore ?? 0);
+  const animatedTotalScans = useCountUp(dashboardSummary?.totalScans ?? 0);
+  const animatedTotalFindings = useCountUp(dashboardSummary?.totalFindings ?? 0);
+  const animatedCriticalHigh = useCountUp(
+    (dashboardSummary?.severityDistribution?.critical ?? 0) +
+      (dashboardSummary?.severityDistribution?.high ?? 0)
+  );
 
   if (loading || !dashboardSummary) {
     return (
@@ -111,9 +151,33 @@ const Dashboard: React.FC = () => {
 
   return (
     <div className="dashboard-container">
-      {/* Top Stats Cards */}
-      <div className="stats-grid animate-fade-in stagger-children">
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism risk-card animate-scan-glow">
+      {/* Sticky Glassmorphic Posture Quick Bar */}
+      <div className="dashboard-sticky-bar glassmorphism">
+        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
+          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+            <Activity size={15} style={{ color: 'var(--accent-primary)' }} /> Live Posture Overview
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            Risk Index: <strong style={{ color: dashboardSummary.riskScore > 75 ? '#f43f5e' : dashboardSummary.riskScore > 40 ? '#f59e0b' : '#10b981' }}>{animatedRiskScore}/100</strong>
+          </span>
+          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
+            Active Findings: <strong style={{ color: '#f43f5e' }}>{animatedTotalFindings}</strong>
+          </span>
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+          <Link
+            to="/scan"
+            className="settings__btn settings__btn--primary"
+            style={{ textDecoration: 'none', padding: '5px 12px', fontSize: '12px', borderRadius: '6px' }}
+          >
+            + New Scan
+          </Link>
+        </div>
+      </div>
+
+      {/* Top Stats Cards with Initial Stagger on Mount */}
+      <div className="stats-grid staggerContainer">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism risk-card animate-scan-glow hover-lift">
           <div className="risk-score-circle">
             <svg viewBox="0 0 36 36" className="circular-chart hud-dial">
               <defs>
@@ -160,7 +224,7 @@ const Dashboard: React.FC = () => {
                 fill="none"
               />
               <text x="18" y="18.5" className="percentage">
-                {dashboardSummary.riskScore}
+                {animatedRiskScore}
               </text>
               <text x="18" y="25" className="hud-label">
                 {dashboardSummary.riskScore > 75 ? 'CRITICAL' : dashboardSummary.riskScore > 40 ? 'WARNING' : 'SECURE'}
@@ -173,38 +237,35 @@ const Dashboard: React.FC = () => {
           </div>
         </TiltCard>
 
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism scans-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism scans-card hover-lift">
           <div className="stat-icon count-icon">
             <Activity size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Total Scans</h3>
-            <p className="stat-number">{dashboardSummary.totalScans}</p>
+            <p className="stat-number">{animatedTotalScans}</p>
             <span className="stat-sub">Completed codebases & dependencies</span>
           </div>
         </TiltCard>
 
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism findings-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism findings-card hover-lift">
           <div className="stat-icon finding-icon">
             <ShieldAlert size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Active Findings</h3>
-            <p className="stat-number">{dashboardSummary.totalFindings}</p>
+            <p className="stat-number">{animatedTotalFindings}</p>
             <span className="stat-sub font-orange">Requires review</span>
           </div>
         </TiltCard>
 
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism critical-card">
+        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism critical-card hover-lift">
           <div className="stat-icon critical-icon">
             <Flame size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
             <h3>Critical & High</h3>
-            <p className="stat-number">
-              {dashboardSummary.severityDistribution.critical +
-                dashboardSummary.severityDistribution.high}
-            </p>
+            <p className="stat-number">{animatedCriticalHigh}</p>
             <span className="stat-sub font-red">Immediate fixing required</span>
           </div>
         </TiltCard>
@@ -485,7 +546,7 @@ const Dashboard: React.FC = () => {
             {dashboardSummary.topVulnerabilities.map((vuln) => (
               <div
                 key={vuln.id}
-                className="vuln-item interactive-vuln-card"
+                className="vuln-item interactive-vuln-card hover-lift"
                 onClick={() => navigate(`/findings?search=${encodeURIComponent(vuln.title)}`)}
               >
                 <div className="vuln-details">

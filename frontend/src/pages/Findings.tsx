@@ -15,6 +15,9 @@ import {
   Sparkles,
   Edit3,
   Trash2,
+  Copy,
+  GitCommit,
+  Globe,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
@@ -25,8 +28,7 @@ import './Findings.css';
 const cleanFilePath = (path: string): string => {
   if (!path) return '';
   return path
-    .replace(/^.*\/vulnerable-test-target\//, '')
-    .replace(/^.*\\vulnerable-test-target\\/, '')
+    .replace(/^(?:.*[\\/])?vulnerable-test-target[\\/]/, '')
     .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
     .replace(/^\/app\//, '');
 };
@@ -41,44 +43,69 @@ const getReplacementFromPatch = (patch: string): string => {
 };
 
 /**
- * Resolves a finding's relative file_path into a full absolute path suitable
- * for a vscode://file/ URI.  Uses the parent scan's `target` (the original
- * directory that was scanned) as the root, then appends the relative path.
- *
- * For remote git scans (target starts with http) the cloned temp directory
- * no longer exists, so we return null to signal that opening is unavailable.
+ * Resolves a finding's target file action:
+ * - For GitHub remote scans: direct URL to file on GitHub (with line anchor)
+ * - For local filesystem scans: vscode://file/ URL
  */
-function resolveAbsolutePath(
+function resolveTargetAction(
   finding: Finding,
   scans: Array<{ id: string; target: string }>,
-): string | null {
+): {
+  type: 'local' | 'github' | 'none';
+  url: string;
+  cleanPath: string;
+  fullPath: string;
+  label: string;
+} {
   const parentScan = scans.find((s) => s.id === finding.scanId);
-  const scanTarget = parentScan?.target ?? '';
+  const scanTarget = (parentScan?.target ?? '').trim();
+  const rawPath = finding.filePath || '';
+  const cleaned = cleanFilePath(rawPath);
 
-  // Remote git scans — temp clone dir is deleted after scan
+  // Check if target is a Git/GitHub URL
   if (
     scanTarget.startsWith('http://') ||
     scanTarget.startsWith('https://') ||
     scanTarget.startsWith('git@')
   ) {
-    return null;
+    if (scanTarget.includes('github.com')) {
+      const repoBase = scanTarget.replace(/\.git$/, '').replace(/\/+$/, '');
+      const lineHash = finding.lineNumber ? `#L${finding.lineNumber}` : '';
+      return {
+        type: 'github',
+        url: `${repoBase}/blob/HEAD/${cleaned}${lineHash}`,
+        cleanPath: cleaned,
+        fullPath: rawPath,
+        label: 'Open on GitHub ↗',
+      };
+    }
+    return {
+      type: 'none',
+      url: '',
+      cleanPath: cleaned,
+      fullPath: rawPath,
+      label: 'Remote Repository File',
+    };
   }
 
-  const filePath = finding.filePath;
-
-  // If the filePath is already absolute (e.g. starts with C:\ or /), use it directly
-  if (/^[a-zA-Z]:[\\/]/.test(filePath) || filePath.startsWith('/')) {
-    return filePath.replace(/\\/g, '/');
+  // Local filesystem target
+  let fullPath = rawPath;
+  if (!/^[a-zA-Z]:[\\/]/.test(rawPath) && !rawPath.startsWith('/')) {
+    const base = scanTarget.replace(/\\/g, '/').replace(/\/+$/, '');
+    const rel = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
+    fullPath = `${base}/${rel}`;
+  } else {
+    fullPath = rawPath.replace(/\\/g, '/');
   }
 
-  // Build absolute path: scanTarget + filePath
-  // Normalize separators to forward slashes for the URI
-  const base = scanTarget.replace(/\\/g, '/').replace(/\/+$/, '');
-  const relative = filePath.replace(/\\/g, '/').replace(/^\/+/, '');
-
-  // Avoid double-joining if the relative path already starts with a segment
-  // that is the last segment of the base (edge case with _clean_path stripping)
-  return `${base}/${relative}`;
+  const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
+  return {
+    type: 'local',
+    url: `vscode://file/${fullPath}${lineSuffix}`,
+    cleanPath: cleaned,
+    fullPath,
+    label: 'Open in VS Code',
+  };
 }
 
 const Findings: React.FC = () => {
@@ -109,6 +136,14 @@ const Findings: React.FC = () => {
   const [collapsedContext, setCollapsedContext] = useState<Record<string, boolean>>({});
   const [currentContextText, setCurrentContextText] = useState<Record<string, string>>({});
   const [backupContextText, setBackupContextText] = useState<Record<string, string>>({});
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const copyToClipboard = (text: string, id: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    navigator.clipboard.writeText(text);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 2000);
+  };
 
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -492,6 +527,117 @@ const Findings: React.FC = () => {
   };
 
   const renderSideBySideSandbox = (finding: Finding) => {
+    const isGitHistory =
+      finding.ruleId?.startsWith('GIT-SECRET-') ||
+      (finding.evidence && finding.evidence.startsWith('Commit: '));
+
+    if (isGitHistory) {
+      // Parse commit details from evidence string: "Commit: c8731e6 | Author: ... | Date: ... | Secret: ..."
+      const evidence = finding.evidence || '';
+      const parts: Record<string, string> = {};
+      evidence.split('|').forEach((seg) => {
+        const idx = seg.indexOf(':');
+        if (idx !== -1) {
+          const k = seg.slice(0, idx).trim().toLowerCase();
+          const v = seg.slice(idx + 1).trim();
+          parts[k] = v;
+        }
+      });
+      const commitHash = parts['commit'] || finding.metadata?.commit_short || 'HEAD';
+      const commitAuthor = parts['author'] || finding.metadata?.commit_author || 'Git Contributor';
+      const commitDate = parts['date'] || finding.metadata?.commit_date || '';
+      const maskedSecret = parts['secret'] || finding.metadata?.masked_value || '••••••••';
+      
+      const parentScan = scans.find((s) => s.id === finding.scanId);
+      const isGitHub = (parentScan?.target || '').includes('github.com');
+      const repoBase = (parentScan?.target || '').replace(/\.git$/, '').replace(/\/+$/, '');
+      const commitUrl = isGitHub && commitHash ? `${repoBase}/commit/${commitHash}` : null;
+      const purgeCmd = `git filter-repo --invert-paths --path "${cleanFilePath(finding.filePath)}"`;
+
+      return (
+        <div className="git-leak-sandbox glassmorphism" style={{
+          marginTop: '16px',
+          marginBottom: '12px',
+          padding: '16px 20px',
+          borderRadius: '10px',
+          background: 'rgba(244, 63, 94, 0.04)',
+          border: '1px solid rgba(244, 63, 94, 0.25)',
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px', flexWrap: 'wrap', gap: '8px' }}>
+            <span style={{ display: 'inline-flex', alignItems: 'center', gap: '8px', color: '#f43f5e', fontWeight: 600, fontSize: '13px' }}>
+              <GitCommit size={15} /> Leaked Credential in Past Git Commit
+            </span>
+            {commitUrl && (
+              <a
+                href={commitUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                style={{
+                  color: 'var(--accent-telemetry, #06b6d4)',
+                  fontSize: '12px',
+                  textDecoration: 'none',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  fontWeight: 500,
+                }}
+              >
+                <ExternalLink size={12} /> View Commit on GitHub ↗
+              </a>
+            )}
+          </div>
+
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '10px', marginBottom: '14px' }}>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>Commit SHA</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#f3f4f6', marginTop: '2px', fontWeight: 600 }}>{commitHash}</div>
+            </div>
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>Author</div>
+              <div style={{ fontSize: '12px', color: '#f3f4f6', marginTop: '2px' }}>{commitAuthor}</div>
+            </div>
+            {commitDate && (
+              <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(255,255,255,0.06)' }}>
+                <div style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-secondary)', letterSpacing: '0.5px' }}>Committed At</div>
+                <div style={{ fontSize: '12px', color: '#f3f4f6', marginTop: '2px' }}>{commitDate}</div>
+              </div>
+            )}
+            <div style={{ background: 'rgba(0,0,0,0.3)', padding: '8px 12px', borderRadius: '6px', border: '1px solid rgba(244, 63, 94, 0.2)' }}>
+              <div style={{ fontSize: '10px', textTransform: 'uppercase', color: '#f43f5e', letterSpacing: '0.5px' }}>Secret Value (Masked)</div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: '12px', color: '#f43f5e', marginTop: '2px', fontWeight: 600 }}>{maskedSecret}</div>
+            </div>
+          </div>
+
+          <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: '6px', padding: '10px 14px', border: '1px solid rgba(255,255,255,0.08)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '6px' }}>
+              <span style={{ fontSize: '11px', color: 'var(--text-secondary)', fontWeight: 600 }}>Permanent Purge Command (git filter-repo):</span>
+              <button
+                type="button"
+                onClick={(e) => copyToClipboard(purgeCmd, `purge-${finding.id}`, e)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  color: 'var(--accent-primary)',
+                  fontSize: '11px',
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  padding: '2px 6px',
+                }}
+              >
+                {copiedId === `purge-${finding.id}` ? <Check size={11} /> : <Copy size={11} />}
+                {copiedId === `purge-${finding.id}` ? 'Copied' : 'Copy Command'}
+              </button>
+            </div>
+            <code style={{ fontFamily: 'var(--font-mono)', fontSize: '11px', color: '#38bdf8', wordBreak: 'break-all', display: 'block' }}>
+              {purgeCmd}
+            </code>
+          </div>
+        </div>
+      );
+    }
+
     let originalCode = finding.evidence || '';
     if (originalCode.trim() === 'requires login' && contextCache[finding.id]) {
       const targetLineObj = contextCache[finding.id].lines.find((l: any) => l.num === finding.lineNumber);
@@ -870,18 +1016,32 @@ const Findings: React.FC = () => {
                       </div>
                     )}
                     
-                    <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px' }}>
+                    <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                       {(() => {
-                        const absPath = resolveAbsolutePath(finding, scans);
-                        if (absPath) {
+                        const targetAction = resolveTargetAction(finding, scans);
+                        if (targetAction.type === 'github') {
                           return (
                             <a
                               className="editor-link-btn"
-                              href={`vscode://file/${absPath}:${finding.lineNumber}`}
+                              href={targetAction.url}
+                              target="_blank"
+                              rel="noopener noreferrer"
                               onClick={(e) => e.stopPropagation()}
                               style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                             >
-                              <ExternalLink size={13} strokeWidth={2} /> Open in VS Code / Editor
+                              <Globe size={13} strokeWidth={2} /> Open on GitHub ↗
+                            </a>
+                          );
+                        }
+                        if (targetAction.type === 'local') {
+                          return (
+                            <a
+                              className="editor-link-btn"
+                              href={targetAction.url}
+                              onClick={(e) => e.stopPropagation()}
+                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                            >
+                              <ExternalLink size={13} strokeWidth={2} /> Open in VS Code
                             </a>
                           );
                         }
@@ -889,12 +1049,30 @@ const Findings: React.FC = () => {
                           <span
                             className="editor-link-btn"
                             style={{ opacity: 0.5, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                            title="Cannot open remote git scan files — the cloned directory has been cleaned up"
+                            title="Remote repository files are read-only"
                           >
-                            <ExternalLink size={13} strokeWidth={2} /> Open in Editor (remote scan)
+                            <ExternalLink size={13} strokeWidth={2} /> Remote File
                           </span>
                         );
                       })()}
+
+                      <button
+                        type="button"
+                        className="settings__btn settings__btn--secondary"
+                        onClick={(e) => copyToClipboard(cleanFilePath(finding.filePath), `path-${finding.id}`, e)}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 12px', height: '32px' }}
+                        title="Copy relative file path to clipboard"
+                      >
+                        {copiedId === `path-${finding.id}` ? (
+                          <>
+                            <Check size={13} style={{ color: '#10b981' }} /> Copied!
+                          </>
+                        ) : (
+                          <>
+                            <Copy size={13} /> Copy Path
+                          </>
+                        )}
+                      </button>
 
                       {finding.isFixed ? (
                         <>

@@ -164,7 +164,7 @@ const Scan: React.FC = () => {
               }}
             >
               <Globe size={14} />
-              <span>SovaScan GitHub Repo (Actual)</span>
+              <span>GitHub Repository (Remote)</span>
             </button>
             <button
               type="button"
@@ -185,7 +185,32 @@ const Scan: React.FC = () => {
               }}
             >
               <FolderSearch size={14} />
-              <span>Application Repository Scope (.)</span>
+              <span>Project Scope (.)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                if (targetPath.includes('github.com') || targetPath === '.') {
+                  setTargetPath(deploymentMode === 'cloud' ? 'https://github.com/abhinavsingh2403/SovaScan' : 'C:\\Users\\ss\\Documents\\SovaScan');
+                }
+              }}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                border: (!targetPath.includes('github.com') && targetPath !== '.') ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                background: (!targetPath.includes('github.com') && targetPath !== '.') ? 'var(--accent-glow)' : 'rgba(255,255,255,0.02)',
+                color: (!targetPath.includes('github.com') && targetPath !== '.') ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <HardDrive size={14} />
+              <span>Custom Local Path</span>
             </button>
           </div>
 
@@ -203,14 +228,63 @@ const Scan: React.FC = () => {
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g. https://github.com/abhinavsingh2403/SovaScan or . for application root"
+                  placeholder="e.g. https://github.com/user/repo or . for application root"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              <p className="field-help">SovaScan seamlessly scans the application codebase or any remote GitHub repository.</p>
+
+              {showCloudWarning ? (
+                <div className="cloud-path-notice" style={{
+                  marginTop: '10px',
+                  padding: '12px 16px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.35)',
+                  borderRadius: '8px',
+                  display: 'flex',
+                  gap: '10px',
+                  alignItems: 'flex-start',
+                  color: '#fef3c7',
+                  fontSize: '12px',
+                }}>
+                  <AlertTriangle size={18} style={{ color: '#f59e0b', flexShrink: 0, marginTop: '2px' }} />
+                  <div>
+                    <strong style={{ color: '#f59e0b', display: 'block', marginBottom: '3px' }}>
+                      Cloud Environment Notice: Local paths cannot be read by cloud servers
+                    </strong>
+                    SovaScan is currently hosted on cloud infrastructure. Cloud servers cannot read paths on your private local machine ({targetPath}).
+                    To scan your repository, provide its GitHub repository URL or use '.' for the server workspace.
+                    <div style={{ marginTop: '8px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
+                        style={{
+                          background: '#f59e0b',
+                          color: '#000',
+                          fontWeight: 600,
+                          border: 'none',
+                          padding: '5px 12px',
+                          borderRadius: '5px',
+                          cursor: 'pointer',
+                          fontSize: '11px',
+                        }}
+                      >
+                        Switch to GitHub Repository URL
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <p className="field-help">
+                  {targetPath.startsWith('http://') || targetPath.startsWith('https://')
+                    ? 'Remote GitHub repository scan: SovaScan performs git clone, SAST, secrets, and CVE analysis.'
+                    : targetPath === '.'
+                    ? 'Project scope scan: analyzes application root workspace directly.'
+                    : 'Local directory scan: scans filesystem path on host.'}
+                </p>
+              )}
             </div>
 
             <div className="form-group">
@@ -364,9 +438,17 @@ const Scan: React.FC = () => {
 
             <button
               type="submit"
-              className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() ? 'glow-cta' : ''}`}
-              disabled={scanProgress.running || !targetPath.trim()}
-              style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '8px' }}
+              className={`submit-scan-btn ${!scanProgress.running && targetPath.trim() && !showCloudWarning ? 'glow-cta' : ''}`}
+              disabled={scanProgress.running || !targetPath.trim() || showCloudWarning}
+              title={showCloudWarning ? "Cannot scan private local filesystem paths while running in cloud deployment mode" : undefined}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                opacity: showCloudWarning ? 0.6 : 1,
+                cursor: showCloudWarning ? 'not-allowed' : undefined,
+              }}
             >
               {scanProgress.running ? (
                 <>

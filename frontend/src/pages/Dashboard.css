@@ -684,3 +684,85 @@
   border-color: rgba(245, 158, 11, 0.3) !important;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4), 0 0 12px rgba(245, 158, 11, 0.1);
 }
+
+/* ============================================================
+   Pattern 1: Initial Stagger on Mount (staggerContainer)
+   Page load only: cards gently fade and lift into place once in 0.25s
+   ============================================================ */
+@keyframes fadeInUp {
+  0% {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.staggerContainer > * {
+  animation: fadeInUp 0.25s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+.staggerContainer > *:nth-child(1) { animation-delay: 0.04s; }
+.staggerContainer > *:nth-child(2) { animation-delay: 0.08s; }
+.staggerContainer > *:nth-child(3) { animation-delay: 0.12s; }
+.staggerContainer > *:nth-child(4) { animation-delay: 0.16s; }
+.staggerContainer > *:nth-child(5) { animation-delay: 0.20s; }
+.staggerContainer > *:nth-child(6) { animation-delay: 0.24s; }
+
+/* ============================================================
+   Pattern 3: Tactile Hover Micro-Physics (hover-lift)
+   Subtle 2px upward lift with hairline border highlight
+   ============================================================ */
+.hover-lift {
+  transition: transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              box-shadow 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+              border-color 0.22s ease !important;
+}
+
+.hover-lift:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 28px -6px rgba(0, 0, 0, 0.45), 0 0 16px -2px rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.38) !important;
+}
+
+/* Hairline border highlight on hover */
+.stat-card.hover-lift::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 20%;
+  right: 20%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.6), transparent);
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.stat-card.hover-lift:hover::after {
+  opacity: 1;
+}
+
+/* ============================================================
+   Pattern 4: Sticky Glassmorphic Header (dashboard-sticky-bar)
+   Pins smoothly to top with backdrop blur as user scrolls
+   ============================================================ */
+.dashboard-sticky-bar {
+  position: sticky;
+  top: var(--header-height, 64px);
+  z-index: 30;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: rgba(10, 15, 29, 0.84);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  padding: 12px 20px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.36);
+  margin-bottom: 8px;
+}
+

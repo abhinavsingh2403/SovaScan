@@ -222,24 +222,44 @@ export const CyberRadarHUD: React.FC<CyberRadarHUDProps> = ({
         <path d="M 52 170 L 46 170 L 46 164" className="hud-bracket" />
         <path d="M 188 170 L 194 170 L 194 164" className="hud-bracket" />
 
-        {/* Cardinal Hex Legend */}
-        <text x="120" y="24" className="hud-legend-text top" textAnchor="middle">000° // NOR</text>
-        <text x="216" y="124" className="hud-legend-text right">090°</text>
-        <text x="120" y="222" className="hud-legend-text btm" textAnchor="middle">180° // SOV</text>
-        <text x="24" y="124" className="hud-legend-text left" textAnchor="end">270°</text>
+        {/* Minimalist Micro Cardinal Markers */}
+        <line x1="120" y1="16" x2="120" y2="24" className="hud-cardinal-tick" />
+        <line x1="216" y1="120" x2="224" y2="120" className="hud-cardinal-tick" />
+        <line x1="120" y1="216" x2="120" y2="224" className="hud-cardinal-tick" />
+        <line x1="16" y1="120" x2="24" y2="120" className="hud-cardinal-tick" />
       </svg>
 
-      {/* Holographic Center Mascot Stage */}
-      <div className="cyber-mascot-pod">
-        {/* Hologram Pedestal Light Disc */}
-        <div className="mascot-pedestal-glow" />
-        <div className="mascot-pedestal-ring" />
+      {/* Sleek Cyber Sensor Core Pod */}
+      <div className="cyber-sensor-core-pod">
+        <div className="sensor-core-glow" />
+        <div className="sensor-core-ring" />
 
-        {/* Center Floating Sova Owl */}
-        <div className="cyber-owl-container">
-          <span className="cyber-owl-glyph">🦉</span>
-          {/* Scanning Laser Beam Line passing through the owl */}
-          {active && <div className="cyber-mascot-laser-scan" />}
+        <div className="sensor-core-beacon">
+          <svg className="sensor-core-svg" viewBox="0 0 48 48" width="42" height="42">
+            <defs>
+              <linearGradient id="sensor-iris-grad" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="#f59e0b" />
+                <stop offset="100%" stopColor="#06b6d4" />
+              </linearGradient>
+            </defs>
+            {/* Precision Hex Sensor Ring */}
+            <polygon
+              points="24,6 39,15 39,33 24,42 9,33 9,15"
+              fill="none"
+              stroke="rgba(245, 158, 11, 0.45)"
+              strokeWidth="1.2"
+              strokeDasharray="4 2"
+            />
+            {/* Inner Optic Reticle */}
+            <circle cx="24" cy="24" r="10" fill="none" stroke="url(#sensor-iris-grad)" strokeWidth="1.5" />
+            <circle cx="24" cy="24" r="4.5" fill="#f59e0b" className="sensor-pupil-glow" />
+            {/* Micro Crosshair */}
+            <line x1="24" y1="10" x2="24" y2="16" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="24" y1="32" x2="24" y2="38" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="10" y1="24" x2="16" y2="24" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
+            <line x1="32" y1="24" x2="38" y2="24" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
+          </svg>
+          {active && <div className="cyber-sensor-laser-scan" />}
         </div>
       </div>
 

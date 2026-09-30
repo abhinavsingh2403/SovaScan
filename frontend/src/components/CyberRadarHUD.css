@@ -147,23 +147,18 @@
   stroke-width: 1.2px;
 }
 
-/* Cardinal Legend Text */
-.hud-legend-text {
-  font-family: var(--font-mono, monospace);
-  font-size: 8px;
-  letter-spacing: 0.6px;
-  fill: rgba(255, 255, 255, 0.4);
-  font-weight: 600;
+/* Minimalist Cardinal Markers */
+.hud-cardinal-tick {
+  stroke: rgba(6, 182, 212, 0.7);
+  stroke-width: 1.5px;
+  stroke-linecap: round;
 }
 
-.hud-legend-text.top { fill: #f59e0b; }
-.hud-legend-text.btm { fill: #06b6d4; }
-
-/* Holographic Mascot Stage */
-.cyber-mascot-pod {
+/* Sleek Cyber Sensor Core Pod */
+.cyber-sensor-core-pod {
   position: absolute;
-  width: 72px;
-  height: 72px;
+  width: 64px;
+  height: 64px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -171,75 +166,68 @@
   z-index: 5;
 }
 
-.mascot-pedestal-glow {
+.sensor-core-glow {
   position: absolute;
-  bottom: 6px;
-  width: 52px;
-  height: 16px;
+  inset: 4px;
   border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(245, 158, 11, 0.45) 0%, rgba(6, 182, 212, 0.15) 60%, transparent 80%);
-  filter: blur(2px);
-  animation: pedestal-pulse 2.5s ease-in-out infinite alternate;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.35) 0%, rgba(6, 182, 212, 0.12) 60%, transparent 80%);
+  filter: blur(4px);
+  animation: sensor-glow-pulse 2.8s ease-in-out infinite alternate;
 }
 
-.mascot-pedestal-ring {
+.sensor-core-ring {
   position: absolute;
-  bottom: 8px;
-  width: 44px;
-  height: 14px;
+  inset: 8px;
   border-radius: 50%;
-  border: 1px solid rgba(245, 158, 11, 0.6);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
-  transform: rotateX(50deg);
+  border: 1px dashed rgba(245, 158, 11, 0.4);
+  animation: hud-spin-cw 20s linear infinite;
 }
 
-@keyframes pedestal-pulse {
-  0% { transform: scale(0.9); opacity: 0.5; }
-  100% { transform: scale(1.15); opacity: 0.95; }
+@keyframes sensor-glow-pulse {
+  0% { transform: scale(0.92); opacity: 0.5; }
+  100% { transform: scale(1.08); opacity: 0.95; }
 }
 
-.cyber-owl-container {
+.sensor-core-beacon {
   position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
-  animation: owl-levitate 3.5s ease-in-out infinite;
 }
 
-@keyframes owl-levitate {
-  0%, 100% {
-    transform: translateY(0px) scale(1);
-  }
-  50% {
-    transform: translateY(-6px) scale(1.03);
-  }
+.sensor-core-svg {
+  display: block;
+  filter: drop-shadow(0 0 8px rgba(245, 158, 11, 0.4));
 }
 
-.cyber-owl-glyph {
-  font-size: 38px;
-  display: inline-block;
-  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.75))
-          drop-shadow(0 0 16px rgba(245, 158, 11, 0.45))
-          drop-shadow(0 0 4px rgba(6, 182, 212, 0.35));
+.sensor-pupil-glow {
+  animation: pupil-blink 3s ease-in-out infinite alternate;
+  filter: drop-shadow(0 0 4px #f59e0b) drop-shadow(0 0 8px rgba(6, 182, 212, 0.8));
 }
 
-/* Cyber Scanning Laser Line Across Mascot */
-.cyber-mascot-laser-scan {
+@keyframes pupil-blink {
+  0% { r: 3.5px; fill: #f59e0b; opacity: 0.75; }
+  50% { r: 4.8px; fill: #ffffff; opacity: 1; }
+  100% { r: 3.5px; fill: #06b6d4; opacity: 0.75; }
+}
+
+/* Cyber Scanning Laser Line Across Sensor */
+.cyber-sensor-laser-scan {
   position: absolute;
-  left: -8px;
-  right: -8px;
+  left: -4px;
+  right: -4px;
   height: 2px;
   background: linear-gradient(90deg, transparent 0%, #06b6d4 25%, #ffffff 50%, #f59e0b 75%, transparent 100%);
-  box-shadow: 0 0 8px #06b6d4, 0 0 14px #f59e0b;
+  box-shadow: 0 0 8px #06b6d4, 0 0 12px #f59e0b;
   border-radius: 2px;
-  animation: mascot-laser-sweep 2.2s ease-in-out infinite;
+  animation: sensor-laser-sweep 2.2s ease-in-out infinite;
   pointer-events: none;
   opacity: 0.85;
 }
 
-@keyframes mascot-laser-sweep {
+@keyframes sensor-laser-sweep {
   0% {
-    top: 0%;
+    top: 10%;
     opacity: 0;
   }
   20% {
@@ -249,7 +237,7 @@
     opacity: 0.9;
   }
   100% {
-    top: 95%;
+    top: 90%;
     opacity: 0;
   }
 }
