@@ -133,8 +133,8 @@ const Dashboard: React.FC = () => {
     trendData: [],
   };
 
-  // Format data for vertical threat columns chart
-  const barData = ['critical', 'high', 'medium', 'low', 'info'].map((name) => ({
+  // Format data for vertical threat columns chart (focusing on high-impact: Critical, High, Medium)
+  const barData = ['critical', 'high', 'medium'].map((name) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
     value: summary.severityDistribution[name as keyof typeof SEVERITY_COLORS] || 0,
     color: `url(#grad-${name})`,
@@ -424,7 +424,6 @@ const Dashboard: React.FC = () => {
               <span className="mini-pill pill-crit">C: {summary.severityDistribution.critical}</span>
               <span className="mini-pill pill-high">H: {summary.severityDistribution.high}</span>
               <span className="mini-pill pill-med">M: {summary.severityDistribution.medium}</span>
-              <span className="mini-pill pill-low">L: {summary.severityDistribution.low}</span>
             </div>
           </div>
         </TiltCard>
@@ -485,14 +484,6 @@ const Dashboard: React.FC = () => {
                       <stop offset="0%" stopColor="#FACC15" />
                       <stop offset="100%" stopColor="#A16207" />
                     </linearGradient>
-                    <linearGradient id="grad-low" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#38BDF8" />
-                      <stop offset="100%" stopColor="#0369A1" />
-                    </linearGradient>
-                    <linearGradient id="grad-info" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#94A3B8" />
-                      <stop offset="100%" stopColor="#475569" />
-                    </linearGradient>
 
                     <filter id="glow-effect" x="-20%" y="-20%" width="140%" height="140%">
                       <feGaussianBlur stdDeviation="3" result="blur" />
@@ -503,15 +494,15 @@ const Dashboard: React.FC = () => {
                     dataKey="name"
                     axisLine={false}
                     tickLine={false}
-                    tick={{ fill: '#94a3b8', fontSize: 10, fontWeight: 600, fontFamily: 'Outfit' }}
+                    tick={{ fill: '#94a3b8', fontSize: 11, fontWeight: 700, fontFamily: 'Outfit' }}
                   />
                   <YAxis axisLine={false} tickLine={false} hide />
                   <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.015)' }} />
                   <Bar
                     dataKey="value"
-                    radius={6}
-                    barSize={24}
-                    background={{ fill: 'rgba(255, 255, 255, 0.02)', radius: 6 }}
+                    radius={[8, 8, 0, 0]}
+                    barSize={42}
+                    background={{ fill: 'rgba(255, 255, 255, 0.02)', radius: 8 }}
                   >
                     {barData.map((entry, index) => {
                       const isHovered = activeIndex === index;
@@ -537,9 +528,9 @@ const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            {/* Vertical Progress List with Click-to-Filter */}
+            {/* Vertical Progress List with Click-to-Filter (Focused on Critical, High, Medium) */}
             <div className="severity-progress-list">
-              {['critical', 'high', 'medium', 'low', 'info'].map((sevKey, index) => {
+              {['critical', 'high', 'medium'].map((sevKey, index) => {
                 const count =
                   summary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
                 const total = summary.totalFindings || 1;
@@ -580,32 +571,10 @@ const Dashboard: React.FC = () => {
                       <line x1="8" y1="11" x2="8.01" y2="11" />
                     </svg>
                   );
-                } else if (sevKey === 'medium') {
-                  icon = (
-                    <svg className="sev-icon yellow-icon" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="8" r="3" fill="#FFD600" />
-                    </svg>
-                  );
-                } else if (sevKey === 'low') {
-                  icon = (
-                    <svg className="sev-icon cyan-icon" viewBox="0 0 16 16" fill="none">
-                      <circle cx="8" cy="8" r="3" fill="#00E5FF" />
-                    </svg>
-                  );
                 } else {
                   icon = (
-                    <svg
-                      className="sev-icon grey-icon"
-                      viewBox="0 0 16 16"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                    >
-                      <circle cx="8" cy="8" r="6" />
-                      <line x1="8" y1="11" x2="8" y2="8" />
-                      <line x1="8" y1="5" x2="8.01" y2="5" />
+                    <svg className="sev-icon yellow-icon" viewBox="0 0 16 16" fill="none">
+                      <circle cx="8" cy="8" r="3" fill="#FACC15" />
                     </svg>
                   );
                 }

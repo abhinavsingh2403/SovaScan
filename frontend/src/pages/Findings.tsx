@@ -31,7 +31,7 @@ const cleanFilePath = (path: string): string => {
     .replace(/\\/g, '/')
     .replace(/^(?:.*[\\/])?vulnerable-test-target[\\/]/, '')
     .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
-    .replace(/^\/app\//, '')
+    .replace(/^\/?(?:app|tmp|var|root)\//i, '')
     .replace(/^\.\//, '');
 };
 
@@ -44,15 +44,26 @@ const getReplacementFromPatch = (patch: string): string => {
   return addedLines.join('\n');
 };
 
-const isLocalPath = (path: string): boolean => {
+const isClientAbsolutePath = (path: string): boolean => {
   if (!path) return false;
-  const trimmed = path.trim();
-  return (
-    /^[a-zA-Z]:[\\/]/.test(trimmed) ||
-    trimmed.startsWith('/') ||
-    trimmed.startsWith('~') ||
-    trimmed.startsWith('\\\\')
-  );
+  const norm = path.replace(/\\/g, '/').trim();
+  // Server container paths (/app/..., /tmp/...) are NEVER client-absolute:
+  if (/^\/?(?:app|tmp|var|root|etc|proc|sys)(?:\/|$)/i.test(norm)) {
+    return false;
+  }
+  // Windows absolute paths: C:/... or D:/...
+  if (/^[a-zA-Z]:\//.test(norm)) {
+    return true;
+  }
+  // Unix client desktop paths: /Users/... or /home/...
+  if (/^\/(?:Users|home)\//.test(norm)) {
+    return true;
+  }
+  return false;
+};
+
+const isLocalPath = (path: string): boolean => {
+  return isClientAbsolutePath(path);
 };
 
 function combineBaseAndCleanPath(base: string, cleanPath: string): string {
@@ -118,10 +129,12 @@ function resolveTargetAction(
 
   // Determine local fullPath for VS Code opening
   const normRaw = rawPath.replace(/\\/g, '/');
-  let fullPath = normRaw;
-  let isAbsolute = /^[a-zA-Z]:\//i.test(normRaw) || normRaw.startsWith('/');
+  let fullPath = cleaned;
+  let isAbsolute = isClientAbsolutePath(normRaw);
 
-  if (!isAbsolute) {
+  if (isAbsolute) {
+    fullPath = normRaw;
+  } else {
     // 1. Check local roots stored in localStorage
     let storedLocalRoots: Record<string, string> = {};
     try {
@@ -136,19 +149,19 @@ function resolveTargetAction(
     const cleanScanTarget = scanTarget.replace(/^upload:/, '').replace(/\.zip$/i, '');
     const folderNameFromTarget = cleanScanTarget.split(/[\\/]/).pop() || '';
 
-    if (storedLocalRoots[scanTarget]) {
+    if (storedLocalRoots[scanTarget] && isClientAbsolutePath(storedLocalRoots[scanTarget])) {
       matchingBase = storedLocalRoots[scanTarget];
-    } else if (storedLocalRoots[cleanScanTarget]) {
+    } else if (storedLocalRoots[cleanScanTarget] && isClientAbsolutePath(storedLocalRoots[cleanScanTarget])) {
       matchingBase = storedLocalRoots[cleanScanTarget];
-    } else if (storedLocalRoots[folderNameFromTarget]) {
+    } else if (storedLocalRoots[folderNameFromTarget] && isClientAbsolutePath(storedLocalRoots[folderNameFromTarget])) {
       matchingBase = storedLocalRoots[folderNameFromTarget];
-    } else if (isLocalPath(scanTarget)) {
+    } else if (isClientAbsolutePath(scanTarget)) {
       matchingBase = scanTarget;
     } else {
       // Check stored active target path from New Scan
       try {
         const activePath = localStorage.getItem('sovascan-target-path') || '';
-        if (isLocalPath(activePath)) {
+        if (isClientAbsolutePath(activePath)) {
           const activeFolder = activePath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
           if (
             activeFolder &&
@@ -164,21 +177,23 @@ function resolveTargetAction(
       }
     }
 
-    // If still no matching base, try backend projectRoot if absolute
-    if (!matchingBase && projectRoot && (/^[a-zA-Z]:\//i.test(projectRoot) || projectRoot.startsWith('/'))) {
+    // If still no matching base, try backend projectRoot ONLY IF client absolute
+    if (!matchingBase && projectRoot && isClientAbsolutePath(projectRoot)) {
       matchingBase = projectRoot;
     }
 
     if (matchingBase) {
       fullPath = combineBaseAndCleanPath(matchingBase, cleaned);
-      isAbsolute = true;
+      isAbsolute = isClientAbsolutePath(fullPath);
     } else {
       fullPath = cleaned;
+      isAbsolute = false;
     }
   }
 
   const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
-  const vscodeUrl = `vscode://file/${fullPath}${lineSuffix}`;
+  const cleanNorm = fullPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const vscodeUrl = isAbsolute ? `vscode://file/${cleanNorm}${lineSuffix}` : '';
 
   return {
     githubUrl,
@@ -245,14 +260,14 @@ const Findings: React.FC = () => {
     const scanTarget = (parentScan?.target ?? '').trim();
     let effectiveFullPath = targetAction.fullPath;
 
-    const isAbs = /^[a-zA-Z]:\//i.test(effectiveFullPath) || effectiveFullPath.startsWith('/');
+    const isAbs = isClientAbsolutePath(effectiveFullPath);
     if (!isAbs) {
       const cleanScanTarget = scanTarget.replace(/^upload:/, '').replace(/\.zip$/i, '');
       const folderName = cleanScanTarget.split(/[\\/]/).pop() || 'project';
       const promptDefault = localStorage.getItem('sovascan-target-path') || '';
       const enteredRoot = window.prompt(
         `Enter local directory path on your computer for '${folderName}' to open in VS Code:\n(e.g. C:\\Users\\ss\\OneDrive\\Documents\\${folderName})`,
-        isLocalPath(promptDefault) ? promptDefault : ''
+        isClientAbsolutePath(promptDefault) ? promptDefault : ''
       );
 
       if (!enteredRoot || !enteredRoot.trim()) {
@@ -274,7 +289,7 @@ const Findings: React.FC = () => {
       effectiveFullPath = combineBaseAndCleanPath(cleanRoot, targetAction.cleanPath);
     }
 
-    const normPath = effectiveFullPath.replace(/\\/g, '/');
+    const normPath = effectiveFullPath.replace(/\\/g, '/').replace(/^\/+/, '');
     const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
     const vscodeUri = `vscode://file/${normPath}${lineSuffix}`;
 
