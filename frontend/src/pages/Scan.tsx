@@ -14,7 +14,11 @@ import {
   ShieldCheck,
   Lock,
   ShieldAlert,
+  AlertTriangle,
+  Cloud,
+  HardDrive
 } from 'lucide-react';
+import { api } from '../api/client';
 import { useStore } from '../store';
 import './Scan.css';
 
@@ -43,6 +47,27 @@ const Scan: React.FC = () => {
   const [frameworks, setFrameworks] = useState<string[]>(['RBI-CSF', 'NIST-CSF', 'SOC-2']);
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [excludeDirs, setExcludeDirs] = useState('node_modules, .git, venv');
+
+  const [deploymentMode, setDeploymentMode] = useState<'cloud' | 'local' | null>(null);
+
+  useEffect(() => {
+    api.getDeploymentInfo()
+      .then((res: any) => setDeploymentMode(res.data?.mode || 'local'))
+      .catch(() => setDeploymentMode('local'));
+  }, []);
+
+  const isLocalPath = (path: string) => {
+    const trimmed = path.trim();
+    return (
+      /^[a-zA-Z]:[\\/]/.test(trimmed) ||
+      trimmed.startsWith('/') ||
+      trimmed.startsWith('~') ||
+      trimmed.startsWith('\\\\') ||
+      trimmed.startsWith('./')
+    );
+  };
+
+  const showCloudWarning = deploymentMode === 'cloud' && isLocalPath(targetPath);
 
   const [scanLogs, setScanLogs] = useState<string[]>([]);
   const terminalEndRef = React.useRef<HTMLDivElement>(null);
@@ -108,6 +133,28 @@ const Scan: React.FC = () => {
         {/* Configuration Panel */}
         <div className="config-panel glassmorphism animate-fade-in">
           <h2>Start New Security Scan</h2>
+          {deploymentMode === 'cloud' && (
+            <div style={{
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '10px',
+              padding: '12px 16px',
+              marginBottom: '16px',
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1px solid rgba(59, 130, 246, 0.2)',
+              borderRadius: '8px',
+              fontSize: '12px',
+              lineHeight: '1.5',
+              color: 'var(--text-secondary)',
+            }}>
+              <Cloud size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#3b82f6' }} />
+              <div>
+                <strong style={{ color: 'var(--text-primary)' }}>Cloud Mode</strong> — SovaScan is running on a remote server.
+                Enter a <strong>Git repository URL</strong> (e.g., <code>https://github.com/user/repo</code>) to scan.
+                Local path scanning requires running SovaScan on your own machine.
+              </div>
+            </div>
+          )}
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
               <label htmlFor="targetPath">Target Path or Repository URL:</label>
@@ -115,6 +162,8 @@ const Scan: React.FC = () => {
                 <span className="input-icon">
                   {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? (
                     <Globe size={16} strokeWidth={2} />
+                  ) : showCloudWarning ? (
+                    <AlertTriangle size={16} strokeWidth={2} />
                   ) : (
                     <FolderSearch size={16} strokeWidth={2} />
                   )}
@@ -122,13 +171,30 @@ const Scan: React.FC = () => {
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g., C:/projects/my-app OR https://github.com/user/repo"
+                  placeholder={deploymentMode === 'cloud' ? 'https://github.com/user/repo' : 'C:/projects/my-app or https://github.com/user/repo'}
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
+              {showCloudWarning && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginTop: '8px',
+                  padding: '8px 12px',
+                  background: 'rgba(245, 158, 11, 0.08)',
+                  border: '1px solid rgba(245, 158, 11, 0.2)',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  color: '#f59e0b',
+                }}>
+                  <AlertTriangle size={14} />
+                  <span>This looks like a local file path. SovaScan cloud cannot access your local filesystem. Use a Git URL instead.</span>
+                </div>
+              )}
               <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
             </div>
 

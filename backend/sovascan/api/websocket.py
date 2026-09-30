@@ -55,8 +55,12 @@ def _clean_path(path_str: str, base_path: Path) -> str:
 
 
 def is_allowed_git_url(target: str) -> bool:
-    """Helper to validate if git target URL protocol is secure and allowed."""
-    return target.startswith("https://") and " " not in target
+    """Helper to validate if git target URL protocol is allowed.
+
+    Accepts both https:// and http:// URLs. SSH (git@) URLs are blocked
+    because the server does not have user SSH keys.
+    """
+    return (target.startswith("https://") or target.startswith("http://")) and " " not in target
 
 
 def resolve_git_url_and_branch(target: str, options: dict[str, Any] | None = None) -> tuple[str, str | None, str | None]:
@@ -192,47 +196,9 @@ def _filter_and_adapt_findings_for_target(
     target_str: str,
     is_virtual_fallback: bool,
 ) -> list[Any]:
-    """Dynamically adapts and profiles findings for a given target path so that
-    different directory paths produce realistic, proportional, and unique security profiles.
-    """
-    if not is_virtual_fallback or not findings:
-        return findings
-
-    import hashlib
-    clean_target = target_str.strip().strip("\"'")
-    target_seed = int(hashlib.sha256(clean_target.encode("utf-8")).hexdigest()[:8], 16)
-    lower_target = clean_target.lower().replace("\\", "/")
-
-    # Determine desired finding density and category profile based on path semantics
-    if any(k in lower_target for k in ("bkcd", "backend", "server", "api", "service", "db", "database")):
-        density_mod = 17 + (target_seed % 10)  # 17 to 26 findings
-        preferred_cats = {"misconfiguration", "secret", "sast", "cve"}
-    elif any(k in lower_target for k in ("front", "ui", "client", "web", "view")):
-        density_mod = 11 + (target_seed % 8)  # 11 to 18 findings
-        preferred_cats = {"cve", "misconfiguration", "secret"}
-    elif any(k in lower_target for k in ("project", "app", "src", "core")):
-        density_mod = 14 + (target_seed % 9)  # 14 to 22 findings
-        preferred_cats = {"cve", "misconfiguration", "secret", "sast", "drift"}
-    elif any(k in lower_target for k in ("doc", "document", "root", "data")):
-        density_mod = 28 + (target_seed % 14)  # 28 to 41 findings
-        preferred_cats = {"cve", "misconfiguration", "secret", "sast", "drift"}
-    else:
-        density_mod = 12 + (target_seed % 18)  # 12 to 29 findings
-        preferred_cats = {"cve", "misconfiguration", "secret", "sast", "drift"}
-
-    selected = []
-    for idx, f in enumerate(findings):
-        rule_score = (target_seed + idx * 37 + hash(getattr(f, "id", str(idx)))) % 100
-        cat = getattr(f, "category", "")
-        if cat in preferred_cats or rule_score < 70:
-            selected.append(f)
-        if len(selected) >= density_mod:
-            break
-
-    if not selected:
-        selected = findings[:density_mod]
-
-    return selected
+    """Return findings unchanged. The previous fake-finding sandbox fallback
+    has been removed — SovaScan now only returns real scan results."""
+    return findings
 
 
 # ---------------------------------------------------------------------------
@@ -404,7 +370,10 @@ class ScanManager:
             is_git = target.startswith("http://") or target.startswith("https://") or "://" in target or target.startswith("git@")
             if is_git:
                 if not is_allowed_git_url(target):
-                    raise ValueError("Disallowed git URL protocol. Only HTTP/HTTPS protocols are allowed for remote scans.")
+                    raise ValueError(
+                        "Disallowed git URL protocol. Only HTTP and HTTPS URLs are supported. "
+                        "SSH (git@) URLs are not supported because the server lacks SSH key access."
+                    )
 
                 repo_url, branch, subpath = resolve_git_url_and_branch(target, options)
 
@@ -449,28 +418,17 @@ class ScanManager:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
                 target_clean = target.strip().strip("\"'")
                 target_path = Path(target_clean)
-                found_fallback = None
                 if not target_path.exists():
-                    # Intelligent cloud sandbox resolution when scanning client folder paths on remote container
-                    possible_fallbacks = [
-                        Path("vulnerable-test-target"),
-                        Path("/app/vulnerable-test-target"),
-                        Path(__file__).parent.parent.parent / "vulnerable-test-target",
-                        Path("backend"),
-                    ]
-                    for fb in possible_fallbacks:
-                        if fb.exists() and fb.is_dir():
-                            found_fallback = fb
-                            break
-                    if found_fallback:
-                        logger.info(
-                            "Target path '%s' resolved to sandbox target '%s' on cloud host",
-                            target_clean,
-                            found_fallback,
+                    import os
+                    is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+                    if is_cloud:
+                        raise FileNotFoundError(
+                            f"Path '{target_clean}' does not exist on the SovaScan cloud server. "
+                            f"To scan a remote codebase, provide a Git repository URL "
+                            f"(e.g., https://github.com/user/repo). "
+                            f"Local path scanning is only available when running SovaScan on your own machine."
                         )
-                        target_path = found_fallback
-                    else:
-                        raise FileNotFoundError(f"Target path does not exist: {target_clean}")
+                    raise FileNotFoundError(f"Target path does not exist: {target_clean}")
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
@@ -505,7 +463,7 @@ class ScanManager:
             }
 
             seen_findings = set()
-            is_virtual = bool(found_fallback) if not is_git else False
+            is_virtual = False
             target_folder_name = Path(target_clean.replace("\\", "/")).name or "project"
             adapted_findings = _filter_and_adapt_findings_for_target(
                 result.findings,
@@ -516,8 +474,7 @@ class ScanManager:
             for sf in adapted_findings:
                 sev = normalize_severity(sf.severity.value if hasattr(sf.severity, "value") else str(sf.severity))
                 clean_file_path = _clean_path(sf.file_path, target_path)
-                if is_virtual and not clean_file_path.startswith(target_folder_name):
-                    clean_file_path = f"{target_folder_name}/{clean_file_path}"
+                # Virtual path prefixing removed — only real scan results are reported
 
                 evidence = sf.evidence or ""
                 if not evidence or evidence.strip() == "requires login":

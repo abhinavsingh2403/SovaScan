@@ -64,6 +64,9 @@ client.interceptors.response.use(
 );
 
 export const api = {
+  /** GET /deployment-info */
+  getDeploymentInfo: () => client.get('/deployment-info'),
+
   /** GET /api/v1/dashboard/summary — aggregated dashboard metrics */
   getDashboard: () => client.get('/dashboard/summary'),
 

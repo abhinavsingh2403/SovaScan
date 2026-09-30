@@ -119,20 +119,31 @@ async def create_scan(
         or target_clean.startswith("git@")
     )
     if is_git:
-        if not target_clean.startswith("https://") or " " in target_clean:
+        if not (target_clean.startswith("https://") or target_clean.startswith("http://")) or " " in target_clean:
             raise HTTPException(
                 status_code=400,
-                detail="Disallowed git URL protocol. Only secure HTTPS protocol is allowed for remote scans.",
+                detail="Unsupported git URL protocol. Only HTTP and HTTPS URLs are supported for remote scans. "
+                       "SSH (git@) URLs are not supported.",
             )
     else:
         if "://" in target_clean:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
-        is_client_drive = (
+        is_cloud_deploy = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+        is_local_path = (
             (len(target_clean) >= 2 and target_clean[1] == ":" and target_clean[0].isalpha())
             or target_clean.startswith("\\\\")
-            or bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+            or target_clean.startswith("/")
+            or target_clean.startswith("~")
         )
-        if not is_client_drive and not Path(target_clean).exists():
+        if is_cloud_deploy and is_local_path:
+            raise HTTPException(
+                status_code=400,
+                detail=f"SovaScan is running on a cloud server and cannot access local path '{target_clean}'. "
+                       f"To scan a remote codebase, provide a Git repository URL "
+                       f"(e.g., https://github.com/user/repo). "
+                       f"Local path scanning is only available when running SovaScan on your own machine.",
+            )
+        if not Path(target_clean).exists():
             raise HTTPException(status_code=400, detail=f"Target path does not exist: {target_clean}")
 
     scan = Scan(
@@ -1640,3 +1651,21 @@ def test_system_webhook(
         raise HTTPException(status_code=500, detail=f"Failed to send test webhook alert: {str(e)}") from e
 
     return {"detail": "Test webhook alert sent successfully!"}
+
+
+@router.get("/deployment-info")
+def get_deployment_info() -> dict[str, Any]:
+    """Return deployment mode and server environment metadata.
+
+    The frontend uses this to determine whether to guide users toward
+    Git URL scanning (cloud) or allow local path entry (local).
+    """
+    is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+    return {
+        "mode": "cloud" if is_cloud else "local",
+        "server_platform": os.name,
+        "supports_local_scan": not is_cloud,
+        "supports_git_scan": True,
+        "git_protocols": ["https", "http"],
+        "version": "2.1.0",
+    }
