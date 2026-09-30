@@ -89,9 +89,22 @@ def init_db() -> None:
                 existing.name = name
                 existing.key_hash = key_hash
                 existing.is_active = True
+
+        # Clean up any legacy dummy vulnerable-test-target scans
+        from sovascan.models.scan import Scan
+        dummy_scans = db.query(Scan).filter(
+            (Scan.target.ilike("%vulnerable%")) | 
+            (Scan.target.ilike("%test-target%"))
+        ).all()
+        if dummy_scans:
+            for ds in dummy_scans:
+                db.delete(ds)
+            db.commit()
+            logger.info("Purged %d legacy dummy vulnerable-test scans", len(dummy_scans))
+
         db.commit()
     except Exception as e:
-        logger.warning(f"Failed to seed default API keys: {e}")
+        logger.warning(f"Database initialization step failed: {e}")
         db.rollback()
     finally:
         db.close()

@@ -428,20 +428,13 @@ class ScanManager:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
                 target_path = Path(target_clean)
                 if not target_path.exists():
-                    possible_fallbacks = [
-                        Path("vulnerable-test-target"),
-                        Path("/app/vulnerable-test-target"),
-                        Path(__file__).parent.parent.parent / "vulnerable-test-target",
-                        Path("backend"),
-                        Path("."),
-                    ]
-                    for fb in possible_fallbacks:
-                        if fb.exists() and fb.is_dir():
-                            target_path = fb
-                            logger.info("Target path '%s' resolved to fallback '%s'", target_clean, fb)
-                            break
-                    if not target_path.exists():
-                        raise FileNotFoundError(f"Target path does not exist: {target_clean}")
+                    if target_clean in (".", "./", "", "root", "app", "/app"):
+                        target_path = Path(".")
+                    else:
+                        raise FileNotFoundError(
+                            f"Target path '{target_clean}' does not exist on the server. "
+                            f"To scan remote code, please provide a GitHub repository URL (e.g. https://github.com/abhinavsingh2403/SovaScan) or enter '.' to scan the server codebase."
+                        )
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:

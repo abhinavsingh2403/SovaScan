@@ -14,11 +14,22 @@ import {
   AlertTriangle,
   Sparkles,
   Edit3,
+  Trash2,
 } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import { Finding } from '../types';
 import './Findings.css';
+
+
+const cleanFilePath = (path: string): string => {
+  if (!path) return '';
+  return path
+    .replace(/^.*\/vulnerable-test-target\//, '')
+    .replace(/^.*\\vulnerable-test-target\\/, '')
+    .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
+    .replace(/^\/app\//, '');
+};
 
 const getReplacementFromPatch = (patch: string): string => {
   if (!patch) return '';
@@ -117,8 +128,34 @@ const Findings: React.FC = () => {
   }, [fetchScans]);
 
   useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    const scanParam = params.get('scan');
+    if (!scanParam && scans.length > 0 && scanFilter === 'all') {
+      const latestRealScan = scans.find((s) => !s.target.includes('vulnerable-test-target')) || scans[0];
+      if (latestRealScan) {
+        setScanFilter(latestRealScan.id);
+      }
+    }
+  }, [scans]);
+
+
+  useEffect(() => {
     fetchFindings(scanFilter === 'all' ? undefined : scanFilter);
   }, [scanFilter, fetchFindings]);
+
+  
+  const handleClearHistory = async () => {
+    if (window.confirm('Purge all completed scan records and test findings from database?')) {
+      try {
+        await api.clearScanHistory();
+        await fetchScans();
+        await fetchFindings();
+        setScanFilter('all');
+      } catch (err: any) {
+        alert('Failed to purge scan records: ' + (err?.response?.data?.detail || err?.message));
+      }
+    }
+  };
 
   const handleFixAll = async () => {
     const fixableCount = findings.filter((f) => !f.isFixed).length;
@@ -707,17 +744,28 @@ const Findings: React.FC = () => {
           Showing <span>{filteredFindings.length}</span> of <span>{totalFindingsCount > 0 ? totalFindingsCount : findings.length}</span> active
           findings
         </p>
-        {findings.some((f) => !f.isFixed) && (
+        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
           <button
-            className="fix-all-btn"
-            onClick={handleFixAll}
-            disabled={applyingBulkFix}
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            type="button"
+            className="settings__btn settings__btn--secondary"
+            onClick={handleClearHistory}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '5px', fontSize: '12px', padding: '6px 12px', height: '35px' }}
+            title="Purge all completed and test scan history from database"
           >
-            <Zap size={13} strokeWidth={2.2} />
-            {applyingBulkFix ? 'Applying Bulk Fixes...' : 'Fix All (1-Go)'}
+            <Trash2 size={13} /> Purge Test Records
           </button>
-        )}
+          {findings.some((f) => !f.isFixed) && (
+            <button
+              className="fix-all-btn"
+              onClick={handleFixAll}
+              disabled={applyingBulkFix}
+              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+            >
+              <Zap size={13} strokeWidth={2.2} />
+              {applyingBulkFix ? 'Applying Bulk Fixes...' : 'Fix All (1-Go)'}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Findings Table/Accordion List */}
@@ -753,7 +801,7 @@ const Findings: React.FC = () => {
                   </div>
                   <div className="finding-title-sec">
                     <h4>{finding.title}</h4>
-                    <p className="path-text">{finding.filePath}:{finding.lineNumber}</p>
+                    <p className="path-text">{cleanFilePath(finding.filePath)}:{finding.lineNumber}</p>
                   </div>
                   <div className="right-controls">
                     <span className="category-tag">{finding.category}</span>

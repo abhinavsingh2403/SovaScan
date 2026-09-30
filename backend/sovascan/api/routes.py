@@ -129,19 +129,17 @@ async def create_scan(
         if "://" in target_clean:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
         
-        # Check if path exists on this host; if not, check for bundled vulnerability test suite
+        # Check if path exists on this host
         target_path_obj = Path(target_clean)
         if not target_path_obj.exists():
-            test_targets = [
-                Path("vulnerable-test-target"),
-                Path("/app/vulnerable-test-target"),
-                Path(__file__).parent.parent.parent / "vulnerable-test-target",
-                Path("backend"),
-                Path("."),
-            ]
-            has_fallback = any(tt.exists() and tt.is_dir() for tt in test_targets)
-            if not has_fallback:
-                raise HTTPException(status_code=400, detail=f"Target path does not exist: {target_clean}")
+            if target_clean in (".", "./", "", "root", "app", "/app"):
+                target_clean = "."
+            else:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Target path does not exist on server: {target_clean}. "
+                           f"To scan code, please enter a GitHub repository URL (e.g. https://github.com/abhinavsingh2403/SovaScan) or '.' to scan the application codebase."
+                )
 
     scan = Scan(
         id=str(uuid.uuid4()),

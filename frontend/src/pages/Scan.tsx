@@ -34,7 +34,7 @@ const fwIcons: Record<string, React.ReactNode> = {
 
 const Scan: React.FC = () => {
   const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
-  const [targetPath, setTargetPath] = useState('');
+  const [targetPath, setTargetPath] = useState('https://github.com/abhinavsingh2403/SovaScan');
   const [scanType, setScanType] = useState(() => {
     try {
       const stored = localStorage.getItem('sovascan-settings');
@@ -147,27 +147,6 @@ const Scan: React.FC = () => {
           <div className="target-mode-pill-row" style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
             <button
               type="button"
-              onClick={() => setTargetPath('vulnerable-test-target')}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '6px',
-                fontSize: '12px',
-                padding: '7px 14px',
-                borderRadius: '8px',
-                border: !targetPath.startsWith('http') ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
-                background: !targetPath.startsWith('http') ? 'rgba(245, 158, 11, 0.14)' : 'rgba(255,255,255,0.02)',
-                color: !targetPath.startsWith('http') ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                cursor: 'pointer',
-                fontWeight: 500,
-                transition: 'all 0.2s ease',
-              }}
-            >
-              <FolderSearch size={14} />
-              <span>Local Filesystem Path</span>
-            </button>
-            <button
-              type="button"
               onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
               style={{
                 display: 'inline-flex',
@@ -176,16 +155,37 @@ const Scan: React.FC = () => {
                 fontSize: '12px',
                 padding: '7px 14px',
                 borderRadius: '8px',
-                border: targetPath.startsWith('http') ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.08)',
-                background: targetPath.startsWith('http') ? 'rgba(6, 182, 212, 0.14)' : 'rgba(255,255,255,0.02)',
-                color: targetPath.startsWith('http') ? '#06b6d4' : 'var(--text-secondary)',
+                border: targetPath.includes('github.com') ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                background: targetPath.includes('github.com') ? 'var(--accent-glow)' : 'rgba(255,255,255,0.02)',
+                color: targetPath.includes('github.com') ? 'var(--accent-primary)' : 'var(--text-secondary)',
                 cursor: 'pointer',
-                fontWeight: 500,
+                fontWeight: 600,
                 transition: 'all 0.2s ease',
               }}
             >
               <Globe size={14} />
-              <span>GitHub Repository URL</span>
+              <span>SovaScan GitHub Repo (Actual)</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTargetPath('.')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                border: targetPath === '.' ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                background: targetPath === '.' ? 'var(--accent-glow)' : 'rgba(255,255,255,0.02)',
+                color: targetPath === '.' ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 600,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <FolderSearch size={14} />
+              <span>Application Repository Scope (.)</span>
             </button>
           </div>
 
@@ -195,22 +195,22 @@ const Scan: React.FC = () => {
               <div className="input-with-icon">
                 <span className="input-icon">
                   {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? (
-                    <Globe size={16} strokeWidth={2} style={{ color: '#06b6d4' }} />
+                    <Globe size={16} strokeWidth={2} style={{ color: 'var(--accent-telemetry)' }} />
                   ) : (
-                    <FolderSearch size={16} strokeWidth={2} style={{ color: '#f59e0b' }} />
+                    <FolderSearch size={16} strokeWidth={2} style={{ color: 'var(--accent-primary)' }} />
                   )}
                 </span>
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder="e.g. C:/projects/my-app, vulnerable-test-target, or https://github.com/user/repo"
+                  placeholder="e.g. https://github.com/abhinavsingh2403/SovaScan or . for application root"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              <p className="field-help">SovaScan seamlessly scans local directories, source paths, or any remote GitHub repository.</p>
+              <p className="field-help">SovaScan seamlessly scans the application codebase or any remote GitHub repository.</p>
             </div>
 
             <div className="form-group">
