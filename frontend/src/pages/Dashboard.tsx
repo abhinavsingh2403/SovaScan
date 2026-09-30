@@ -11,13 +11,26 @@ import {
   Bar,
   Cell,
   CartesianGrid,
-  PieChart,
-  Pie,
 } from 'recharts';
 import './Dashboard.css';
 
 import { useNavigate, Link } from 'react-router-dom';
-import { Activity, ShieldAlert, Flame } from 'lucide-react';
+import {
+  Activity,
+  ShieldAlert,
+  Flame,
+  ShieldCheck,
+  RefreshCw,
+  Globe,
+  HardDrive,
+  FileArchive,
+  ArrowRight,
+  Sparkles,
+  ExternalLink,
+  Lock,
+  Landmark,
+  FileCode2,
+} from 'lucide-react';
 import { TiltCard } from '../components/TiltCard';
 
 const SEVERITY_COLORS = {
@@ -26,14 +39,6 @@ const SEVERITY_COLORS = {
   medium: '#FACC15',
   low: '#38BDF8',
   info: '#94A3B8',
-};
-
-const SEVERITY_RGBS = {
-  critical: '244, 63, 94',
-  high: '251, 146, 60',
-  medium: '250, 204, 21',
-  low: '56, 189, 248',
-  info: '148, 163, 184',
 };
 
 // Custom Chart Tooltips for premium aesthetic
@@ -68,7 +73,6 @@ function useCountUp(value: number, duration: number = 650): number {
     const step = (ts: number) => {
       if (!start) start = ts;
       const progress = Math.min((ts - start) / duration, 1);
-      // easeOutCubic: 1 - (1 - progress)^3
       const eased = 1 - Math.pow(1 - progress, 3);
       setDisplayValue(Math.round(value * eased));
 
@@ -89,11 +93,18 @@ function useCountUp(value: number, duration: number = 650): number {
 const Dashboard: React.FC = () => {
   const { dashboardSummary, loading, fetchDashboard } = useStore();
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const navigate = useNavigate();
 
   useEffect(() => {
     fetchDashboard();
   }, [fetchDashboard]);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await fetchDashboard();
+    setTimeout(() => setIsRefreshing(false), 600);
+  };
 
   const animatedRiskScore = useCountUp(dashboardSummary?.riskScore ?? 0);
   const animatedTotalScans = useCountUp(dashboardSummary?.totalScans ?? 0);
@@ -103,7 +114,7 @@ const Dashboard: React.FC = () => {
       (dashboardSummary?.severityDistribution?.high ?? 0)
   );
 
-  if (loading || !dashboardSummary) {
+  if (loading && !dashboardSummary) {
     return (
       <div className="dashboard-loading">
         <div className="spinner"></div>
@@ -112,34 +123,63 @@ const Dashboard: React.FC = () => {
     );
   }
 
+  const summary = dashboardSummary || {
+    totalScans: 0,
+    totalFindings: 0,
+    riskScore: 0,
+    severityDistribution: { critical: 0, high: 0, medium: 0, low: 0, info: 0 },
+    recentScans: [],
+    topVulnerabilities: [],
+    trendData: [],
+  };
+
   // Format data for vertical threat columns chart
   const barData = ['critical', 'high', 'medium', 'low', 'info'].map((name) => ({
     name: name.charAt(0).toUpperCase() + name.slice(1),
-    value: dashboardSummary.severityDistribution[name as keyof typeof SEVERITY_COLORS] || 0,
+    value: summary.severityDistribution[name as keyof typeof SEVERITY_COLORS] || 0,
     color: `url(#grad-${name})`,
     rawColor: SEVERITY_COLORS[name as keyof typeof SEVERITY_COLORS],
     sevKey: name,
   }));
 
-  // Preprocess trend data to display slope/area line properly even with a single point
-  let trendData = [...dashboardSummary.trendData];
+  // Clean helper for scan target display
+  const getTargetMeta = (targetStr: string) => {
+    const raw = (targetStr || '').trim();
+    if (raw.startsWith('http://') || raw.startsWith('https://')) {
+      const parts = raw.replace(/\.git$/, '').split('/');
+      const repo = parts.slice(-2).join('/');
+      return {
+        icon: <Globe size={14} className="target-type-icon text-cyan" />,
+        label: repo || raw,
+        badge: 'GitHub',
+        full: raw,
+      };
+    }
+    if (raw.startsWith('upload:')) {
+      const name = raw.replace(/^upload:/, '');
+      return {
+        icon: <FileArchive size={14} className="target-type-icon text-purple" />,
+        label: name,
+        badge: 'Archive',
+        full: raw,
+      };
+    }
+    const folder = raw.split(/[\\/]/).pop() || raw;
+    return {
+      icon: <HardDrive size={14} className="target-type-icon text-amber" />,
+      label: folder,
+      badge: 'Local',
+      full: raw,
+    };
+  };
+
+  // Preprocess trend data
+  let trendData = [...summary.trendData];
   if (trendData.length === 1) {
     const singlePoint = trendData[0];
-    let prevHourStr = 'Start';
-    try {
-      const dateParts = singlePoint.date.split(' ');
-      if (dateParts.length === 2) {
-        const timeParts = dateParts[1].split(':');
-        const hour = parseInt(timeParts[0]);
-        const prevHour = (hour - 1 + 24) % 24;
-        prevHourStr = `${dateParts[0]} ${String(prevHour).padStart(2, '0')}:00`;
-      }
-    } catch (e) {
-      // fallback
-    }
     trendData = [
       {
-        date: prevHourStr,
+        date: 'Start',
         critical: 0,
         high: 0,
         medium: 0,
@@ -149,33 +189,119 @@ const Dashboard: React.FC = () => {
     ];
   }
 
+  // Calculate live compliance health estimations
+  const crit = summary.severityDistribution.critical || 0;
+  const high = summary.severityDistribution.high || 0;
+  const med = summary.severityDistribution.medium || 0;
+  const penalty = crit * 15 + high * 8 + med * 2;
+
+  const frameworksHealth = [
+    {
+      name: 'RBI-CSF',
+      fullName: 'Reserve Bank Cyber Security Framework',
+      score: Math.max(15, Math.min(100, Math.round(100 - penalty * 1.1))),
+      icon: <Landmark size={14} strokeWidth={2} />,
+    },
+    {
+      name: 'NIST-CSF',
+      fullName: 'National Institute Standards Framework',
+      score: Math.max(20, Math.min(100, Math.round(100 - penalty * 0.9))),
+      icon: <ShieldCheck size={14} strokeWidth={2} />,
+    },
+    {
+      name: 'SOC-2',
+      fullName: 'Service Organization Control Trust Criteria',
+      score: Math.max(18, Math.min(100, Math.round(100 - penalty * 1.05))),
+      icon: <Lock size={14} strokeWidth={2} />,
+    },
+    {
+      name: 'OWASP-10',
+      fullName: 'Top 10 Web Application Vulnerabilities',
+      score: Math.max(10, Math.min(100, Math.round(100 - penalty * 1.25))),
+      icon: <ShieldAlert size={14} strokeWidth={2} />,
+    },
+  ];
+
   return (
     <div className="dashboard-container">
-      {/* Sticky Glassmorphic Posture Quick Bar */}
+      {/* Sticky Glassmorphic Telemetry Header Bar */}
       <div className="dashboard-sticky-bar glassmorphism">
-        <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
-            <Activity size={15} style={{ color: 'var(--accent-primary)' }} /> Live Posture Overview
+        <div className="sticky-bar-left">
+          <span className="live-status-pill">
+            <span className="live-pulse-dot" />
+            <Activity size={14} className="text-accent" />
+            <strong className="status-title">Live Posture Telemetry</strong>
           </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Risk Index: <strong style={{ color: dashboardSummary.riskScore > 75 ? '#f43f5e' : dashboardSummary.riskScore > 40 ? '#f59e0b' : '#10b981' }}>{animatedRiskScore}/100</strong>
+          <div className="quick-metrics-separator" />
+          <span className="quick-metric-item">
+            Risk Index:{' '}
+            <strong
+              style={{
+                color:
+                  summary.riskScore > 75
+                    ? '#f43f5e'
+                    : summary.riskScore > 40
+                    ? '#f59e0b'
+                    : '#10b981',
+              }}
+            >
+              {animatedRiskScore}/100
+            </strong>
           </span>
-          <span style={{ fontSize: '12px', color: 'var(--text-secondary)' }}>
-            Active Findings: <strong style={{ color: '#f43f5e' }}>{animatedTotalFindings}</strong>
+          <span className="quick-metric-item">
+            Active Findings:{' '}
+            <strong style={{ color: summary.totalFindings > 0 ? '#f43f5e' : '#10b981' }}>
+              {animatedTotalFindings}
+            </strong>
           </span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+
+        <div className="sticky-bar-actions">
+          <button
+            type="button"
+            className={`dashboard-refresh-btn ${isRefreshing ? 'is-spinning' : ''}`}
+            onClick={handleRefresh}
+            title="Refresh Security Metrics"
+          >
+            <RefreshCw size={13} />
+            <span>Refresh</span>
+          </button>
+          <Link
+            to="/findings"
+            className="settings__btn settings__btn--secondary"
+            style={{
+              textDecoration: 'none',
+              padding: '6px 12px',
+              fontSize: '12px',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>View Findings</span>
+            <ArrowRight size={13} />
+          </Link>
           <Link
             to="/scan"
-            className="settings__btn settings__btn--primary"
-            style={{ textDecoration: 'none', padding: '5px 12px', fontSize: '12px', borderRadius: '6px' }}
+            className="settings__btn settings__btn--primary glow-cta"
+            style={{
+              textDecoration: 'none',
+              padding: '6px 14px',
+              fontSize: '12px',
+              borderRadius: '6px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontWeight: 600,
+            }}
           >
-            + New Scan
+            <span>+ New Scan</span>
           </Link>
         </div>
       </div>
 
-      {/* Top Stats Cards with Initial Stagger on Mount */}
+      {/* Top 4 Stat Cards with TiltCard Micro-Physics */}
       <div className="stats-grid staggerContainer">
         <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism risk-card animate-scan-glow hover-lift">
           <div className="risk-score-circle">
@@ -187,10 +313,10 @@ const Dashboard: React.FC = () => {
                   <stop offset="100%" stopColor="#F43F5E" />
                 </linearGradient>
                 <filter id="glow-filter">
-                  <feGaussianBlur stdDeviation="1" result="coloredBlur"/>
+                  <feGaussianBlur stdDeviation="1" result="coloredBlur" />
                   <feMerge>
-                    <feMergeNode in="coloredBlur"/>
-                    <feMergeNode in="SourceGraphic"/>
+                    <feMergeNode in="coloredBlur" />
+                    <feMergeNode in="SourceGraphic" />
                   </feMerge>
                 </filter>
               </defs>
@@ -215,7 +341,7 @@ const Dashboard: React.FC = () => {
               />
               <path
                 className="circle progress-path"
-                strokeDasharray={`${dashboardSummary.riskScore}, 100`}
+                strokeDasharray={`${summary.riskScore}, 100`}
                 stroke="url(#risk-grad)"
                 strokeWidth="2.5"
                 strokeLinecap="round"
@@ -227,13 +353,36 @@ const Dashboard: React.FC = () => {
                 {animatedRiskScore}
               </text>
               <text x="18" y="25" className="hud-label">
-                {dashboardSummary.riskScore > 75 ? 'CRITICAL' : dashboardSummary.riskScore > 40 ? 'WARNING' : 'SECURE'}
+                {summary.riskScore > 75
+                  ? 'CRITICAL'
+                  : summary.riskScore > 40
+                  ? 'WARNING'
+                  : 'SECURE'}
               </text>
             </svg>
           </div>
           <div className="risk-info">
-            <h3>Overall Security Risk</h3>
-            <p className="risk-desc">Calculated based on active findings and severity levels.</p>
+            <div className="stat-heading-row">
+              <h3>Overall Security Risk</h3>
+              <span
+                className={`posture-badge ${
+                  summary.riskScore > 75
+                    ? 'badge-crit'
+                    : summary.riskScore > 40
+                    ? 'badge-warn'
+                    : 'badge-sec'
+                }`}
+              >
+                {summary.riskScore > 75
+                  ? 'High Exposure'
+                  : summary.riskScore > 40
+                  ? 'Elevated Risk'
+                  : 'Hardened (A+)'}
+              </span>
+            </div>
+            <p className="risk-desc">
+              Weighted index calculated from CVEs, SAST rules, and secrets exposure.
+            </p>
           </div>
         </TiltCard>
 
@@ -242,31 +391,66 @@ const Dashboard: React.FC = () => {
             <Activity size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
-            <h3>Total Scans</h3>
+            <h3>Total Codebase Scans</h3>
             <p className="stat-number">{animatedTotalScans}</p>
-            <span className="stat-sub">Completed codebases & dependencies</span>
+            <div className="stat-sub-row">
+              <span className="stat-sub-highlight">
+                {summary.recentScans.length > 0
+                  ? `Latest: ${new Date(summary.recentScans[0].createdAt).toLocaleDateString()}`
+                  : 'Ready for initial run'}
+              </span>
+            </div>
           </div>
         </TiltCard>
 
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism findings-card hover-lift">
+        <TiltCard
+          maxTilt={8}
+          elevation={10}
+          className="stat-card glassmorphism findings-card hover-lift"
+          onClick={() => navigate('/findings')}
+          style={{ cursor: 'pointer' }}
+          title="Click to view all findings"
+        >
           <div className="stat-icon finding-icon">
             <ShieldAlert size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
-            <h3>Active Findings</h3>
+            <div className="stat-heading-row">
+              <h3>Active Findings</h3>
+              <span className="interactive-arrow-hint">View →</span>
+            </div>
             <p className="stat-number">{animatedTotalFindings}</p>
-            <span className="stat-sub font-orange">Requires review</span>
+            <div className="mini-sev-counters">
+              <span className="mini-pill pill-crit">C: {summary.severityDistribution.critical}</span>
+              <span className="mini-pill pill-high">H: {summary.severityDistribution.high}</span>
+              <span className="mini-pill pill-med">M: {summary.severityDistribution.medium}</span>
+              <span className="mini-pill pill-low">L: {summary.severityDistribution.low}</span>
+            </div>
           </div>
         </TiltCard>
 
-        <TiltCard maxTilt={8} elevation={10} className="stat-card glassmorphism critical-card hover-lift">
+        <TiltCard
+          maxTilt={8}
+          elevation={10}
+          className="stat-card glassmorphism critical-card hover-lift"
+          onClick={() => navigate('/findings?severity=critical')}
+          style={{ cursor: 'pointer' }}
+          title="Click to review critical findings"
+        >
           <div className="stat-icon critical-icon">
             <Flame size={22} strokeWidth={2} />
           </div>
           <div className="stat-details">
-            <h3>Critical & High</h3>
+            <div className="stat-heading-row">
+              <h3>Critical & High</h3>
+              <span className="interactive-arrow-hint">Triage →</span>
+            </div>
             <p className="stat-number">{animatedCriticalHigh}</p>
-            <span className="stat-sub font-red">Immediate fixing required</span>
+            <span className="stat-sub font-red">
+              {animatedCriticalHigh > 0
+                ? 'Immediate remediation priority'
+                : 'Zero critical exposure detected'}
+            </span>
           </div>
         </TiltCard>
       </div>
@@ -275,7 +459,11 @@ const Dashboard: React.FC = () => {
       <div className="charts-grid animate-slide-up">
         {/* Severity Distribution */}
         <div className="chart-card glassmorphism">
-          <h2>Findings by Severity</h2>
+          <div className="chart-header-row">
+            <h2>Findings by Severity</h2>
+            <span className="chart-header-sub">Click a severity bar to filter</span>
+          </div>
+
           <div className="chart-wrapper side-by-side-chart">
             <div className="bar-chart-container-left">
               <ResponsiveContainer width="100%" height={220}>
@@ -305,8 +493,7 @@ const Dashboard: React.FC = () => {
                       <stop offset="0%" stopColor="#94A3B8" />
                       <stop offset="100%" stopColor="#475569" />
                     </linearGradient>
-                    
-                    {/* Glow filter for hovered bar */}
+
                     <filter id="glow-effect" x="-20%" y="-20%" width="140%" height="140%">
                       <feGaussianBlur stdDeviation="3" result="blur" />
                       <feComposite in="SourceGraphic" in2="blur" operator="over" />
@@ -335,9 +522,13 @@ const Dashboard: React.FC = () => {
                           fill={entry.color}
                           opacity={isDimmed ? 0.35 : 1}
                           filter={isHovered ? 'url(#glow-effect)' : 'none'}
-                          style={{ transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)', cursor: 'pointer' }}
+                          style={{
+                            transition: 'all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1)',
+                            cursor: 'pointer',
+                          }}
                           onMouseEnter={() => setActiveIndex(index)}
                           onMouseLeave={() => setActiveIndex(null)}
+                          onClick={() => navigate(`/findings?severity=${entry.sevKey}`)}
                         />
                       );
                     })}
@@ -346,20 +537,28 @@ const Dashboard: React.FC = () => {
               </ResponsiveContainer>
             </div>
 
-            {/* Premium Vertical Progress List */}
+            {/* Vertical Progress List with Click-to-Filter */}
             <div className="severity-progress-list">
               {['critical', 'high', 'medium', 'low', 'info'].map((sevKey, index) => {
-                const count = dashboardSummary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
-                const total = dashboardSummary.totalFindings || 1;
+                const count =
+                  summary.severityDistribution[sevKey as keyof typeof SEVERITY_COLORS] || 0;
+                const total = summary.totalFindings || 1;
                 const percentage = Math.round((count / total) * 100);
                 const color = SEVERITY_COLORS[sevKey as keyof typeof SEVERITY_COLORS];
                 const label = sevKey.charAt(0).toUpperCase() + sevKey.slice(1);
 
-                // Define icon based on severity (crisp 16x16 pixel-aligned SVGs)
                 let icon = null;
                 if (sevKey === 'critical') {
                   icon = (
-                    <svg className="sev-icon red-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      className="sev-icon red-icon"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <path d="M8 2l6 10H2L8 2z" />
                       <line x1="8" y1="6" x2="8" y2="9" />
                       <line x1="8" y1="12" x2="8.01" y2="12" />
@@ -367,7 +566,15 @@ const Dashboard: React.FC = () => {
                   );
                 } else if (sevKey === 'high') {
                   icon = (
-                    <svg className="sev-icon orange-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      className="sev-icon orange-icon"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <circle cx="8" cy="8" r="6" />
                       <line x1="8" y1="5" x2="8" y2="8" />
                       <line x1="8" y1="11" x2="8.01" y2="11" />
@@ -387,7 +594,15 @@ const Dashboard: React.FC = () => {
                   );
                 } else {
                   icon = (
-                    <svg className="sev-icon grey-icon" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                    <svg
+                      className="sev-icon grey-icon"
+                      viewBox="0 0 16 16"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                    >
                       <circle cx="8" cy="8" r="6" />
                       <line x1="8" y1="11" x2="8" y2="8" />
                       <line x1="8" y1="5" x2="8.01" y2="5" />
@@ -399,9 +614,14 @@ const Dashboard: React.FC = () => {
                 return (
                   <div
                     key={sevKey}
-                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${isRowActive ? 'hovered' : ''}`}
+                    className={`sev-progress-row ${count === 0 ? 'muted' : ''} ${
+                      isRowActive ? 'hovered' : ''
+                    }`}
                     onMouseEnter={() => count > 0 && setActiveIndex(index)}
                     onMouseLeave={() => setActiveIndex(null)}
+                    onClick={() => count > 0 && navigate(`/findings?severity=${sevKey}`)}
+                    style={{ cursor: count > 0 ? 'pointer' : 'default' }}
+                    title={count > 0 ? `Filter by ${label}` : undefined}
                   >
                     <div className="sev-info-section">
                       <div className="sev-label-row">
@@ -409,7 +629,13 @@ const Dashboard: React.FC = () => {
                         <span className="sev-label-name">{label}</span>
                       </div>
                       <div className="sev-bar-track">
-                        <div className="sev-bar-fill" style={{ width: `${count > 0 ? percentage : 0}%`, backgroundColor: color }}></div>
+                        <div
+                          className="sev-bar-fill"
+                          style={{
+                            width: `${count > 0 ? percentage : 0}%`,
+                            backgroundColor: color,
+                          }}
+                        ></div>
                       </div>
                     </div>
                     <div className="sev-values-section">
@@ -425,140 +651,294 @@ const Dashboard: React.FC = () => {
 
         {/* Scan History Trend */}
         <div className="chart-card glassmorphism">
-          <h2>Security Trend Over Time</h2>
+          <div className="chart-header-row">
+            <h2>Security Trend Over Time</h2>
+            <span className="chart-header-sub">Trajectory of vulnerability discoveries</span>
+          </div>
+
           <div className="chart-wrapper">
-            <ResponsiveContainer width="100%" height={260}>
-              <AreaChart data={trendData}>
-                <defs>
-                  <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF1E56" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#FF1E56" stopOpacity={0} />
-                  </linearGradient>
-                  <linearGradient id="colorHigh" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#FF9F1C" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#FF9F1C" stopOpacity={0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
-                <XAxis
-                  dataKey="date"
-                  stroke="#64748b"
-                  fontSize={11}
-                  tickLine={false}
-                  axisLine={false}
-                  dy={10}
-                  tickFormatter={(value) => (typeof value === 'string' && value.includes(' ') ? value.split(' ')[1] : value)}
-                />
-                <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-10} />
-                <Tooltip content={<CustomTooltip />} />
-                <Area
-                  type="monotone"
-                  dataKey="critical"
-                  stroke="#FF1E56"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorCritical)"
-                  name="Critical"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF1E56' }}
-                />
-                <Area
-                  type="monotone"
-                  dataKey="high"
-                  stroke="#FF9F1C"
-                  strokeWidth={2}
-                  fillOpacity={1}
-                  fill="url(#colorHigh)"
-                  name="High"
-                  dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
-                  activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF9F1C' }}
-                />
-              </AreaChart>
-            </ResponsiveContainer>
+            {trendData.length > 0 ? (
+              <ResponsiveContainer width="100%" height={220}>
+                <AreaChart data={trendData}>
+                  <defs>
+                    <linearGradient id="colorCritical" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF1E56" stopOpacity={0.4} />
+                      <stop offset="95%" stopColor="#FF1E56" stopOpacity={0} />
+                    </linearGradient>
+                    <linearGradient id="colorHigh" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="5%" stopColor="#FF9F1C" stopOpacity={0.3} />
+                      <stop offset="95%" stopColor="#FF9F1C" stopOpacity={0} />
+                    </linearGradient>
+                  </defs>
+                  <CartesianGrid stroke="rgba(255, 255, 255, 0.05)" vertical={false} strokeDasharray="3 3" />
+                  <XAxis
+                    dataKey="date"
+                    stroke="#64748b"
+                    fontSize={11}
+                    tickLine={false}
+                    axisLine={false}
+                    dy={10}
+                    tickFormatter={(value) =>
+                      typeof value === 'string' && value.includes(' ') ? value.split(' ')[1] : value
+                    }
+                  />
+                  <YAxis stroke="#64748b" fontSize={11} tickLine={false} axisLine={false} dx={-10} />
+                  <Tooltip content={<CustomTooltip />} />
+                  <Area
+                    type="monotone"
+                    dataKey="critical"
+                    stroke="#FF1E56"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorCritical)"
+                    name="Critical"
+                    dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
+                    activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF1E56' }}
+                  />
+                  <Area
+                    type="monotone"
+                    dataKey="high"
+                    stroke="#FF9F1C"
+                    strokeWidth={2}
+                    fillOpacity={1}
+                    fill="url(#colorHigh)"
+                    name="High"
+                    dot={{ r: 3, strokeWidth: 1.5, fill: '#050811' }}
+                    activeDot={{ r: 5, strokeWidth: 1.5, fill: '#FF9F1C' }}
+                  />
+                </AreaChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="chart-empty-state">
+                <Activity size={32} className="text-secondary opacity-40" />
+                <p>No historical scan records available yet.</p>
+                <Link to="/scan" className="settings__btn settings__btn--secondary">
+                  Launch First Scan
+                </Link>
+              </div>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Bottom Grid: Recent Scans & Top Vulnerabilities */}
+      {/* Compliance Framework Posture Overview (Executive Widget) */}
+      <div className="compliance-posture-card glassmorphism animate-slide-up">
+        <div className="compliance-card-header">
+          <div className="compliance-card-title-group">
+            <ShieldCheck size={18} className="text-accent" />
+            <h3>Compliance Readiness Matrix</h3>
+          </div>
+          <Link to="/compliance" className="compliance-view-all-link">
+            <span>Open Detailed Framework Audits</span>
+            <ExternalLink size={12} />
+          </Link>
+        </div>
+
+        <div className="frameworks-readiness-grid">
+          {frameworksHealth.map((fw) => (
+            <div
+              key={fw.name}
+              className="framework-readiness-item"
+              onClick={() => navigate(`/compliance?framework=${fw.name}`)}
+              style={{ cursor: 'pointer' }}
+              title={`View ${fw.fullName} controls`}
+            >
+              <div className="fw-item-top">
+                <span className="fw-badge">
+                  <span className="fw-icon-wrap">{fw.icon}</span>
+                  <span className="fw-code-name">{fw.name}</span>
+                </span>
+                <span
+                  className="fw-score-val"
+                  style={{
+                    color: fw.score >= 80 ? '#10b981' : fw.score >= 50 ? '#f59e0b' : '#f43f5e',
+                  }}
+                >
+                  {fw.score}%
+                </span>
+              </div>
+              <div className="fw-bar-bg">
+                <div
+                  className="fw-bar-fill"
+                  style={{
+                    width: `${fw.score}%`,
+                    background:
+                      fw.score >= 80
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : fw.score >= 50
+                        ? 'linear-gradient(90deg, #f59e0b, #fbbf24)'
+                        : 'linear-gradient(90deg, #f43f5e, #fb7185)',
+                  }}
+                />
+              </div>
+              <span className="fw-desc-lbl truncate">{fw.fullName}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Bottom Grid: Recent Scans Console & Top Security Findings */}
       <div className="bottom-grid animate-slide-up stagger-children">
-        {/* Recent Scans Table */}
+        {/* Recent Scans Table Console Window */}
         <div className="list-card glassmorphism table-section console-window">
           <div className="terminal-header">
             <span className="dot dot-red"></span>
             <span className="dot dot-yellow"></span>
             <span className="dot dot-green"></span>
-            <span className="terminal-title">sovascan@history:~</span>
+            <span className="terminal-title">sovascan@telemetry:~</span>
           </div>
+
           <div className="console-body">
-            <h2>Recent Scans</h2>
-            <div className="table-responsive">
-              <table className="recent-scans-table">
-                <thead>
-                  <tr>
-                    <th>Target Directory</th>
-                    <th>Type</th>
-                    <th>Findings</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {dashboardSummary.recentScans.map((scan) => (
-                    <tr key={scan.id}>
-                      <td className="monospace-td" title={scan.target}>{scan.target}</td>
-                      <td><span className="badge-type">{scan.scanType}</span></td>
-                      <td>
-                        <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                        <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                        <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                      </td>
-                      <td>
-                        <span className={`status-badge ${scan.status}`}>
-                          {scan.status}
-                        </span>
-                      </td>
-                      <td>
-                        <Link
-                          to={`/report/${scan.id}`}
-                          className="settings__btn settings__btn--primary"
-                          style={{
-                            textDecoration: 'none',
-                            display: 'inline-block',
-                            fontSize: '11px',
-                            padding: '4px 8px',
-                          }}
-                        >
-                          Report
-                        </Link>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div className="table-heading-row">
+              <h2>Recent Scans</h2>
+              <Link to="/scan" className="console-new-scan-link">
+                + Launch Scan
+              </Link>
             </div>
+
+            {summary.recentScans.length > 0 ? (
+              <div className="table-responsive">
+                <table className="recent-scans-table">
+                  <thead>
+                    <tr>
+                      <th>Target</th>
+                      <th>Type</th>
+                      <th>Severity Breakdown</th>
+                      <th>Status</th>
+                      <th>Action</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {summary.recentScans.map((scan) => {
+                      const meta = getTargetMeta(scan.target);
+                      const hasIssues = scan.totalFindings > 0;
+                      return (
+                        <tr key={scan.id}>
+                          <td className="monospace-td" title={meta.full}>
+                            <div className="target-cell-content">
+                              {meta.icon}
+                              <span className="target-name truncate">{meta.label}</span>
+                              <span className="target-meta-badge">{meta.badge}</span>
+                            </div>
+                          </td>
+                          <td>
+                            <span className="badge-type">{scan.scanType}</span>
+                          </td>
+                          <td>
+                            {hasIssues ? (
+                              <div className="findings-tags-row">
+                                {scan.criticalCount > 0 && (
+                                  <span className="scan-count-tag red-tag" title="Critical">
+                                    {scan.criticalCount}C
+                                  </span>
+                                )}
+                                {scan.highCount > 0 && (
+                                  <span className="scan-count-tag orange-tag" title="High">
+                                    {scan.highCount}H
+                                  </span>
+                                )}
+                                {scan.mediumCount > 0 && (
+                                  <span className="scan-count-tag yellow-tag" title="Medium">
+                                    {scan.mediumCount}M
+                                  </span>
+                                )}
+                                {scan.lowCount > 0 && (
+                                  <span className="scan-count-tag blue-tag" title="Low">
+                                    {scan.lowCount}L
+                                  </span>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="clean-posture-tag">✓ 0 Issues</span>
+                            )}
+                          </td>
+                          <td>
+                            <span className={`status-badge ${scan.status}`}>
+                              <span className="status-dot-mini" />
+                              {scan.status}
+                            </span>
+                          </td>
+                          <td>
+                            <div className="row-action-buttons">
+                              <Link
+                                to={`/report/${scan.id}`}
+                                className="settings__btn settings__btn--secondary row-btn"
+                                title="View Comprehensive Audit Report"
+                              >
+                                Report
+                              </Link>
+                              <Link
+                                to={`/findings?scan=${scan.id}`}
+                                className="settings__btn settings__btn--primary row-btn"
+                                title="Inspect Scanned Vulnerabilities"
+                              >
+                                Findings
+                              </Link>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : (
+              <div className="console-empty-state">
+                <FileCode2 size={36} className="text-secondary opacity-40" />
+                <p>No codebase scans recorded in database yet.</p>
+                <Link to="/scan" className="settings__btn settings__btn--primary">
+                  Start Your First Scan
+                </Link>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Top Vulnerability Classes */}
         <div className="list-card glassmorphism top-vulns-section">
-          <h2>Top Security Findings</h2>
+          <div className="table-heading-row">
+            <h2>Top Vulnerabilities</h2>
+            <Link to="/findings" className="console-new-scan-link">
+              View All ({summary.totalFindings})
+            </Link>
+          </div>
+
           <div className="vulns-list">
-            {dashboardSummary.topVulnerabilities.map((vuln) => (
-              <div
-                key={vuln.id}
-                className="vuln-item interactive-vuln-card hover-lift"
-                onClick={() => navigate(`/findings?search=${encodeURIComponent(vuln.title)}`)}
-              >
-                <div className="vuln-details">
-                  <span className={`severity-indicator ${vuln.severity}`}></span>
-                  <div className="vuln-title-wrap">
-                    <p className="vuln-name">{vuln.title}</p>
-                    <span className="vuln-cat">{vuln.category}</span>
+            {summary.topVulnerabilities && summary.topVulnerabilities.length > 0 ? (
+              summary.topVulnerabilities.map((vuln) => (
+                <div
+                  key={vuln.id}
+                  className="vuln-item interactive-vuln-card hover-lift"
+                  onClick={() => navigate(`/findings?search=${encodeURIComponent(vuln.title)}`)}
+                  title={`Inspect '${vuln.title}' in Findings`}
+                >
+                  <div className="vuln-details">
+                    <span className={`severity-indicator ${vuln.severity}`}></span>
+                    <div className="vuln-title-wrap">
+                      <p className="vuln-name truncate">{vuln.title}</p>
+                      <div className="vuln-meta-pills">
+                        <span className="vuln-cat">{vuln.category}</span>
+                        <span className={`vuln-sev-pill sev-${vuln.severity}`}>
+                          {vuln.severity}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="vuln-count-action">
+                    <span className={`vuln-count font-${vuln.severity}`}>
+                      {vuln.count} {vuln.count === 1 ? 'case' : 'cases'}
+                    </span>
+                    <ArrowRight size={14} className="vuln-arrow-icon" />
                   </div>
                 </div>
-                <div className="vuln-count font-red">{vuln.count} occurrences</div>
+              ))
+            ) : (
+              <div className="clean-vulns-empty-state">
+                <ShieldCheck size={42} style={{ color: '#10b981' }} />
+                <h4>Zero Active Vulnerabilities</h4>
+                <p>All scanned codebases are currently hardened with no critical alerts.</p>
               </div>
-            ))}
+            )}
           </div>
         </div>
       </div>
