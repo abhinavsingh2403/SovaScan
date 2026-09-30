@@ -8,7 +8,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
@@ -26,7 +26,7 @@ from sovascan.api.schemas import (
     ScanResponse,
     ThreatIntelScanResponse,
 )
-from sovascan.api.websocket import scan_manager
+from sovascan.api.websocket import get_project_root, resolve_local_target, scan_manager
 from sovascan.core.threat_intel import CVE_PATTERN, ThreatIntelEnricher
 from sovascan.models.base import get_db
 from sovascan.models.finding import Finding, Severity
@@ -47,8 +47,9 @@ def _clean_path(path_str: str, base_path: Path) -> str:
         return ""
     try:
         p = Path(path_str)
+        ref_dir = base_path.parent if base_path.is_file() else base_path
         if p.is_absolute():
-            return str(p.relative_to(base_path))
+            return str(p.relative_to(ref_dir))
     except Exception:
         pass
     base_str = str(base_path)
@@ -129,20 +130,28 @@ async def create_scan(
         if "://" in target_clean:
             raise HTTPException(status_code=400, detail="Invalid target syntax or unsupported URI protocol.")
         
-        # Check if path exists on this host
-        target_path_obj = Path(target_clean)
-        project_root = Path(__file__).parents[2].resolve()
-        if not target_path_obj.exists():
-            if target_clean in (".", "./", "", "root", "app", "/app"):
-                target_clean = "."
-            elif (project_root / target_clean).exists():
-                target_clean = str(project_root / target_clean)
-            else:
+        # Check if path exists on this host or workspace
+        resolved_path = resolve_local_target(target_clean)
+        if resolved_path is not None and resolved_path.exists():
+            target_clean = str(resolved_path)
+        else:
+            is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+            if is_cloud:
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Target path does not exist on server: {target_clean}. "
-                           f"To scan code, please enter a valid directory path or a Git repository URL (e.g. https://github.com/owner/repository)."
+                    detail=(
+                        f"Target path '{target_clean}' does not exist on the cloud server. "
+                        "When using SovaScan on the cloud, remote servers cannot access your local laptop drive directly. "
+                        "Please use the 'Upload File / Folder / ZIP' button to upload your code for scanning, "
+                        "or provide a Git repository URL (e.g. https://github.com/owner/repository)."
+                    ),
                 )
+            raise HTTPException(
+                status_code=400,
+                detail=f"Target path does not exist on server: {target_clean}. "
+                       f"To scan code, please enter a valid file/directory path, use the Upload option, "
+                       f"or provide a Git repository URL.",
+            )
 
     scan = Scan(
         id=str(uuid.uuid4()),
@@ -164,6 +173,76 @@ async def create_scan(
     )
 
     logger.info("Scan %s queued for async execution", scan.id)
+    return scan
+
+
+@router.post("/scan/upload", response_model=ScanResponse, status_code=202)
+async def upload_scan(
+    file: UploadFile = File(...),
+    scan_type: str = Form("full"),
+    options: str | None = Form(None),
+    db: Session = Depends(get_db),
+) -> Scan:
+    """Upload a file or ZIP archive of source code to scan.
+
+    Stores the upload in a dedicated cache directory, automatically unzips
+    archives (with ZipSlip path traversal protection), and triggers an
+    asynchronous scan job returning 202 Accepted.
+    """
+    scan_id = str(uuid.uuid4())
+    upload_dir = Path(".sovascan_cache") / "uploads" / scan_id
+    upload_dir.mkdir(parents=True, exist_ok=True)
+
+    filename = file.filename or "upload.bin"
+    safe_filename = Path(filename).name  # Prevent directory traversal in filename
+    file_path = upload_dir / safe_filename
+
+    # Stream file to disk
+    with open(file_path, "wb") as f:
+        while chunk := await file.read(1024 * 1024):
+            f.write(chunk)
+
+    target_scan_path = file_path
+    if safe_filename.lower().endswith(".zip"):
+        import zipfile
+        extract_dir = upload_dir / "extracted"
+        extract_dir.mkdir(parents=True, exist_ok=True)
+        resolved_extract = extract_dir.resolve()
+        with zipfile.ZipFile(file_path, "r") as zip_ref:
+            for member in zip_ref.namelist():
+                member_path = (extract_dir / member).resolve()
+                if not str(member_path).startswith(str(resolved_extract)):
+                    raise HTTPException(status_code=400, detail="Malicious path traversal detected in ZIP archive.")
+            zip_ref.extractall(extract_dir)
+        target_scan_path = extract_dir
+
+    parsed_options = None
+    if options:
+        try:
+            parsed_options = json.loads(options)
+        except Exception:
+            pass
+
+    display_target = f"upload:{safe_filename}"
+    scan = Scan(
+        id=scan_id,
+        target=display_target,
+        status=ScanStatus.PENDING,
+        scan_type=scan_type,
+        metadata_json=json.dumps(parsed_options) if parsed_options else None,
+    )
+    db.add(scan)
+    db.commit()
+    db.refresh(scan)
+
+    await scan_manager.start_scan(
+        scan_id=scan.id,
+        target=str(target_scan_path.resolve()),
+        scan_type=scan_type,
+        options=parsed_options,
+    )
+
+    logger.info("Upload scan %s created for file %s", scan.id, safe_filename)
     return scan
 
 

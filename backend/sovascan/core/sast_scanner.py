@@ -157,9 +157,16 @@ class SASTScanner:
             logger.info("bandit not installed — skipping SAST/Bandit scan")
             return []
 
+        bandit_cmd = ["bandit"]
+        if target.is_dir():
+            bandit_cmd.extend(["-r", str(target)])
+        else:
+            bandit_cmd.append(str(target))
+        bandit_cmd.extend(["-f", "json"])
+
         try:
             proc = subprocess.run(
-                ["bandit", "-r", str(target), "-f", "json"],
+                bandit_cmd,
                 capture_output=True,
                 text=True,
                 encoding="utf-8",

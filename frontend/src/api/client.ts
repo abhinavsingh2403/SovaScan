@@ -84,6 +84,14 @@ export const api = {
     options?: Record<string, unknown>;
   }) => client.post('/scan', data),
 
+  /** POST /api/v1/scan/upload — upload file/archive and run a scan */
+  uploadScan: (formData: FormData) =>
+    client.post('/scan/upload', formData, {
+      headers: {
+        'Content-Type': 'multipart/form-data',
+      },
+    }),
+
   /** POST /api/v1/scan/{scanId}/cancel — cancel an in-progress scan */
   cancelScan: (scanId: string) => client.post(`/scan/${scanId}/cancel`),
 

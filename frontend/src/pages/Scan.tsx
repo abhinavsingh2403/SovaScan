@@ -18,7 +18,9 @@ import {
   AlertTriangle,
   Cloud,
   HardDrive,
-  ExternalLink
+  ExternalLink,
+  UploadCloud,
+  FileUp,
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
@@ -33,7 +35,9 @@ const fwIcons: Record<string, React.ReactNode> = {
 };
 
 const Scan: React.FC = () => {
-  const { startScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
+  const { startScan, startUploadScan, cancelScan, scanProgress, scans, fetchScans } = useStore();
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement | null>(null);
   const [targetPath, setTargetPath] = useState(() => {
     try {
       const stored = localStorage.getItem('sovascan-target-path');
@@ -140,6 +144,10 @@ const Scan: React.FC = () => {
 
   const handleStartScan = (e: React.FormEvent) => {
     e.preventDefault();
+    if (selectedFile) {
+      startUploadScan(selectedFile, scanType, frameworks);
+      return;
+    }
     const cleanTarget = targetPath.trim();
     if (!cleanTarget) return;
     try {
@@ -216,34 +224,152 @@ const Scan: React.FC = () => {
 
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
-              <label htmlFor="targetPath">Target Directory or Git Repository URL:</label>
-              <div className="input-with-icon">
-                <span className="input-icon">
-                  {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? (
-                    <Globe size={16} strokeWidth={2} style={{ color: 'var(--accent-telemetry)' }} />
-                  ) : (
-                    <FolderSearch size={16} strokeWidth={2} style={{ color: 'var(--accent-primary)' }} />
-                  )}
-                </span>
-                <input
-                  type="text"
-                  id="targetPath"
-                  placeholder={
-                    targetPath.startsWith('http://') || targetPath.startsWith('https://')
-                      ? "e.g. https://github.com/owner/repository"
-                      : "e.g. C:\\path\\to\\codebase or . for application root"
-                  }
-                  value={targetPath}
-                  onChange={(e) => setTargetPath(e.target.value)}
-                  disabled={scanProgress.running}
-                  required
-                />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '8px' }}>
+                <label htmlFor="targetPath" style={{ margin: 0 }}>Target Directory, File, or Archive:</label>
+                {!targetPath.startsWith('http://') && !targetPath.startsWith('https://') && (
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={scanProgress.running}
+                    style={{
+                      background: 'rgba(99, 102, 241, 0.12)',
+                      border: '1px solid rgba(99, 102, 241, 0.35)',
+                      color: 'var(--accent-primary)',
+                      padding: '4px 10px',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      cursor: 'pointer',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <UploadCloud size={13} />
+                    <span>Upload File / ZIP</span>
+                  </button>
+                )}
               </div>
 
-              <p className="field-help">
+              <input
+                type="file"
+                ref={fileInputRef}
+                style={{ display: 'none' }}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) {
+                    setSelectedFile(file);
+                    setTargetPath(`[Uploaded] ${file.name}`);
+                  }
+                }}
+              />
+
+              {selectedFile ? (
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '10px 14px',
+                    borderRadius: '8px',
+                    border: '1px solid rgba(16, 185, 129, 0.35)',
+                    background: 'rgba(16, 185, 129, 0.08)',
+                    color: 'var(--text-primary)',
+                    marginBottom: '8px',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <FileUp size={18} style={{ color: '#10b981' }} />
+                    <span style={{ fontWeight: 600, fontSize: '13px' }}>{selectedFile.name}</span>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary)' }}>
+                      ({(selectedFile.size / 1024).toFixed(1)} KB)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedFile(null);
+                      setTargetPath('.');
+                    }}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: 'var(--text-secondary)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      textDecoration: 'underline',
+                    }}
+                  >
+                    Clear
+                  </button>
+                </div>
+              ) : (
+                <div className="input-with-icon">
+                  <span className="input-icon">
+                    {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? (
+                      <Globe size={16} strokeWidth={2} style={{ color: 'var(--accent-telemetry)' }} />
+                    ) : (
+                      <FolderSearch size={16} strokeWidth={2} style={{ color: 'var(--accent-primary)' }} />
+                    )}
+                  </span>
+                  <input
+                    type="text"
+                    id="targetPath"
+                    placeholder={
+                      targetPath.startsWith('http://') || targetPath.startsWith('https://')
+                        ? "e.g. https://github.com/owner/repository"
+                        : "e.g. . for root, frontend, backend/requirements.txt, or C:\\path"
+                    }
+                    value={targetPath}
+                    onChange={(e) => {
+                      setSelectedFile(null);
+                      setTargetPath(e.target.value);
+                    }}
+                    disabled={scanProgress.running}
+                    required
+                  />
+                </div>
+              )}
+
+              {/* Quick Preset Chips for local scans */}
+              {!targetPath.startsWith('http://') && !targetPath.startsWith('https://') && !selectedFile && (
+                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', alignSelf: 'center', marginRight: '4px' }}>Quick Select:</span>
+                  {[
+                    { label: '⚡ Workspace Root (.)', path: '.' },
+                    { label: '📁 Frontend', path: 'frontend' },
+                    { label: '📁 Backend', path: 'backend' },
+                    { label: '📄 requirements.txt', path: 'backend/requirements.txt' },
+                    { label: '📄 package.json', path: 'frontend/package.json' },
+                  ].map((chip) => (
+                    <button
+                      key={chip.path}
+                      type="button"
+                      onClick={() => setTargetPath(chip.path)}
+                      style={{
+                        background: targetPath === chip.path ? 'var(--accent-glow)' : 'rgba(255, 255, 255, 0.04)',
+                        border: targetPath === chip.path ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
+                        color: targetPath === chip.path ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                        borderRadius: '4px',
+                        padding: '3px 8px',
+                        fontSize: '11px',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {chip.label}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <p className="field-help" style={{ marginTop: '8px' }}>
                 {targetPath.startsWith('http://') || targetPath.startsWith('https://')
                   ? 'Remote GitHub repository scan: SovaScan performs git clone, SAST, secrets, and CVE analysis.'
-                  : 'Local filesystem scan: analyzes directory on host machine (enter . for current workspace).'}
+                  : selectedFile
+                    ? 'Uploaded target archive or file ready for automated extraction and scanning.'
+                    : 'Local filesystem scan: enter . for root, a subfolder like frontend, a single file, or upload a ZIP.'}
               </p>
             </div>
 

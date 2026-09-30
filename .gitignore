@@ -23,3 +23,5 @@ htmlcov/
 .coverage
 .pytest_cache/
 .mypy_cache/
+.sovascan_cache/
+

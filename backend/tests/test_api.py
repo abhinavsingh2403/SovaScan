@@ -388,3 +388,51 @@ def test_cancel_scan_endpoint(client: TestClient) -> None:
     db_resp = client.get(f"/api/v1/scan/{scan_id}")
     assert db_resp.status_code == 200
     assert db_resp.json()["status"] in ("failed", "completed")
+
+
+def test_create_scan_relative_path(client: TestClient) -> None:
+    """Test initiating a scan with relative path alias ('.')."""
+    payload = {
+        "target": ".",
+        "scan_type": "secrets"
+    }
+    resp = client.post("/api/v1/scan", json=payload)
+    assert resp.status_code == 202
+    data = resp.json()
+    assert "id" in data
+    assert data["status"] == "pending"
+
+
+def test_upload_scan_file(client: TestClient) -> None:
+    """Test scanning an uploaded single file via POST /api/v1/scan/upload."""
+    file_content = b"SECRET_KEY = 'AKIA1234567890123456'\n"
+    files = {"file": ("test_config.py", file_content, "text/plain")}
+    data = {"scan_type": "secrets"}
+    resp = client.post("/api/v1/scan/upload", files=files, data=data)
+    assert resp.status_code == 202
+    scan_data = resp.json()
+    assert "id" in scan_data
+    assert scan_data["target"] == "upload:test_config.py"
+    assert scan_data["status"] == "pending"
+
+
+def test_upload_scan_zip(client: TestClient) -> None:
+    """Test scanning an uploaded ZIP archive via POST /api/v1/scan/upload."""
+    import io
+    import zipfile
+
+    zip_buf = io.BytesIO()
+    with zipfile.ZipFile(zip_buf, "w") as zf:
+        zf.writestr("app.py", "import os\nprint('hello')\n")
+        zf.writestr("requirements.txt", "fastapi==0.100.0\n")
+    zip_buf.seek(0)
+
+    files = {"file": ("repo.zip", zip_buf.getvalue(), "application/zip")}
+    data = {"scan_type": "dependencies"}
+    resp = client.post("/api/v1/scan/upload", files=files, data=data)
+    assert resp.status_code == 202
+    scan_data = resp.json()
+    assert "id" in scan_data
+    assert scan_data["target"] == "upload:repo.zip"
+    assert scan_data["status"] == "pending"
+

@@ -288,6 +288,8 @@ interface SovaState {
   fetchFindings: (scanId?: string) => Promise<void>;
   fetchComplianceReport: (framework: string) => Promise<void>;
   startScan: (target: string, scanType: string, frameworks: string[]) => Promise<void>;
+  startUploadScan: (file: File, scanType: string, frameworks: string[]) => Promise<void>;
+  _attachScanStreaming: (scanId: string) => void;
   cancelScan: (scanId?: string) => Promise<void>;
   selectScan: (scan: Scan | null) => void;
   getComplianceReport: (framework: string) => ComplianceReport | null;
@@ -539,8 +541,57 @@ export const useStore = create<SovaState>((set, get) => ({
     });
 
     try {
-      // POST /scan now returns 202 Accepted with the scan in pending/running state
+      // POST /scan returns 202 Accepted with the scan in pending/running state
       const response = await api.createScan({ target, scan_type: scanType });
+      const scanData = response.data;
+      const scanId: string = scanData.id || scanData.scan_id;
+
+      if (!scanId) {
+        throw new Error('No scan ID returned from server');
+      }
+
+      set((state) => ({
+        scanProgress: { ...state.scanProgress, activeScanId: scanId },
+      }));
+
+      const targetDisplayName = target.substring(target.lastIndexOf('/') + 1 || target.lastIndexOf('\\') + 1 || 0) || target;
+      get().addNotification({
+        type: 'info',
+        title: 'Scan Started',
+        message: `Scanning target: ${targetDisplayName}`,
+      });
+
+      // Stream via WebSocket with polling fallback
+      useStore.getState()._attachScanStreaming(scanId);
+    } catch (err: any) {
+      set({
+        loading: false,
+        error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
+        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0, activeScanId: undefined },
+      });
+    }
+  },
+
+  /* -------------------------------------------------------
+     startUploadScan — POST /api/v1/scan/upload (202 Accepted)
+     Uploads a file or ZIP archive and connects to WebSocket.
+     ------------------------------------------------------- */
+  startUploadScan: async (file: File, scanType: string, _frameworks: string[]) => {
+    const prevPollId = get().scanProgress.pollIntervalId;
+    if (prevPollId) clearInterval(prevPollId);
+
+    set({
+      loading: true,
+      error: null,
+      scanProgress: { running: true, phase: `Uploading ${file.name}...`, percent: 5, findingsCount: 0, pollIntervalId: undefined },
+    });
+
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+      formData.append('scan_type', scanType);
+
+      const response = await api.uploadScan(formData);
       const scanData = response.data;
       const scanId: string = scanData.id || scanData.scan_id;
 
@@ -554,214 +605,179 @@ export const useStore = create<SovaState>((set, get) => ({
 
       get().addNotification({
         type: 'info',
-        title: 'Scan Started',
-        message: `Scanning target: ${target.substring(target.lastIndexOf('/') + 1 || target.lastIndexOf('\\') + 1 || 0)}`,
+        title: 'Upload Received',
+        message: `Analyzing uploaded target: ${file.name}`,
       });
 
-      // Connect to WebSocket for real-time progress
-      const ws = createScanWebSocket(scanId);
-      let wsConnected = false;
-
-      ws.onopen = () => {
-        wsConnected = true;
-      };
-
-      ws.onmessage = (event: MessageEvent) => {
-        try {
-          const msg: ScanProgressEvent = JSON.parse(event.data);
-
-          switch (msg.type) {
-            case 'progress':
-            case 'status_change':
-              set({
-                scanProgress: {
-                  running: true,
-                  phase: msg.phase || msg.status || 'Scanning...',
-                  percent: msg.percent,
-                  findingsCount: msg.findings_count,
-                  activeScanId: scanId,
-                },
-              });
-              break;
-
-            case 'finding_discovered':
-              set({
-                scanProgress: {
-                  running: true,
-                  phase: msg.phase || 'Analyzing...',
-                  percent: msg.percent,
-                  findingsCount: msg.findings_count,
-                  activeScanId: scanId,
-                },
-              });
-              if (msg.finding) {
-                get().addNotification({
-                  type: 'warning',
-                  title: 'Finding Discovered',
-                  message: `${msg.finding.title} (${msg.finding.severity.toUpperCase()}) found in ${msg.finding.file_path}`,
-                });
-              }
-              break;
-
-            case 'scan_complete': {
-              set({
-                scanProgress: {
-                  running: false,
-                  phase: 'Scan complete',
-                  percent: 100,
-                  findingsCount: msg.findings_count,
-                },
-                loading: false,
-              });
-              ws.close();
-              get().addNotification({
-                type: 'success',
-                title: 'Scan Completed',
-                message: `Scan successfully completed. Found ${msg.findings_count} vulnerabilities.`,
-              });
-              // Refresh all data views
-              const store = useStore.getState();
-              store.fetchDashboard();
-              store.fetchScans();
-              store.fetchFindings();
-              break;
-            }
-
-            case 'scan_failed':
-              set({
-                scanProgress: {
-                  running: false,
-                  phase: 'Scan failed',
-                  percent: 0,
-                  findingsCount: msg.findings_count,
-                },
-                loading: false,
-                error: msg.error || 'Scan execution failed',
-              });
-              ws.close();
-              get().addNotification({
-                type: 'error',
-                title: 'Scan Failed',
-                message: msg.error || 'Scan execution failed',
-              });
-              break;
-
-            case 'keepalive':
-              // No-op, just keeps the connection alive
-              break;
-
-            default:
-              break;
-          }
-        } catch (parseErr) {
-          console.error('Failed to parse WS message:', parseErr);
-        }
-      };
-
-      ws.onerror = () => {
-        if (!wsConnected) {
-          // WebSocket failed to connect — fall back to polling
-          console.warn('WebSocket connection failed, falling back to polling');
-          ws.close();
-          const pollInterval = setInterval(async () => {
-            try {
-              const pollRes = await api.getScan(scanId);
-              const pollScan = pollRes.data;
-              const status = pollScan.status;
-
-              if (status === 'completed') {
-                clearInterval(pollInterval);
-                set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
-                  loading: false,
-                });
-                get().addNotification({
-                  type: 'success',
-                  title: 'Scan Completed',
-                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
-                });
-                const store = useStore.getState();
-                store.fetchDashboard();
-                store.fetchScans();
-                store.fetchFindings();
-              } else if (status === 'failed') {
-                clearInterval(pollInterval);
-                set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
-                  loading: false,
-                  error: 'Scan execution failed',
-                });
-                get().addNotification({
-                  type: 'error',
-                  title: 'Scan Failed',
-                  message: 'Scan execution failed',
-                });
-              }
-            } catch (pollErr) {
-              console.error('Polling error:', pollErr);
-            }
-          }, 3000);
-          // Track poll interval so it can be cleaned up
-          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
-        }
-      };
-
-      ws.onclose = () => {
-        // Ensure loading state is cleared if WS closes unexpectedly
-        const { scanProgress } = useStore.getState();
-        // Only start polling if scan is still running AND no poll interval is already active
-        if (scanProgress.running && !scanProgress.pollIntervalId) {
-          // WS closed while scan was still running — start polling fallback
-          const pollInterval = setInterval(async () => {
-            try {
-              const pollRes = await api.getScan(scanId);
-              const pollScan = pollRes.data;
-              const status = pollScan.status;
-
-              if (status === 'completed') {
-                clearInterval(pollInterval);
-                set({
-                  scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
-                  loading: false,
-                });
-                get().addNotification({
-                  type: 'success',
-                  title: 'Scan Completed',
-                  message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
-                });
-                const store = useStore.getState();
-                store.fetchDashboard();
-                store.fetchScans();
-                store.fetchFindings();
-              } else if (status === 'failed') {
-                clearInterval(pollInterval);
-                set({
-                  scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
-                  loading: false,
-                  error: 'Scan execution failed',
-                });
-                get().addNotification({
-                  type: 'error',
-                  title: 'Scan Failed',
-                  message: 'Scan execution failed',
-                });
-              }
-            } catch (pollErr) {
-              console.error('Polling error:', pollErr);
-            }
-          }, 3000);
-          // Track poll interval so it can be cleaned up
-          set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
-        }
-      };
-
+      // Stream via WebSocket with polling fallback
+      useStore.getState()._attachScanStreaming(scanId);
     } catch (err: any) {
       set({
         loading: false,
-        error: err?.response?.data?.detail || err?.message || 'Failed to start scan',
-        scanProgress: { running: false, phase: 'Failed to start', percent: 0, findingsCount: 0, activeScanId: undefined },
+        error: err?.response?.data?.detail || err?.message || 'Failed to upload target for scanning',
+        scanProgress: { running: false, phase: 'Upload failed', percent: 0, findingsCount: 0, activeScanId: undefined },
       });
     }
+  },
+
+  /* -------------------------------------------------------
+     _attachScanStreaming — WebSocket connection & polling fallback
+     ------------------------------------------------------- */
+  _attachScanStreaming: (scanId: string) => {
+    const ws = createScanWebSocket(scanId);
+    let wsConnected = false;
+
+    ws.onopen = () => {
+      wsConnected = true;
+    };
+
+    ws.onmessage = (event: MessageEvent) => {
+      try {
+        const msg: ScanProgressEvent = JSON.parse(event.data);
+
+        switch (msg.type) {
+          case 'progress':
+          case 'status_change':
+            set({
+              scanProgress: {
+                running: true,
+                phase: msg.phase || msg.status || 'Scanning...',
+                percent: msg.percent,
+                findingsCount: msg.findings_count,
+                activeScanId: scanId,
+              },
+            });
+            break;
+
+          case 'finding_discovered':
+            set({
+              scanProgress: {
+                running: true,
+                phase: msg.phase || 'Analyzing...',
+                percent: msg.percent,
+                findingsCount: msg.findings_count,
+                activeScanId: scanId,
+              },
+            });
+            if (msg.finding) {
+              get().addNotification({
+                type: 'warning',
+                title: 'Finding Discovered',
+                message: `${msg.finding.title} (${msg.finding.severity.toUpperCase()}) found in ${msg.finding.file_path}`,
+              });
+            }
+            break;
+
+          case 'scan_complete': {
+            set({
+              scanProgress: {
+                running: false,
+                phase: 'Scan complete',
+                percent: 100,
+                findingsCount: msg.findings_count,
+              },
+              loading: false,
+            });
+            ws.close();
+            get().addNotification({
+              type: 'success',
+              title: 'Scan Completed',
+              message: `Scan successfully completed. Found ${msg.findings_count} vulnerabilities.`,
+            });
+            // Refresh all data views
+            const store = useStore.getState();
+            store.fetchDashboard();
+            store.fetchScans();
+            store.fetchFindings();
+            break;
+          }
+
+          case 'scan_failed':
+            set({
+              scanProgress: {
+                running: false,
+                phase: 'Scan failed',
+                percent: 0,
+                findingsCount: msg.findings_count,
+              },
+              loading: false,
+              error: msg.error || 'Scan execution failed',
+            });
+            ws.close();
+            get().addNotification({
+              type: 'error',
+              title: 'Scan Failed',
+              message: msg.error || 'Scan execution failed',
+            });
+            break;
+
+          case 'keepalive':
+            break;
+
+          default:
+            break;
+        }
+      } catch (parseErr) {
+        console.error('Failed to parse WS message:', parseErr);
+      }
+    };
+
+    const startPollingFallback = () => {
+      const pollInterval = setInterval(async () => {
+        try {
+          const pollRes = await api.getScan(scanId);
+          const pollScan = pollRes.data;
+          const status = pollScan.status;
+
+          if (status === 'completed') {
+            clearInterval(pollInterval);
+            set({
+              scanProgress: { running: false, phase: 'Scan complete', percent: 100, findingsCount: pollScan.total_findings, pollIntervalId: undefined },
+              loading: false,
+            });
+            get().addNotification({
+              type: 'success',
+              title: 'Scan Completed',
+              message: `Scan successfully completed. Found ${pollScan.total_findings} vulnerabilities.`,
+            });
+            const store = useStore.getState();
+            store.fetchDashboard();
+            store.fetchScans();
+            store.fetchFindings();
+          } else if (status === 'failed') {
+            clearInterval(pollInterval);
+            set({
+              scanProgress: { running: false, phase: 'Scan failed', percent: 0, findingsCount: 0, pollIntervalId: undefined },
+              loading: false,
+              error: 'Scan execution failed',
+            });
+            get().addNotification({
+              type: 'error',
+              title: 'Scan Failed',
+              message: 'Scan execution failed',
+            });
+          }
+        } catch (pollErr) {
+          console.error('Polling error:', pollErr);
+        }
+      }, 3000);
+      set((state) => ({ scanProgress: { ...state.scanProgress, pollIntervalId: pollInterval } }));
+    };
+
+    ws.onerror = () => {
+      if (!wsConnected) {
+        console.warn('WebSocket connection failed, falling back to polling');
+        ws.close();
+        startPollingFallback();
+      }
+    };
+
+    ws.onclose = () => {
+      const { scanProgress } = useStore.getState();
+      if (scanProgress.running && !scanProgress.pollIntervalId) {
+        startPollingFallback();
+      }
+    };
   },
 
   /* -------------------------------------------------------

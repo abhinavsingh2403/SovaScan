@@ -44,14 +44,70 @@ def _clean_path(path_str: str, base_path: Path) -> str:
         return ""
     try:
         p = Path(path_str)
+        ref_dir = base_path.parent if base_path.is_file() else base_path
         if p.is_absolute():
-            return str(p.relative_to(base_path))
+            return str(p.relative_to(ref_dir))
     except Exception:
         pass
     base_str = str(base_path)
     if path_str.startswith(base_str):
         return path_str[len(base_str):].lstrip("\\/")
     return path_str
+
+
+def get_project_root() -> Path:
+    """Find the root directory of the SovaScan project workspace."""
+    curr = Path(__file__).resolve()
+    for parent in curr.parents:
+        if (parent / ".git").exists() or (
+            (parent / "backend").exists() and ((parent / "frontend").exists() or (parent / "frontend" / "dist").exists())
+        ):
+            return parent
+    return Path.cwd()
+
+
+def resolve_local_target(target_str: str) -> Path | None:
+    """Resolve a target string to an existing filesystem Path.
+
+    Supports:
+    - Absolute filesystem paths (Windows or POSIX)
+    - Relative paths from workspace root (e.g., 'frontend', 'backend/requirements.txt')
+    - Project root aliases ('.', './', '', 'root', 'app', '/app')
+    - Direct files or directories
+    - Relative paths from current working directory
+    - Quotes and trailing slash normalization
+    """
+    if not target_str:
+        return get_project_root()
+
+    cleaned = target_str.strip().strip("\"'")
+    if not cleaned or cleaned in (".", "./", "root", "app", "/app"):
+        return get_project_root()
+
+    # 1. Direct path check (works for absolute paths or relative to cwd)
+    direct_p = Path(cleaned)
+    if direct_p.exists():
+        return direct_p.resolve()
+
+    # 2. Relative to project root
+    project_root = get_project_root()
+    candidate = (project_root / cleaned).resolve()
+    if candidate.exists():
+        return candidate
+
+    # 3. Relative to subdirectories of root (e.g. backend/ or frontend/)
+    for sub in ("backend", "frontend"):
+        sub_candidate = (project_root / sub / cleaned).resolve()
+        if sub_candidate.exists():
+            return sub_candidate
+
+    # 4. Normalized path separators
+    norm = cleaned.replace("\\", "/")
+    candidate_norm = (project_root / norm).resolve()
+    if candidate_norm.exists():
+        return candidate_norm
+
+    return None
 
 
 def is_allowed_git_url(target: str) -> bool:
@@ -426,19 +482,22 @@ class ScanManager:
             else:
                 if "://" in target_clean:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
-                target_path = Path(target_clean)
-                if not target_path.exists():
-                    if target_clean in (".", "./", "", "root", "app", "/app"):
-                        target_path = Path(".")
-                    else:
-                        project_root = Path(__file__).parents[2].resolve()
-                        if (project_root / target_clean).exists():
-                            target_path = project_root / target_clean
-                        else:
-                            raise FileNotFoundError(
-                                f"Target path '{target_clean}' does not exist on the server. "
-                                f"Please provide a valid local path or Git repository URL."
-                            )
+                resolved = resolve_local_target(target_clean)
+                if resolved is None or not resolved.exists():
+                    import os
+                    is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+                    if is_cloud:
+                        raise FileNotFoundError(
+                            f"Target path '{target_clean}' does not exist on the cloud server. "
+                            f"Remote cloud deployments cannot access files on your local machine. "
+                            f"Please use the 'Upload File / Folder / ZIP' button to scan your local project, "
+                            f"or provide a Git repository URL (e.g. https://github.com/owner/repository)."
+                        )
+                    raise FileNotFoundError(
+                        f"Target path '{target_clean}' does not exist on the server. "
+                        f"Please provide a valid directory/file path or Git repository URL."
+                    )
+                target_path = resolved
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
