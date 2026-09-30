@@ -5,31 +5,31 @@
    ============================================================ */
 
 :root {
-  /* ---- Background — Deep Velvet Obsidian & Slate (Soothing & Flawless) ---- */
-  --bg-primary: #090D16;
-  --bg-secondary: #0F172A;
-  --bg-card: rgba(15, 23, 42, 0.85);
-  --bg-card-hover: rgba(30, 41, 59, 0.95);
-  --bg-input: #111827;
-  --bg-overlay: rgba(9, 13, 22, 0.92);
+  /* ---- Background — Stealth Obsidian & Carbon (Non-Generic) ---- */
+  --bg-primary: #08090C;
+  --bg-secondary: #0D0F15;
+  --bg-card: rgba(18, 21, 30, 0.88);
+  --bg-card-hover: rgba(25, 30, 44, 0.95);
+  --bg-input: #11141D;
+  --bg-overlay: rgba(5, 6, 8, 0.92);
 
   /* ---- Border ---- */
-  --border-color: rgba(148, 163, 184, 0.10);
-  --border-color-hover: rgba(99, 102, 241, 0.35);
-  --border-highlight: rgba(255, 255, 255, 0.08);
+  --border-color: rgba(255, 255, 255, 0.08);
+  --border-color-hover: rgba(245, 158, 11, 0.40);
+  --border-highlight: rgba(255, 255, 255, 0.14);
 
   /* ---- Text ---- */
   --text-primary: #F8FAFC;
   --text-secondary: #94A3B8;
   --text-muted: #64748B;
-  --text-inverse: #090D16;
+  --text-inverse: #08090C;
 
-  /* ---- Signature Brand Accent — Electric Indigo / Arctic Cyan (Professional & Soothing) ---- */
-  --accent-primary: #6366F1;
-  --accent-secondary: #818CF8;
+  /* ---- Signature Brand Accent — Sova Solar Gold / Amber Flare ---- */
+  --accent-primary: #F59E0B;
+  --accent-secondary: #D97706;
   --accent-telemetry: #06B6D4;
-  --accent-gradient: linear-gradient(135deg, #6366F1 0%, #06B6D4 100%);
-  --accent-glow: rgba(99, 102, 241, 0.20);
+  --accent-gradient: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  --accent-glow: rgba(245, 158, 11, 0.25);
 
   /* ---- Status ---- */
   --success: #10B981;
@@ -96,8 +96,8 @@
 
   /* ---- Border — Surgical Crisp Micro-lines ---- */
   --border-color: rgba(15, 23, 42, 0.08);
-  --border-color-hover: rgba(79, 70, 229, 0.40);
-  --border-highlight: rgba(15, 23, 42, 0.12);
+  --border-color-hover: rgba(217, 119, 6, 0.45);
+  --border-highlight: rgba(15, 23, 42, 0.14);
 
   /* ---- Text — High Contrast Slate & Carbon ---- */
   --text-primary: #0F172A;
@@ -105,12 +105,12 @@
   --text-muted: #64748B;
   --text-inverse: #FFFFFF;
 
-  /* ---- Brand Accent — Indigo / Cyan (Professional & Soothing) ---- */
-  --accent-primary: #4F46E5;
-  --accent-secondary: #6366F1;
+  /* ---- Brand Accent — Sova Solar Gold / Amber Flare ---- */
+  --accent-primary: #D97706;
+  --accent-secondary: #B45309;
   --accent-telemetry: #0284C7;
-  --accent-gradient: linear-gradient(135deg, #4F46E5 0%, #0284C7 100%);
-  --accent-glow: rgba(79, 70, 229, 0.16);
+  --accent-gradient: linear-gradient(135deg, #F59E0B 0%, #D97706 100%);
+  --accent-glow: rgba(217, 119, 6, 0.16);
 
   /* ---- Status — Crisp High-Visibility ---- */
   --success: #059669;
