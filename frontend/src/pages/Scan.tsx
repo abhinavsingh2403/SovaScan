@@ -164,7 +164,7 @@ const Scan: React.FC = () => {
               }}
             >
               <FolderSearch size={14} />
-              <span>📁 Local Filesystem Path</span>
+              <span>Local Filesystem Path</span>
             </button>
             <button
               type="button"
@@ -185,7 +185,7 @@ const Scan: React.FC = () => {
               }}
             >
               <Globe size={14} />
-              <span>🌐 GitHub Repository URL</span>
+              <span>GitHub Repository URL</span>
             </button>
           </div>
 

@@ -1,338 +1,277 @@
 /* ============================================================
-   SovaScan CyberRadarHUD — Military/Cyberpunk Telemetry HUD
+   SovaScan — Precision Security Telemetry HUD
+   Professional, Soothing, Flawless Security Gauge
    ============================================================ */
 
-.cyber-hud-root {
-  position: relative;
-  width: 220px;
-  height: 220px;
-  margin: 0 auto 20px auto;
+.telemetry-hud-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  border-radius: 50%;
-}
-
-/* Ambient Radial Glow Halo */
-.cyber-hud-halo {
-  position: absolute;
-  inset: -14px;
-  border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, rgba(6, 182, 212, 0.08) 55%, transparent 75%);
-  pointer-events: none;
-  animation: hud-halo-pulse 3s ease-in-out infinite alternate;
-}
-
-@keyframes hud-halo-pulse {
-  0% {
-    transform: scale(0.96);
-    opacity: 0.6;
-  }
-  100% {
-    transform: scale(1.04);
-    opacity: 0.95;
-  }
-}
-
-/* SVG Vector Canvas */
-.cyber-hud-svg {
+  padding: 18px 16px 14px;
+  position: relative;
+  user-select: none;
   width: 100%;
-  height: 100%;
-  overflow: visible;
-  filter: drop-shadow(0 0 16px rgba(0, 0, 0, 0.8));
+  max-width: 320px;
+  margin: 0 auto;
 }
 
-/* Glass Disc Background */
-.hud-disc-bg {
-  stroke: rgba(245, 158, 11, 0.4);
-  stroke-width: 1.2px;
+/* Status Pill Header */
+.telemetry-hud__status {
+  margin-bottom: 12px;
 }
 
-/* Grid & Range Rings */
-.hud-grid-line {
-  stroke: rgba(255, 255, 255, 0.07);
-  stroke-width: 0.8px;
-  stroke-dasharray: 4 4;
-}
-
-.hud-range-ring {
-  fill: none;
-  stroke-width: 1px;
-}
-
-.hud-range-ring.outer {
-  stroke: rgba(245, 158, 11, 0.35);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
-}
-
-.hud-range-ring.mid {
-  stroke: rgba(6, 182, 212, 0.22);
-  stroke-dasharray: 6 3;
-}
-
-.hud-range-ring.inner {
-  stroke: rgba(255, 255, 255, 0.1);
-  stroke-dasharray: 2 4;
-}
-
-.hud-range-ring.core {
-  stroke: rgba(245, 158, 11, 0.5);
-  fill: rgba(245, 158, 11, 0.06);
-}
-
-/* Compass Ticks */
-.hud-tick.minor {
-  stroke: rgba(255, 255, 255, 0.2);
-  stroke-width: 0.8px;
-}
-
-.hud-tick.major {
-  stroke: #f59e0b;
-  stroke-width: 1.5px;
-}
-
-/* Rotating Gyro Tracks */
-.hud-gyro-clockwise {
-  transform-origin: 120px 120px;
-  animation: hud-spin-cw 18s linear infinite;
-}
-
-.hud-gyro-counter {
-  transform-origin: 120px 120px;
-  animation: hud-spin-ccw 12s linear infinite;
-}
-
-@keyframes hud-spin-cw {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
-}
-
-@keyframes hud-spin-ccw {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(-360deg); }
-}
-
-.hud-dashed-arc.cyan {
-  stroke: #06b6d4;
-  stroke-width: 1.5px;
-  opacity: 0.75;
-}
-
-.hud-dashed-arc.amber {
-  stroke: #f59e0b;
-  stroke-width: 1.2px;
-  opacity: 0.65;
-}
-
-/* Volumetric Conic Sweep Wedge */
-.hud-sweep-wedge {
-  fill: url(#hud-wedge-grad);
-  opacity: 0.55;
-  filter: blur(1.5px);
-}
-
-.hud-laser-line {
-  stroke-width: 2px;
-}
-
-.hud-laser-tip {
-  fill: #ffffff;
-  filter: drop-shadow(0 0 6px #f59e0b) drop-shadow(0 0 10px #ffffff);
-}
-
-/* Target Lock Brackets */
-.hud-bracket {
-  fill: none;
-  stroke: rgba(6, 182, 212, 0.65);
-  stroke-width: 1.2px;
-}
-
-/* Cardinal Legend Text */
-.hud-legend-text {
-  font-family: var(--font-mono, monospace);
-  font-size: 8px;
-  letter-spacing: 0.6px;
-  fill: rgba(255, 255, 255, 0.4);
-  font-weight: 600;
-}
-
-.hud-legend-text.top { fill: #f59e0b; }
-.hud-legend-text.btm { fill: #06b6d4; }
-
-/* Holographic Mascot Stage */
-.cyber-mascot-pod {
-  position: absolute;
-  width: 72px;
-  height: 72px;
-  display: flex;
+.status-pill {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  z-index: 5;
+  gap: 8px;
+  padding: 4px 12px;
+  border-radius: var(--radius-full);
+  font-size: 0.6875rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  font-family: var(--font-mono);
+  transition: all 0.25s ease;
 }
 
-.mascot-pedestal-glow {
-  position: absolute;
-  bottom: 6px;
-  width: 52px;
-  height: 16px;
-  border-radius: 50%;
-  background: radial-gradient(ellipse, rgba(245, 158, 11, 0.45) 0%, rgba(6, 182, 212, 0.15) 60%, transparent 80%);
-  filter: blur(2px);
-  animation: pedestal-pulse 2.5s ease-in-out infinite alternate;
+.status-pill--active {
+  background: rgba(99, 102, 241, 0.12);
+  border: 1px solid rgba(99, 102, 241, 0.3);
+  color: #818cf8;
 }
 
-.mascot-pedestal-ring {
-  position: absolute;
-  bottom: 8px;
-  width: 44px;
-  height: 14px;
-  border-radius: 50%;
-  border: 1px solid rgba(245, 158, 11, 0.6);
-  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
-  transform: rotateX(50deg);
+.status-pill--idle {
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  color: var(--text-muted);
 }
 
-@keyframes pedestal-pulse {
-  0% { transform: scale(0.9); opacity: 0.5; }
-  100% { transform: scale(1.15); opacity: 0.95; }
-}
-
-.cyber-owl-container {
-  position: relative;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  animation: owl-levitate 3.5s ease-in-out infinite;
-}
-
-@keyframes owl-levitate {
-  0%, 100% {
-    transform: translateY(0px) scale(1);
-  }
-  50% {
-    transform: translateY(-6px) scale(1.03);
-  }
-}
-
-.cyber-owl-glyph {
-  font-size: 38px;
-  display: inline-block;
-  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.75))
-          drop-shadow(0 0 16px rgba(245, 158, 11, 0.45))
-          drop-shadow(0 0 4px rgba(6, 182, 212, 0.35));
-}
-
-/* Cyber Scanning Laser Line Across Mascot */
-.cyber-mascot-laser-scan {
-  position: absolute;
-  left: -8px;
-  right: -8px;
-  height: 2px;
-  background: linear-gradient(90deg, transparent 0%, #06b6d4 25%, #ffffff 50%, #f59e0b 75%, transparent 100%);
-  box-shadow: 0 0 8px #06b6d4, 0 0 14px #f59e0b;
-  border-radius: 2px;
-  animation: mascot-laser-sweep 2.2s ease-in-out infinite;
-  pointer-events: none;
-  opacity: 0.85;
-}
-
-@keyframes mascot-laser-sweep {
-  0% {
-    top: 0%;
-    opacity: 0;
-  }
-  20% {
-    opacity: 0.9;
-  }
-  80% {
-    opacity: 0.9;
-  }
-  100% {
-    top: 95%;
-    opacity: 0;
-  }
-}
-
-/* Telemetry & Equalizer HUD Strip */
-.cyber-telemetry-hud {
-  position: absolute;
-  bottom: -32px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  width: 250px;
-  padding: 4px 8px;
-  background: rgba(3, 7, 18, 0.75);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 20px;
-  backdrop-filter: blur(8px);
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
-}
-
-.telemetry-tag {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
-.telemetry-dot {
+.status-indicator-dot {
   width: 6px;
   height: 6px;
   border-radius: 50%;
   background: #10b981;
   box-shadow: 0 0 8px #10b981;
-  animation: tele-dot-blink 1.5s infinite;
 }
 
-@keyframes tele-dot-blink {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.3; }
+.dot--idle {
+  background: #64748b;
+  box-shadow: none;
 }
 
-.telemetry-label {
-  font-family: var(--font-mono, monospace);
-  font-size: 9.5px;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  color: var(--text-secondary, #94a3b8);
+@keyframes pulse-soft {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.3);
+    opacity: 0.55;
+  }
 }
 
-.telemetry-label.font-cyan {
-  color: #06b6d4;
+.animate-pulse-soft {
+  animation: pulse-soft 2s ease-in-out infinite;
 }
 
-/* Audio / Threat Equalizer Bars */
-.cyber-eq-bars {
+/* Telemetry Dial Stage */
+.telemetry-dial-container {
+  position: relative;
+  width: 220px;
+  height: 220px;
   display: flex;
-  align-items: flex-end;
-  gap: 2.5px;
-  height: 14px;
+  align-items: center;
+  justify-content: center;
 }
 
-.eq-bar {
-  width: 2px;
-  background: linear-gradient(180deg, #f59e0b 0%, #06b6d4 100%);
-  border-radius: 1px;
-  animation: eq-bounce 0.8s ease-in-out infinite alternate;
+.telemetry-dial-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 2px 10px rgba(0, 0, 0, 0.35));
 }
 
-@keyframes eq-bounce {
-  0% { transform: scaleY(0.3); opacity: 0.4; }
-  100% { transform: scaleY(1.2); opacity: 1; }
+/* Dial Elements */
+.dial-ring--outer {
+  stroke: rgba(148, 163, 184, 0.12);
+  stroke-width: 1px;
 }
 
-/* Light Theme Adjustments */
-[data-theme="light"] .cyber-hud-halo {
-  background: radial-gradient(circle, rgba(217, 119, 6, 0.14) 0%, rgba(2, 132, 199, 0.08) 55%, transparent 75%);
+.dial-ring--inner {
+  stroke: rgba(148, 163, 184, 0.10);
+  stroke-width: 1px;
+  stroke-dasharray: 4 4;
 }
 
-[data-theme="light"] .cyber-telemetry-hud {
-  background: rgba(255, 255, 255, 0.9);
-  border-color: rgba(15, 23, 42, 0.1);
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.1);
+.dial-tick {
+  stroke-linecap: round;
 }
 
-[data-theme="light"] .hud-grid-line {
+.dial-tick--minor {
+  stroke: rgba(148, 163, 184, 0.18);
+  stroke-width: 0.75px;
+}
+
+.dial-tick--major {
+  stroke: #818cf8;
+  stroke-width: 1.5px;
+}
+
+.dial-track {
+  stroke: rgba(148, 163, 184, 0.08);
+  stroke-width: 3.5px;
+}
+
+.dial-progress-bar {
+  transition: stroke-dashoffset 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.35));
+}
+
+/* Gentle Rotary Sweep Arm */
+.dial-sweep-rotator {
+  transform-origin: 110px 110px;
+  animation: dial-sweep 5s linear infinite;
+}
+
+@keyframes dial-sweep {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* Center Content & Crest */
+.dial-center-content {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  text-align: center;
+  gap: 2px;
+}
+
+.dial-crest-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: transform 0.3s ease;
+}
+
+.crest-active-pulse {
+  animation: crest-breathe 3s ease-in-out infinite;
+}
+
+.crest-idle {
+  opacity: 0.7;
+}
+
+@keyframes crest-breathe {
+  0%, 100% {
+    transform: scale(1);
+    filter: drop-shadow(0 0 6px rgba(99, 102, 241, 0.3));
+  }
+  50% {
+    transform: scale(1.04);
+    filter: drop-shadow(0 0 12px rgba(99, 102, 241, 0.55));
+  }
+}
+
+/* Percent Metric */
+.dial-percent-label {
+  font-family: var(--font-title);
+  font-weight: 700;
+  font-size: 1.125rem;
+  line-height: 1;
+  color: var(--text-primary);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.02em;
+  margin-top: 4px;
+}
+
+.percent-val {
+  font-weight: 700;
+}
+
+.percent-sym {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-left: 1px;
+}
+
+/* Telemetry Readout Pill Below Dial */
+.telemetry-readout {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+}
+
+.telemetry-phase-badge {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  letter-spacing: 0.04em;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.12);
+  padding: 3px 10px;
+  border-radius: var(--radius-sm);
+  max-width: 260px;
+  text-align: center;
+}
+
+.telemetry-target-caption {
+  font-size: 0.6875rem;
+  color: var(--text-muted);
+  max-width: 240px;
+  font-family: var(--font-mono);
+}
+
+/* ============================================================
+   Light Theme Adaptations
+   ============================================================ */
+[data-theme="light"] .status-pill--active {
+  background: rgba(99, 102, 241, 0.08);
+  border-color: rgba(99, 102, 241, 0.25);
+  color: #4f46e5;
+}
+
+[data-theme="light"] .status-pill--idle {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #64748b;
+}
+
+[data-theme="light"] .dial-ring--outer {
   stroke: rgba(15, 23, 42, 0.08);
+}
+
+[data-theme="light"] .dial-ring--inner {
+  stroke: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .dial-tick--minor {
+  stroke: rgba(15, 23, 42, 0.12);
+}
+
+[data-theme="light"] .dial-tick--major {
+  stroke: #6366f1;
+}
+
+[data-theme="light"] .dial-track {
+  stroke: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .telemetry-phase-badge {
+  background: #f1f5f9;
+  border-color: rgba(15, 23, 42, 0.08);
+  color: #334155;
 }

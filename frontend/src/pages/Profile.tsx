@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
-import { User, KeyRound, Clock, Copy, Plus, Trash2 } from 'lucide-react';
+import { User, KeyRound, Clock, Copy, Plus, Trash2, AlertTriangle } from 'lucide-react';
 import { useStore } from '../store';
 import { api } from '../api/client';
 import './Profile.css';
@@ -304,16 +304,17 @@ const Profile: React.FC = () => {
             {/* Display newly generated key */}
             {generatedKey && (
               <div className="new-key-alert">
-                <div className="new-key-alert__warning">
-                  ⚠️ Make sure to copy this key now. You won't be able to see it again!
+                <div className="new-key-alert__warning" style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+                  <AlertTriangle size={15} /> Make sure to copy this key now. You will not be able to view it again.
                 </div>
                 <div className="new-key-alert__display">
                   <code>{generatedKey}</code>
                   <button
                     onClick={() => copyToClipboard(generatedKey)}
                     className="new-key-alert__copy-btn"
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    📋 Copy Key
+                    <Copy size={14} /> Copy Key
                   </button>
                 </div>
               </div>

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
-import { Printer, Download, BarChart3, Code2, FileText } from 'lucide-react';
+import { Printer, Download, BarChart3, Code2, FileText, ShieldCheck, Flame, Wrench, AlertCircle, AlertTriangle, Package, FileCode2, Layers } from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
 import { Scan, Finding, SBOMResponse, ComplianceReport, ComplianceControl, ThreatIntelResponse, ThreatIntelRecord } from '../types';
@@ -404,7 +404,7 @@ const Report: React.FC = () => {
                             padding: '6px 12px',
                           }}
                         >
-                          📄 View Report
+                          <FileText size={14} /> View Report
                         </Link>
                       </td>
                     </tr>
@@ -428,7 +428,7 @@ const Report: React.FC = () => {
     return (
       <div className="report-page">
         <div className="list-card glassmorphism text-center" style={{ padding: '40px' }}>
-          <h2 className="text-danger">⚠️ Report Error</h2>
+          <h2 className="text-danger"><AlertTriangle size={20} /> Report Error</h2>
           <p>{error || 'Scan details not found. Make sure this scan ID is valid.'}</p>
           <Link to="/" className="settings__btn settings__btn--primary" style={{ display: 'inline-block', marginTop: '16px', textDecoration: 'none' }}>
             Back to Dashboard
@@ -731,7 +731,7 @@ const Report: React.FC = () => {
       {/* 3. EXECUTIVE SUMMARY & THREAT POSTURE */}
       <div className="report-summary-layout">
         <div className="list-card glassmorphism summary-panel" style={{ height: '100%', boxSizing: 'border-box' }}>
-          <h3>📄 Executive Summary</h3>
+          <h3><FileText size={18} /> Executive Summary</h3>
           {summaryParagraphs.length > 0 ? (
             <p className="summary-text">
               {summaryParagraphs.join(' ')} SovaScan completed dependency checks, secret auditing, static code analysis, and configuration auditing targets.
@@ -744,7 +744,7 @@ const Report: React.FC = () => {
         </div>
 
         <div className="list-card glassmorphism posture-panel">
-          <h3>📊 Threat Posture</h3>
+          <h3><BarChart3 size={18} /> Threat Posture</h3>
           <div className="posture-bars-container">
             {[
               { val: critical, label: 'CRT', color: 'var(--critical)' },
@@ -778,7 +778,7 @@ const Report: React.FC = () => {
 
       {/* 4. TOP RISKS */}
       <div className="report-section">
-        <h3>🔥 Top Security Risks</h3>
+        <h3><Flame size={18} /> Top Security Risks</h3>
         <div className="top-risks-list">
           {topRisks.length > 0 ? (
             topRisks.map((f, idx) => {
@@ -848,7 +848,7 @@ const Report: React.FC = () => {
 
       {/* THREAT INTELLIGENCE SECTION */}
       <div className="report-section">
-        <h3>🛡️ Threat Intelligence</h3>
+        <h3><ShieldCheck size={18} /> Threat Intelligence</h3>
         <p className="summary-text" style={{ marginBottom: '16px' }}>
           Exploit Intelligence enriches detected CVEs using trusted public sources (CISA Known Exploited Vulnerabilities and FIRST EPSS probability scores). It helps prioritize remediation based on active exploitation and likelihood of future exploit campaigns.
         </p>
@@ -956,11 +956,11 @@ const Report: React.FC = () => {
 
       {/* 5. REMEDIATION PLAN */}
       <div className="report-section">
-        <h3>🛠️ Remediation Plan</h3>
+        <h3><Wrench size={18} /> Remediation Plan</h3>
         <div className="remediation-columns">
           <div className="list-card glassmorphism remediation-col now">
             <div className="remediation-col-header">
-              <span className="remediation-col-title">🛑 Fix Now</span>
+              <span className="remediation-col-title"><AlertCircle size={15} /> Fix Now</span>
               <span className="remediation-col-count">{fixNow.length}</span>
             </div>
             <div className="remediation-col-action">
@@ -976,7 +976,7 @@ const Report: React.FC = () => {
 
           <div className="list-card glassmorphism remediation-col sprint">
             <div className="remediation-col-header">
-              <span className="remediation-col-title">⚠️ Fix This Sprint</span>
+              <span className="remediation-col-title"><AlertTriangle size={15} /> Fix This Sprint</span>
               <span className="remediation-col-count">{fixSprint.length}</span>
             </div>
             <div className="remediation-col-action">
@@ -992,7 +992,7 @@ const Report: React.FC = () => {
 
           <div className="list-card glassmorphism remediation-col backlog">
             <div className="remediation-col-header">
-              <span className="remediation-col-title">📋 Backlog</span>
+              <span className="remediation-col-title"><Layers size={15} /> Backlog</span>
               <span className="remediation-col-count">{backlog.length}</span>
             </div>
             <div className="remediation-col-action">
@@ -1010,7 +1010,7 @@ const Report: React.FC = () => {
 
       {/* 6. COMPLIANCE IMPACT */}
       <div className="report-section">
-        <h3>🛡️ Compliance Impact</h3>
+        <h3><ShieldCheck size={18} /> Compliance Impact</h3>
         <div className="compliance-cards-grid">
           {['RBI-CSF', 'NIST-CSF', 'SOC-2', 'OWASP-10'].map((fwName) => {
             const key = fwName === 'RBI-CSF' ? 'rbi' : fwName === 'NIST-CSF' ? 'nist' : fwName === 'SOC-2' ? 'soc2' : 'owasp10';
@@ -1077,10 +1077,10 @@ const Report: React.FC = () => {
       {/* 7. SBOM PREVIEW */}
       <div className="report-section">
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }} className="sbom-header-row">
-          <h3 style={{ margin: 0 }}>📦 SBOM Dependency Preview</h3>
+          <h3 style={{ margin: 0, display: "inline-flex", alignItems: "center", gap: "8px" }}><Package size={18} /> SBOM Dependency Preview</h3>
           {sbom && (
             <button className="settings__btn settings__btn--secondary report-actions" onClick={handleExportSBOM} style={{ padding: '6px 12px', fontSize: '12px' }}>
-              📥 Download CycloneDX SBOM
+              <Download size={14} /> Download CycloneDX SBOM
             </button>
           )}
         </div>
@@ -1123,7 +1123,7 @@ const Report: React.FC = () => {
 
       {/* 8. EVIDENCE APPENDIX */}
       <div className="report-section">
-        <h3>📋 Evidence Appendix (All Findings)</h3>
+        <h3><FileCode2 size={18} /> Evidence Appendix (All Findings)</h3>
         <div className="list-card glassmorphism console-window" style={{ padding: 0 }}>
           <div className="terminal-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingRight: '12px', flexWrap: 'wrap', gap: '8px' }}>
             <span className="terminal-title">findings_manifest_index.csv</span>
