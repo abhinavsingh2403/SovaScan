@@ -53,9 +53,11 @@ const SyntaxHighlightedJSON: React.FC<{ data: any }> = ({ data }) => {
 const cleanFilePath = (path: string): string => {
   if (!path) return '';
   return path
+    .replace(/\\/g, '/')
     .replace(/^(?:.*[\\/])?vulnerable-test-target[\\/]/, '')
     .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
-    .replace(/^\/app\//, '');
+    .replace(/^\/app\//, '')
+    .replace(/^\.\//, '');
 };
 
 const severityRank: Record<string, number> = {

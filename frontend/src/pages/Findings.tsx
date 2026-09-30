@@ -28,9 +28,11 @@ import './Findings.css';
 const cleanFilePath = (path: string): string => {
   if (!path) return '';
   return path
+    .replace(/\\/g, '/')
     .replace(/^(?:.*[\\/])?vulnerable-test-target[\\/]/, '')
     .replace(/^\.sovascan_cache\/clones\/[^/]+\//, '')
-    .replace(/^\/app\//, '');
+    .replace(/^\/app\//, '')
+    .replace(/^\.\//, '');
 };
 
 const getReplacementFromPatch = (patch: string): string => {
@@ -44,23 +46,28 @@ const getReplacementFromPatch = (patch: string): string => {
 
 /**
  * Resolves a finding's target file action:
- * - For GitHub remote scans: direct URL to file on GitHub (with line anchor)
- * - For local filesystem scans: vscode://file/ URL
+ * - For GitHub remote scans: direct URL to file or commit on GitHub
+ * - For local filesystem scans: vscode://file/ URL with absolute project root resolution
  */
 function resolveTargetAction(
   finding: Finding,
   scans: Array<{ id: string; target: string }>,
+  projectRoot: string = '',
 ): {
   type: 'local' | 'github' | 'none';
   url: string;
   cleanPath: string;
   fullPath: string;
   label: string;
+  isGitCommitFinding?: boolean;
 } {
   const parentScan = scans.find((s) => s.id === finding.scanId);
   const scanTarget = (parentScan?.target ?? '').trim();
   const rawPath = finding.filePath || '';
   const cleaned = cleanFilePath(rawPath);
+  const isGitHistory =
+    finding.category === 'secret' &&
+    (finding.ruleId?.startsWith('GIT-SECRET-') || finding.tags?.includes('git-history'));
 
   // Check if target is a Git/GitHub URL
   if (
@@ -70,6 +77,17 @@ function resolveTargetAction(
   ) {
     if (scanTarget.includes('github.com')) {
       const repoBase = scanTarget.replace(/\.git$/, '').replace(/\/+$/, '');
+      const commitHash = finding.metadata?.commit_hash;
+      if (isGitHistory && commitHash) {
+        return {
+          type: 'github',
+          url: `${repoBase}/commit/${commitHash}`,
+          cleanPath: cleaned,
+          fullPath: rawPath,
+          label: 'View Commit on GitHub ↗',
+          isGitCommitFinding: true,
+        };
+      }
       const lineHash = finding.lineNumber ? `#L${finding.lineNumber}` : '';
       return {
         type: 'github',
@@ -88,14 +106,23 @@ function resolveTargetAction(
     };
   }
 
-  // Local filesystem target
-  let fullPath = rawPath;
-  if (!/^[a-zA-Z]:[\\/]/.test(rawPath) && !rawPath.startsWith('/')) {
-    const base = scanTarget.replace(/\\/g, '/').replace(/\/+$/, '');
-    const rel = rawPath.replace(/\\/g, '/').replace(/^\/+/, '');
-    fullPath = `${base}/${rel}`;
-  } else {
-    fullPath = rawPath.replace(/\\/g, '/');
+  // Local filesystem target — compute canonical absolute path so VS Code never 404s
+  const normRaw = rawPath.replace(/\\/g, '/');
+  let fullPath = normRaw;
+  const isAbsolute = /^[a-zA-Z]:\//i.test(normRaw) || normRaw.startsWith('/');
+
+  if (!isAbsolute) {
+    const normTarget = scanTarget.replace(/\\/g, '/');
+    const isTargetAbsolute = /^[a-zA-Z]:\//i.test(normTarget) || normTarget.startsWith('/');
+    if (isTargetAbsolute) {
+      const base = normTarget.replace(/\/+$/, '');
+      fullPath = `${base}/${cleaned}`;
+    } else if (projectRoot) {
+      const base = projectRoot.replace(/\\/g, '/').replace(/\/+$/, '');
+      fullPath = `${base}/${cleaned}`;
+    } else {
+      fullPath = cleaned;
+    }
   }
 
   const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
@@ -105,6 +132,7 @@ function resolveTargetAction(
     cleanPath: cleaned,
     fullPath,
     label: 'Open in VS Code',
+    isGitCommitFinding: isGitHistory,
   };
 }
 
@@ -137,6 +165,17 @@ const Findings: React.FC = () => {
   const [currentContextText, setCurrentContextText] = useState<Record<string, string>>({});
   const [backupContextText, setBackupContextText] = useState<Record<string, string>>({});
   const [copiedId, setCopiedId] = useState<string | null>(null);
+  const [projectRoot, setProjectRoot] = useState<string>('');
+
+  useEffect(() => {
+    api.getDeploymentInfo()
+      .then((res: any) => {
+        if (res.data?.project_root) {
+          setProjectRoot(res.data.project_root);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   const copyToClipboard = (text: string, id: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -1018,7 +1057,7 @@ const Findings: React.FC = () => {
                     
                     <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                       {(() => {
-                        const targetAction = resolveTargetAction(finding, scans);
+                        const targetAction = resolveTargetAction(finding, scans, projectRoot);
                         if (targetAction.type === 'github') {
                           return (
                             <a

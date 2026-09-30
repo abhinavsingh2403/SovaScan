@@ -164,7 +164,8 @@ class ScanOrchestrator:
                 logger.error("SAST scan failed: %s", exc)
 
         # 3.6 Git history secrets scanning
-        if self.scan_type in ("full", "git-history"):
+        has_git_repo = (Path(self.target_path) / ".git").exists() if Path(self.target_path).is_dir() else False
+        if self.scan_type == "git-history" or (self.scan_type == "full" and has_git_repo):
             self._update_progress("Scanning git history for leaked secrets", 70.0)
             git_scanner = GitHistoryScanner()
             try:
@@ -268,7 +269,7 @@ class ScanOrchestrator:
         """Traverse target path to find supported manifest files."""
         manifests: list[Path] = []
         manifest_names = {"package.json", "requirements.txt", "pom.xml", "Pipfile.lock"}
-        skip_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build"}
+        skip_dirs = {".git", "node_modules", "__pycache__", ".venv", "venv", "dist", "build", "vulnerable-test-target"}
 
         if self.target_path.is_file():
             if self.target_path.name in manifest_names:

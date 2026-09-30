@@ -135,17 +135,36 @@ class GitHistoryScanner:
     def _get_git_log(self, target: Path) -> str:
         """Run ``git log`` and return the raw diff output."""
         cwd = str(target if target.is_dir() else target.parent)
+        cmd = [
+            "git", "log",
+            "--diff-filter=A",     # only commits that Added files
+            "-p",                  # include patch / diff
+            f"--max-count={self.max_commits}",
+            "--no-merges",
+            "--format=COMMIT:%H|%h|%an|%ai|%s",
+        ]
+        if target.is_file():
+            cmd.extend(["--", target.name])
+        else:
+            try:
+                git_root_proc = subprocess.run(
+                    ["git", "rev-parse", "--show-toplevel"],
+                    cwd=cwd,
+                    capture_output=True,
+                    text=True,
+                    timeout=5,
+                )
+                if git_root_proc.returncode == 0:
+                    git_root = Path(git_root_proc.stdout.strip()).resolve()
+                    rel = target.resolve().relative_to(git_root)
+                    if str(rel) != ".":
+                        cmd.extend(["--", str(rel)])
+            except Exception:
+                pass
+
         try:
             result = subprocess.run(
-                [
-                    "git", "log",
-                    "--all",
-                    "--diff-filter=A",     # only commits that Added files
-                    "-p",                  # include patch / diff
-                    f"--max-count={self.max_commits}",
-                    "--no-merges",
-                    "--format=COMMIT:%H|%h|%an|%ai|%s",
-                ],
+                cmd,
                 cwd=cwd,
                 capture_output=True,
                 text=True,
@@ -233,6 +252,9 @@ class GitHistoryScanner:
         for file_diff in commit.files:
             # Skip binary-looking paths
             if any(file_diff.path.endswith(ext) for ext in (".png", ".jpg", ".gif", ".zip", ".exe", ".bin", ".lock", ".db")):
+                continue
+            path_lower = file_diff.path.lower()
+            if any(part in path_lower for part in ("vulnerable", "test-target", ".sovascan_cache", "test_api", "dummy_")):
                 continue
 
             for line_num, line_content in file_diff.added_lines:

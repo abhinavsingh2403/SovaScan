@@ -131,14 +131,17 @@ async def create_scan(
         
         # Check if path exists on this host
         target_path_obj = Path(target_clean)
+        project_root = Path(__file__).parents[2].resolve()
         if not target_path_obj.exists():
             if target_clean in (".", "./", "", "root", "app", "/app"):
                 target_clean = "."
+            elif (project_root / target_clean).exists():
+                target_clean = str(project_root / target_clean)
             else:
                 raise HTTPException(
                     status_code=400,
                     detail=f"Target path does not exist on server: {target_clean}. "
-                           f"To scan code, please enter a Git repository URL (e.g. https://github.com/owner/repository) or '.' to scan the application codebase."
+                           f"To scan code, please enter a valid directory path or a Git repository URL (e.g. https://github.com/owner/repository)."
                 )
 
     scan = Scan(
@@ -230,15 +233,16 @@ def clear_scan_history(
     Returns:
         A summary of how many scans and findings were removed.
     """
-    terminal_scans = (
-        db.query(Scan)
-        .filter(Scan.status.in_([ScanStatus.COMPLETED, ScanStatus.FAILED]))
-        .all()
-    )
+    active_ids = set(scan_manager._active_tasks.keys())
+    all_scans = db.query(Scan).all()
+    scans_to_delete = [
+        s for s in all_scans
+        if s.status in [ScanStatus.COMPLETED, ScanStatus.FAILED] or s.id not in active_ids
+    ]
 
     deleted_scans = 0
     deleted_findings = 0
-    for scan in terminal_scans:
+    for scan in scans_to_delete:
         deleted_findings += len(scan.findings) if scan.findings else 0
         db.delete(scan)
         deleted_scans += 1
@@ -1675,11 +1679,14 @@ def get_deployment_info() -> dict[str, Any]:
     Git URL scanning (cloud) or allow local path entry (local).
     """
     is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
+    project_root = str(Path(__file__).parents[2].resolve()).replace("\\", "/")
     return {
         "mode": "cloud" if is_cloud else "local",
         "server_platform": os.name,
         "supports_local_scan": not is_cloud,
         "supports_git_scan": True,
         "git_protocols": ["https", "http"],
+        "project_root": project_root,
+        "cwd": os.getcwd().replace("\\", "/"),
         "version": "2.1.0",
     }

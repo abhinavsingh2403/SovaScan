@@ -90,8 +90,15 @@ def init_db() -> None:
                 existing.key_hash = key_hash
                 existing.is_active = True
 
-        # Clean up any legacy dummy vulnerable-test-target scans
-        from sovascan.models.scan import Scan
+        # Clean up any legacy dummy vulnerable-test-target scans & findings
+        from sovascan.models.scan import Scan, ScanStatus
+        from sovascan.models.finding import Finding
+        db.query(Finding).filter(
+            (Finding.file_path.ilike("%vulnerable%")) | 
+            (Finding.file_path.ilike("%test-target%")) |
+            (Finding.evidence.ilike("%vulnerable_demo%"))
+        ).delete(synchronize_session=False)
+
         dummy_scans = db.query(Scan).filter(
             (Scan.target.ilike("%vulnerable%")) | 
             (Scan.target.ilike("%test-target%"))
@@ -99,8 +106,13 @@ def init_db() -> None:
         if dummy_scans:
             for ds in dummy_scans:
                 db.delete(ds)
-            db.commit()
             logger.info("Purged %d legacy dummy vulnerable-test scans", len(dummy_scans))
+
+        # Mark dead orphaned RUNNING scans from previous server executions as FAILED
+        dead_running = db.query(Scan).filter(Scan.status == ScanStatus.RUNNING).all()
+        for dr in dead_running:
+            dr.status = ScanStatus.FAILED
+            dr.completed_at = datetime.now(UTC)
 
         db.commit()
     except Exception as e:

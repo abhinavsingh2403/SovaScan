@@ -431,10 +431,14 @@ class ScanManager:
                     if target_clean in (".", "./", "", "root", "app", "/app"):
                         target_path = Path(".")
                     else:
-                        raise FileNotFoundError(
-                            f"Target path '{target_clean}' does not exist on the server. "
-                            f"To scan remote code, please provide a Git repository URL (e.g. https://github.com/owner/repository) or enter '.' to scan the server codebase."
-                        )
+                        project_root = Path(__file__).parents[2].resolve()
+                        if (project_root / target_clean).exists():
+                            target_path = project_root / target_clean
+                        else:
+                            raise FileNotFoundError(
+                                f"Target path '{target_clean}' does not exist on the server. "
+                                f"Please provide a valid local path or Git repository URL."
+                            )
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
@@ -551,128 +555,6 @@ class ScanManager:
                 )
 
             db.flush()
-
-            # -- Phase 5: SAST tools (only for full/sast) --------------------
-            if scan_type in ("full", "sast"):
-                self._broadcast(
-                    scan_id,
-                    self._make_event(
-                        scan_id, type="progress", phase="Running SAST tools (Bandit + Semgrep)",
-                        percent=85.0, findings_count=findings_count,
-                    ),
-                )
-                sast = SASTScanner()
-                for sast_finding_dict in self._run_sast_to_dicts(sast, target_path):
-                    sev = normalize_severity(sast_finding_dict["severity"])
-                    clean_file_path = _clean_path(sast_finding_dict.get("file_path", ""), target_path)
-
-                    evidence = sast_finding_dict.get("evidence", "") or ""
-                    if not evidence or evidence.strip() == "requires login":
-                        try:
-                            file_path_obj = Path(target_path) / clean_file_path
-                            if file_path_obj.exists() and file_path_obj.is_file():
-                                all_lines = file_path_obj.read_text(encoding="utf-8", errors="ignore").splitlines()
-                                line_num = sast_finding_dict.get("line_number")
-                                if line_num and 1 <= line_num <= len(all_lines):
-                                    evidence = all_lines[line_num - 1]
-                        except Exception as e:
-                            logger.warning("Failed to fallback evidence reading: %s", e)
-
-                    evidence_prefix = evidence[:120]
-
-                    dedup_key = (
-                        sast_finding_dict["rule_id"],
-                        clean_file_path,
-                        sast_finding_dict.get("line_number") or 0,
-                        evidence_prefix
-                    )
-                    if dedup_key in seen_findings:
-                        continue
-                    seen_findings.add(dedup_key)
-
-                    f = FindingModel(
-                        id=str(uuid.uuid4()),
-                        scan_id=scan_id,
-                        rule_id=sast_finding_dict["rule_id"],
-                        title=sast_finding_dict["title"],
-                        description=sast_finding_dict["description"],
-                        severity=sev,
-                        category=sast_finding_dict.get("category", "sast"),
-                        file_path=clean_file_path,
-                        line_number=sast_finding_dict.get("line_number") or 0,
-                        evidence=evidence,
-                        remediation=sast_finding_dict.get("remediation", ""),
-                        cve_id=sast_finding_dict.get("cve_id"),
-                        cvss_score=sast_finding_dict.get("cvss_score"),
-                    )
-                    db.add(f)
-                    findings_count += 1
-                    field = _severity_to_field(sev)
-                    severity_counts[field] += 1
-
-                    self._broadcast(
-                        scan_id,
-                        self._make_event(
-                            scan_id, type="finding_discovered", phase="SAST analysis",
-                            percent=88.0, findings_count=findings_count,
-                            finding={"id": f.id, "rule_id": f.rule_id, "title": f.title, "severity": sev.value, "category": f.category, "file_path": f.file_path},
-                        ),
-                    )
-
-            # -- Phase 6: Git history (only for full/git-history) ------------
-            if scan_type in ("full", "git-history"):
-                max_commits = 500
-                if options and "git_max_commits" in options:
-                    max_commits = int(options["git_max_commits"])
-                self._broadcast(
-                    scan_id,
-                    self._make_event(
-                        scan_id, type="progress", phase="Scanning git history for leaked secrets",
-                        percent=90.0, findings_count=findings_count,
-                    ),
-                )
-                git_scanner = GitHistoryScanner(max_commits=max_commits)
-                for gf in git_scanner.scan(target_path):
-                    sev = normalize_severity(gf.severity)
-                    clean_file_path = _clean_path(gf.file_path, target_path)
-                    evidence_prefix = gf.evidence[:120] if gf.evidence else ""
-
-                    dedup_key = (
-                        gf.id,
-                        clean_file_path,
-                        gf.line_number or 0,
-                        evidence_prefix
-                    )
-                    if dedup_key in seen_findings:
-                        continue
-                    seen_findings.add(dedup_key)
-
-                    f = FindingModel(
-                        id=str(uuid.uuid4()),
-                        scan_id=scan_id,
-                        rule_id=gf.id,
-                        title=gf.title,
-                        description=gf.description,
-                        severity=sev,
-                        category=gf.category,
-                        file_path=clean_file_path,
-                        line_number=gf.line_number or 0,
-                        evidence=gf.evidence,
-                        remediation=gf.remediation,
-                    )
-                    db.add(f)
-                    findings_count += 1
-                    field = _severity_to_field(sev)
-                    severity_counts[field] += 1
-
-                    self._broadcast(
-                        scan_id,
-                        self._make_event(
-                            scan_id, type="finding_discovered", phase="Git history analysis",
-                            percent=93.0, findings_count=findings_count,
-                            finding={"id": f.id, "rule_id": f.rule_id, "title": f.title, "severity": sev.value, "category": f.category, "file_path": f.file_path},
-                        ),
-                    )
 
             # -- Finalize ----------------------------------------------------
             scan.total_findings = findings_count

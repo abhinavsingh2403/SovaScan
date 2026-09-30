@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import './CyberRadarHUD.css';
+import { SovaIcon } from './SovaIcon';
 
 interface CyberRadarHUDProps {
   active?: boolean;
@@ -229,67 +230,16 @@ export const CyberRadarHUD: React.FC<CyberRadarHUDProps> = ({
         <line x1="16" y1="120" x2="24" y2="120" className="hud-cardinal-tick" />
       </svg>
 
-      {/* Sleek Cyber Sensor Core Pod */}
+      {/* Sleek Cyber Sensor Core Pod with Sova Owl Icon */}
       <div className="cyber-sensor-core-pod">
         <div className="sensor-core-glow" />
         <div className="sensor-core-ring" />
 
-        <div className="sensor-core-beacon">
-          <svg className="sensor-core-svg" viewBox="0 0 48 48" width="42" height="42">
-            <defs>
-              <linearGradient id="sensor-iris-grad" x1="0%" y1="0%" x2="100%" y2="100%">
-                <stop offset="0%" stopColor="#f59e0b" />
-                <stop offset="100%" stopColor="#06b6d4" />
-              </linearGradient>
-            </defs>
-            {/* Precision Hex Sensor Ring */}
-            <polygon
-              points="24,6 39,15 39,33 24,42 9,33 9,15"
-              fill="none"
-              stroke="rgba(245, 158, 11, 0.45)"
-              strokeWidth="1.2"
-              strokeDasharray="4 2"
-            />
-            {/* Inner Optic Reticle */}
-            <circle cx="24" cy="24" r="10" fill="none" stroke="url(#sensor-iris-grad)" strokeWidth="1.5" />
-            <circle cx="24" cy="24" r="4.5" fill="#f59e0b" className="sensor-pupil-glow" />
-            {/* Micro Crosshair */}
-            <line x1="24" y1="10" x2="24" y2="16" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="24" y1="32" x2="24" y2="38" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="10" y1="24" x2="16" y2="24" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
-            <line x1="32" y1="24" x2="38" y2="24" stroke="#06b6d4" strokeWidth="1.2" strokeLinecap="round" />
-          </svg>
+        <div className="sensor-core-beacon" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <SovaIcon size={32} glow={active} />
           {active && <div className="cyber-sensor-laser-scan" />}
         </div>
       </div>
-
-      {/* Live Cyber Frequency Bars & Telemetry Pill */}
-      {active && (
-        <div className="cyber-telemetry-hud">
-          <div className="telemetry-tag">
-            <span className="telemetry-dot" />
-            <span className="telemetry-label">SYS_FREQ // {Math.round(100 + percent * 1.4)} MHz</span>
-          </div>
-
-          {/* Equalizer Frequency Wave */}
-          <div className="cyber-eq-bars">
-            {Array.from({ length: 12 }).map((_, idx) => (
-              <span
-                key={idx}
-                className="eq-bar"
-                style={{
-                  animationDelay: `${idx * 0.08}s`,
-                  height: `${Math.max(4, Math.sin(idx * 0.6 + percent * 0.1) * 12 + 6)}px`,
-                }}
-              />
-            ))}
-          </div>
-
-          <div className="telemetry-tag right">
-            <span className="telemetry-label font-cyan">VULN_LOGS [{findingsCount}]</span>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
