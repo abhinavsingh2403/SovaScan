@@ -144,3 +144,93 @@ export async function zipFolderFiles(
     uncompressedSize: totalBytes,
   };
 }
+
+/**
+ * Prompts the user with native local system permission dialog (File System Access API)
+ * to select a directory on their machine and package it for security scanning.
+ */
+export async function pickAndZipDirectoryWithPermission(
+  onProgress?: (percent: number, status: string) => void
+): Promise<ZipFolderResult> {
+  if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+    try {
+      // Requests native OS / browser permission from user to access the local folder
+      const dirHandle = await (window as any).showDirectoryPicker({
+        mode: 'read',
+      });
+
+      const zip = new JSZip();
+      const folderName = dirHandle.name || 'project';
+      let totalFiles = 0;
+      let totalBytes = 0;
+
+      onProgress?.(10, `Local system permission granted for '${folderName}'. Scanning directory tree...`);
+
+      async function readDirectory(handle: any, currentPath: string) {
+        for await (const entry of handle.values()) {
+          const entryPath = currentPath ? `${currentPath}/${entry.name}` : entry.name;
+          if (entry.kind === 'directory') {
+            if (IGNORED_DIRS.has(entry.name)) continue;
+            await readDirectory(entry, entryPath);
+          } else if (entry.kind === 'file') {
+            const ext = '.' + entry.name.split('.').pop()?.toLowerCase();
+            if (IGNORED_EXTS.has(ext)) continue;
+
+            const file = await entry.getFile();
+            if (file.size > 15 * 1024 * 1024) continue; // skip oversized files
+
+            const arrayBuf = await file.arrayBuffer();
+            zip.file(entryPath, arrayBuf);
+            totalFiles++;
+            totalBytes += file.size;
+
+            if (onProgress && totalFiles % 10 === 0) {
+              onProgress(
+                20,
+                `Authorized by system: indexed ${totalFiles} files (${(totalBytes / 1024).toFixed(0)} KB)...`
+              );
+            }
+          }
+        }
+      }
+
+      await readDirectory(dirHandle, '');
+
+      if (totalFiles === 0) {
+        throw new Error('No scannable code files found in selected folder.');
+      }
+
+      onProgress?.(60, `Packaging ${totalFiles} files for analysis...`);
+
+      const blob = await zip.generateAsync(
+        {
+          type: 'blob',
+          compression: 'DEFLATE',
+          compressionOptions: { level: 6 },
+        },
+        (meta) => {
+          onProgress?.(
+            60 + Math.round(meta.percent * 0.38),
+            `Finalizing package: ${Math.round(meta.percent)}%`
+          );
+        }
+      );
+
+      return {
+        blob,
+        filename: `${folderName}.zip`,
+        folderName,
+        totalFiles,
+        uncompressedSize: totalBytes,
+      };
+    } catch (err: any) {
+      if (err.name === 'AbortError') {
+        throw new Error('Directory selection was cancelled.');
+      }
+      throw err;
+    }
+  }
+
+  throw new Error('showDirectoryPicker not supported');
+}
+

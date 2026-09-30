@@ -44,23 +44,47 @@ const getReplacementFromPatch = (patch: string): string => {
   return addedLines.join('\n');
 };
 
+const isLocalPath = (path: string): boolean => {
+  if (!path) return false;
+  const trimmed = path.trim();
+  return (
+    /^[a-zA-Z]:[\\/]/.test(trimmed) ||
+    trimmed.startsWith('/') ||
+    trimmed.startsWith('~') ||
+    trimmed.startsWith('\\\\')
+  );
+};
+
+function combineBaseAndCleanPath(base: string, cleanPath: string): string {
+  const normBase = base.replace(/\\/g, '/').replace(/\/+$/, '');
+  const normClean = cleanPath.replace(/\\/g, '/').replace(/^\/+/, '');
+  const baseName = normBase.split('/').pop() || '';
+  if (baseName && normClean.startsWith(`${baseName}/`)) {
+    return `${normBase}/${normClean.slice(baseName.length + 1)}`;
+  }
+  return `${normBase}/${normClean}`;
+}
+
+export interface TargetActionResolution {
+  githubUrl?: string;
+  githubLabel?: string;
+  vscodeUrl: string;
+  cleanPath: string;
+  fullPath: string;
+  isAbsolute: boolean;
+  isGitCommitFinding?: boolean;
+}
+
 /**
- * Resolves a finding's target file action:
+ * Resolves a finding's target file actions:
  * - For GitHub remote scans: direct URL to file or commit on GitHub
- * - For local filesystem scans: vscode://file/ URL with absolute project root resolution
+ * - For local & uploaded targets: canonical vscode://file/ URL with absolute path resolution
  */
 function resolveTargetAction(
   finding: Finding,
   scans: Array<{ id: string; target: string }>,
   projectRoot: string = '',
-): {
-  type: 'local' | 'github' | 'none';
-  url: string;
-  cleanPath: string;
-  fullPath: string;
-  label: string;
-  isGitCommitFinding?: boolean;
-} {
+): TargetActionResolution {
   const parentScan = scans.find((s) => s.id === finding.scanId);
   const scanTarget = (parentScan?.target ?? '').trim();
   const rawPath = finding.filePath || '';
@@ -68,6 +92,9 @@ function resolveTargetAction(
   const isGitHistory =
     finding.category === 'secret' &&
     (finding.ruleId?.startsWith('GIT-SECRET-') || finding.tags?.includes('git-history'));
+
+  let githubUrl: string | undefined;
+  let githubLabel: string | undefined;
 
   // Check if target is a Git/GitHub URL
   if (
@@ -79,80 +106,91 @@ function resolveTargetAction(
       const repoBase = scanTarget.replace(/\.git$/, '').replace(/\/+$/, '');
       const commitHash = finding.metadata?.commit_hash;
       if (isGitHistory && commitHash) {
-        return {
-          type: 'github',
-          url: `${repoBase}/commit/${commitHash}`,
-          cleanPath: cleaned,
-          fullPath: rawPath,
-          label: 'View Commit on GitHub ↗',
-          isGitCommitFinding: true,
-        };
+        githubUrl = `${repoBase}/commit/${commitHash}`;
+        githubLabel = 'View Commit on GitHub ↗';
+      } else {
+        const lineHash = finding.lineNumber ? `#L${finding.lineNumber}` : '';
+        githubUrl = `${repoBase}/blob/HEAD/${cleaned}${lineHash}`;
+        githubLabel = 'Open on GitHub ↗';
       }
-      const lineHash = finding.lineNumber ? `#L${finding.lineNumber}` : '';
-      return {
-        type: 'github',
-        url: `${repoBase}/blob/HEAD/${cleaned}${lineHash}`,
-        cleanPath: cleaned,
-        fullPath: rawPath,
-        label: 'Open on GitHub ↗',
-      };
     }
-    return {
-      type: 'none',
-      url: '',
-      cleanPath: cleaned,
-      fullPath: rawPath,
-      label: 'Remote Repository File',
-    };
   }
 
-  if (scanTarget.startsWith('upload:')) {
-    return {
-      type: 'none',
-      url: '',
-      cleanPath: cleaned,
-      fullPath: rawPath,
-      label: 'Uploaded Target',
-      isGitCommitFinding: false,
-    };
-  }
-
-  // Local filesystem target — compute canonical absolute path so VS Code never 404s
+  // Determine local fullPath for VS Code opening
   const normRaw = rawPath.replace(/\\/g, '/');
   let fullPath = normRaw;
-  const isAbsolute = /^[a-zA-Z]:\//i.test(normRaw) || normRaw.startsWith('/');
+  let isAbsolute = /^[a-zA-Z]:\//i.test(normRaw) || normRaw.startsWith('/');
 
   if (!isAbsolute) {
-    const normTarget = scanTarget.replace(/\\/g, '/');
-    const isTargetAbsolute = /^[a-zA-Z]:\//i.test(normTarget) || normTarget.startsWith('/');
-    const base = isTargetAbsolute
-      ? normTarget.replace(/\/+$/, '')
-      : (projectRoot ? projectRoot.replace(/\\/g, '/').replace(/\/+$/, '') : '');
+    // 1. Check local roots stored in localStorage
+    let storedLocalRoots: Record<string, string> = {};
+    try {
+      const stored = localStorage.getItem('sovascan-local-roots');
+      if (stored) storedLocalRoots = JSON.parse(stored);
+    } catch {
+      // ignore
+    }
 
-    if (base) {
-      // Avoid duplicating folder names (e.g. base ends with /backend and cleaned starts with backend/)
-      const baseDirName = base.split('/').pop() || '';
-      if (baseDirName && cleaned.startsWith(`${baseDirName}/`)) {
-        const rest = cleaned.slice(baseDirName.length + 1);
-        fullPath = `${base}/${rest}`;
-      } else {
-        fullPath = `${base}/${cleaned}`;
+    // Try finding a matching root
+    let matchingBase = '';
+    const cleanScanTarget = scanTarget.replace(/^upload:/, '').replace(/\.zip$/i, '');
+    const folderNameFromTarget = cleanScanTarget.split(/[\\/]/).pop() || '';
+
+    if (storedLocalRoots[scanTarget]) {
+      matchingBase = storedLocalRoots[scanTarget];
+    } else if (storedLocalRoots[cleanScanTarget]) {
+      matchingBase = storedLocalRoots[cleanScanTarget];
+    } else if (storedLocalRoots[folderNameFromTarget]) {
+      matchingBase = storedLocalRoots[folderNameFromTarget];
+    } else if (isLocalPath(scanTarget)) {
+      matchingBase = scanTarget;
+    } else {
+      // Check stored active target path from New Scan
+      try {
+        const activePath = localStorage.getItem('sovascan-target-path') || '';
+        if (isLocalPath(activePath)) {
+          const activeFolder = activePath.replace(/[\\/]+$/, '').split(/[\\/]/).pop() || '';
+          if (
+            activeFolder &&
+            (folderNameFromTarget === activeFolder ||
+             scanTarget.includes(activeFolder) ||
+             scans[0]?.id === finding.scanId)
+          ) {
+            matchingBase = activePath;
+          }
+        }
+      } catch {
+        // ignore
       }
+    }
+
+    // If still no matching base, try backend projectRoot if absolute
+    if (!matchingBase && projectRoot && (/^[a-zA-Z]:\//i.test(projectRoot) || projectRoot.startsWith('/'))) {
+      matchingBase = projectRoot;
+    }
+
+    if (matchingBase) {
+      fullPath = combineBaseAndCleanPath(matchingBase, cleaned);
+      isAbsolute = true;
     } else {
       fullPath = cleaned;
     }
   }
 
   const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
+  const vscodeUrl = `vscode://file/${fullPath}${lineSuffix}`;
+
   return {
-    type: 'local',
-    url: `vscode://file/${fullPath}${lineSuffix}`,
+    githubUrl,
+    githubLabel,
+    vscodeUrl,
     cleanPath: cleaned,
     fullPath,
-    label: 'Open in VS Code',
+    isAbsolute,
     isGitCommitFinding: isGitHistory,
   };
 }
+
 
 const Findings: React.FC = () => {
   const {
@@ -200,6 +238,47 @@ const Findings: React.FC = () => {
     navigator.clipboard.writeText(text);
     setCopiedId(id);
     setTimeout(() => setCopiedId(null), 2000);
+  };
+
+  const handleOpenInVSCode = (finding: Finding, targetAction: TargetActionResolution) => {
+    const parentScan = scans.find((s) => s.id === finding.scanId);
+    const scanTarget = (parentScan?.target ?? '').trim();
+    let effectiveFullPath = targetAction.fullPath;
+
+    const isAbs = /^[a-zA-Z]:\//i.test(effectiveFullPath) || effectiveFullPath.startsWith('/');
+    if (!isAbs) {
+      const cleanScanTarget = scanTarget.replace(/^upload:/, '').replace(/\.zip$/i, '');
+      const folderName = cleanScanTarget.split(/[\\/]/).pop() || 'project';
+      const promptDefault = localStorage.getItem('sovascan-target-path') || '';
+      const enteredRoot = window.prompt(
+        `Enter local directory path on your computer for '${folderName}' to open in VS Code:\n(e.g. C:\\Users\\ss\\OneDrive\\Documents\\${folderName})`,
+        isLocalPath(promptDefault) ? promptDefault : ''
+      );
+
+      if (!enteredRoot || !enteredRoot.trim()) {
+        return;
+      }
+
+      const cleanRoot = enteredRoot.trim().replace(/[\\/]+$/, '');
+      try {
+        const stored = localStorage.getItem('sovascan-local-roots') || '{}';
+        const roots = JSON.parse(stored);
+        if (scanTarget) roots[scanTarget] = cleanRoot;
+        if (cleanScanTarget) roots[cleanScanTarget] = cleanRoot;
+        if (folderName) roots[folderName] = cleanRoot;
+        localStorage.setItem('sovascan-local-roots', JSON.stringify(roots));
+      } catch {
+        // ignore
+      }
+
+      effectiveFullPath = combineBaseAndCleanPath(cleanRoot, targetAction.cleanPath);
+    }
+
+    const normPath = effectiveFullPath.replace(/\\/g, '/');
+    const lineSuffix = finding.lineNumber ? `:${finding.lineNumber}` : '';
+    const vscodeUri = `vscode://file/${normPath}${lineSuffix}`;
+
+    window.location.href = vscodeUri;
   };
 
   useEffect(() => {
@@ -1076,42 +1155,49 @@ const Findings: React.FC = () => {
                     <div className="fix-actions" style={{ marginTop: '12px', marginBottom: '16px', display: 'flex', flexWrap: 'wrap', gap: '8px', alignItems: 'center' }}>
                       {(() => {
                         const targetAction = resolveTargetAction(finding, scans, projectRoot);
-                        if (targetAction.type === 'github') {
-                          return (
-                            <a
+                        return (
+                          <>
+                            {targetAction.githubUrl && (
+                              <a
+                                className="editor-link-btn"
+                                href={targetAction.githubUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                onClick={(e) => e.stopPropagation()}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <Globe size={13} strokeWidth={2} /> {targetAction.githubLabel || 'Open on GitHub ↗'}
+                              </a>
+                            )}
+
+                            <button
+                              type="button"
                               className="editor-link-btn"
-                              href={targetAction.url}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                            >
-                              <Globe size={13} strokeWidth={2} /> Open on GitHub ↗
-                            </a>
-                          );
-                        }
-                        if (targetAction.type === 'local') {
-                          return (
-                            <a
-                              className="editor-link-btn"
-                              href={targetAction.url}
-                              onClick={(e) => e.stopPropagation()}
-                              style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                handleOpenInVSCode(finding, targetAction);
+                              }}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '6px',
+                                background: 'rgba(99, 102, 241, 0.12)',
+                                border: '1px solid rgba(99, 102, 241, 0.35)',
+                                color: 'var(--text-primary)',
+                                cursor: 'pointer',
+                              }}
+                              title={
+                                targetAction.isAbsolute
+                                  ? `Open in VS Code: ${targetAction.fullPath}`
+                                  : 'Open in VS Code'
+                              }
                             >
                               <ExternalLink size={13} strokeWidth={2} /> Open in VS Code
-                            </a>
-                          );
-                        }
-                        return (
-                          <span
-                            className="editor-link-btn"
-                            style={{ opacity: 0.5, cursor: 'not-allowed', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                            title="Remote repository files are read-only"
-                          >
-                            <ExternalLink size={13} strokeWidth={2} /> Remote File
-                          </span>
+                            </button>
+                          </>
                         );
                       })()}
+
 
                       <button
                         type="button"

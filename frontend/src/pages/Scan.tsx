@@ -24,7 +24,7 @@ import {
   FolderUp,
   Sparkles,
 } from 'lucide-react';
-import { zipFolderFiles } from '../utils/folderZip';
+import { zipFolderFiles, pickAndZipDirectoryWithPermission } from '../utils/folderZip';
 import { api } from '../api/client';
 import { useStore } from '../store';
 import { CyberRadarHUD } from '../components/CyberRadarHUD';
@@ -171,6 +171,21 @@ const Scan: React.FC = () => {
       setSelectedFileName(result.filename);
       setSelectedFileSize(result.blob.size);
       setTargetPath(`[Folder] ${result.folderName} (${result.totalFiles} files)`);
+
+      // Store local root mapping for accurate VS Code file opening
+      try {
+        const stored = localStorage.getItem('sovascan-local-roots') || '{}';
+        const roots = JSON.parse(stored);
+        const rawTarget = targetPath.trim();
+        if (isLocalPath(rawTarget)) {
+          roots[result.folderName] = rawTarget;
+          roots[result.filename] = rawTarget;
+          roots[`upload:${result.filename}`] = rawTarget;
+        }
+        localStorage.setItem('sovascan-local-roots', JSON.stringify(roots));
+      } catch {
+        // ignore
+      }
     } catch (err: any) {
       console.error('Folder packaging failed:', err);
       alert(`Could not package selected folder: ${err.message || err}`);
@@ -179,6 +194,49 @@ const Scan: React.FC = () => {
       setZipProgressText('');
       if (e.target) e.target.value = '';
     }
+  };
+
+  const handleTriggerFolderPicker = async () => {
+    // If the browser supports File System Access API, prompt for native directory permission
+    if (typeof window !== 'undefined' && 'showDirectoryPicker' in window) {
+      try {
+        setIsZippingFolder(true);
+        setZipProgressText('Requesting local system folder access...');
+        const result = await pickAndZipDirectoryWithPermission((_pct, status) => {
+          setZipProgressText(status);
+        });
+
+        setSelectedFile(result.blob);
+        setSelectedFileName(result.filename);
+        setSelectedFileSize(result.blob.size);
+        setTargetPath(`[Folder] ${result.folderName} (${result.totalFiles} files)`);
+
+        try {
+          const stored = localStorage.getItem('sovascan-local-roots') || '{}';
+          const roots = JSON.parse(stored);
+          const rawTarget = targetPath.trim();
+          if (isLocalPath(rawTarget)) {
+            roots[result.folderName] = rawTarget;
+            roots[result.filename] = rawTarget;
+            roots[`upload:${result.filename}`] = rawTarget;
+          }
+          localStorage.setItem('sovascan-local-roots', JSON.stringify(roots));
+        } catch {
+          // ignore
+        }
+        return;
+      } catch (err: any) {
+        if (err.message === 'Directory selection was cancelled.') {
+          return;
+        }
+        console.warn('showDirectoryPicker unavailable or error, falling back to input:', err);
+      } finally {
+        setIsZippingFolder(false);
+        setZipProgressText('');
+      }
+    }
+    // Fallback to HTML5 directory input
+    folderInputRef.current?.click();
   };
 
   const clearSelectedFile = () => {
@@ -197,9 +255,9 @@ const Scan: React.FC = () => {
     const cleanTarget = targetPath.trim();
     if (!cleanTarget) return;
 
-    // If cloud deployment and local drive path is provided, automatically trigger folder picker
+    // If cloud deployment and local drive path is provided, automatically trigger folder picker with permission
     if (deploymentMode === 'cloud' && isLocalPath(cleanTarget)) {
-      folderInputRef.current?.click();
+      handleTriggerFolderPicker();
       return;
     }
 
@@ -283,7 +341,7 @@ const Scan: React.FC = () => {
                   <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                     <button
                       type="button"
-                      onClick={() => folderInputRef.current?.click()}
+                      onClick={handleTriggerFolderPicker}
                       disabled={scanProgress.running || isZippingFolder}
                       style={{
                         background: 'rgba(99, 102, 241, 0.12)',
@@ -467,7 +525,7 @@ const Scan: React.FC = () => {
                   </div>
                   <button
                     type="button"
-                    onClick={() => folderInputRef.current?.click()}
+                    onClick={handleTriggerFolderPicker}
                     disabled={isZippingFolder || scanProgress.running}
                     style={{
                       background: 'var(--accent-primary)',
@@ -488,39 +546,6 @@ const Scan: React.FC = () => {
                     <FolderUp size={14} />
                     <span>Select & Scan '{getDetectedFolderName(targetPath)}'</span>
                   </button>
-                </div>
-              )}
-
-
-              {/* Quick Preset Chips for local scans */}
-              {!targetPath.startsWith('http://') && !targetPath.startsWith('https://') && !selectedFile && (
-                <div style={{ display: 'flex', gap: '6px', marginTop: '8px', flexWrap: 'wrap' }}>
-                  <span style={{ fontSize: '11px', color: 'var(--text-secondary)', alignSelf: 'center', marginRight: '4px' }}>Quick Select:</span>
-                  {[
-                    { label: '⚡ Workspace Root (.)', path: '.' },
-                    { label: '📁 Frontend', path: 'frontend' },
-                    { label: '📁 Backend', path: 'backend' },
-                    { label: '📄 requirements.txt', path: 'backend/requirements.txt' },
-                    { label: '📄 package.json', path: 'frontend/package.json' },
-                  ].map((chip) => (
-                    <button
-                      key={chip.path}
-                      type="button"
-                      onClick={() => setTargetPath(chip.path)}
-                      style={{
-                        background: targetPath === chip.path ? 'var(--accent-glow)' : 'rgba(255, 255, 255, 0.04)',
-                        border: targetPath === chip.path ? '1px solid var(--accent-primary)' : '1px solid var(--border-color)',
-                        color: targetPath === chip.path ? 'var(--accent-primary)' : 'var(--text-secondary)',
-                        borderRadius: '4px',
-                        padding: '3px 8px',
-                        fontSize: '11px',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {chip.label}
-                    </button>
-                  ))}
                 </div>
               )}
 
