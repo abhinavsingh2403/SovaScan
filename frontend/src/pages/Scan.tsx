@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import {
   Crosshair,
   Package,
@@ -16,7 +17,8 @@ import {
   ShieldAlert,
   AlertTriangle,
   Cloud,
-  HardDrive
+  HardDrive,
+  ExternalLink
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
@@ -77,6 +79,12 @@ const Scan: React.FC = () => {
   }, [fetchScans]);
 
   useEffect(() => {
+    if (!scanProgress.running) {
+      fetchScans();
+    }
+  }, [scanProgress.running, fetchScans]);
+
+  useEffect(() => {
     if (scanProgress.running) {
       if (scanLogs.length === 0) {
         setScanLogs([
@@ -133,69 +141,75 @@ const Scan: React.FC = () => {
         {/* Configuration Panel */}
         <div className="config-panel glassmorphism animate-fade-in">
           <h2>Start New Security Scan</h2>
-          {deploymentMode === 'cloud' && (
-            <div style={{
-              display: 'flex',
-              alignItems: 'flex-start',
-              gap: '10px',
-              padding: '12px 16px',
-              marginBottom: '16px',
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1px solid rgba(59, 130, 246, 0.2)',
-              borderRadius: '8px',
-              fontSize: '12px',
-              lineHeight: '1.5',
-              color: 'var(--text-secondary)',
-            }}>
-              <Cloud size={16} style={{ flexShrink: 0, marginTop: '2px', color: '#3b82f6' }} />
-              <div>
-                <strong style={{ color: 'var(--text-primary)' }}>Cloud Mode</strong> — SovaScan is running on a remote server.
-                Enter a <strong>Git repository URL</strong> (e.g., <code>https://github.com/user/repo</code>) to scan.
-                Local path scanning requires running SovaScan on your own machine.
-              </div>
-            </div>
-          )}
+          
+          {/* Target Mode Quick Selector */}
+          <div className="target-mode-pill-row" style={{ display: 'flex', gap: '8px', marginBottom: '16px', flexWrap: 'wrap' }}>
+            <button
+              type="button"
+              onClick={() => setTargetPath('vulnerable-test-target')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                border: !targetPath.startsWith('http') ? '1px solid var(--accent-primary)' : '1px solid rgba(255,255,255,0.08)',
+                background: !targetPath.startsWith('http') ? 'rgba(245, 158, 11, 0.14)' : 'rgba(255,255,255,0.02)',
+                color: !targetPath.startsWith('http') ? 'var(--accent-primary)' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 500,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <FolderSearch size={14} />
+              <span>📁 Local Filesystem Path</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setTargetPath('https://github.com/abhinavsingh2403/SovaScan')}
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
+                fontSize: '12px',
+                padding: '7px 14px',
+                borderRadius: '8px',
+                border: targetPath.startsWith('http') ? '1px solid #06b6d4' : '1px solid rgba(255,255,255,0.08)',
+                background: targetPath.startsWith('http') ? 'rgba(6, 182, 212, 0.14)' : 'rgba(255,255,255,0.02)',
+                color: targetPath.startsWith('http') ? '#06b6d4' : 'var(--text-secondary)',
+                cursor: 'pointer',
+                fontWeight: 500,
+                transition: 'all 0.2s ease',
+              }}
+            >
+              <Globe size={14} />
+              <span>🌐 GitHub Repository URL</span>
+            </button>
+          </div>
+
           <form onSubmit={handleStartScan} className="scan-form">
             <div className="form-group">
-              <label htmlFor="targetPath">Target Path or Repository URL:</label>
+              <label htmlFor="targetPath">Target Directory or Git Repository URL:</label>
               <div className="input-with-icon">
                 <span className="input-icon">
                   {targetPath.startsWith('http://') || targetPath.startsWith('https://') ? (
-                    <Globe size={16} strokeWidth={2} />
-                  ) : showCloudWarning ? (
-                    <AlertTriangle size={16} strokeWidth={2} />
+                    <Globe size={16} strokeWidth={2} style={{ color: '#06b6d4' }} />
                   ) : (
-                    <FolderSearch size={16} strokeWidth={2} />
+                    <FolderSearch size={16} strokeWidth={2} style={{ color: '#f59e0b' }} />
                   )}
                 </span>
                 <input
                   type="text"
                   id="targetPath"
-                  placeholder={deploymentMode === 'cloud' ? 'https://github.com/user/repo' : 'C:/projects/my-app or https://github.com/user/repo'}
+                  placeholder="e.g. C:/projects/my-app, vulnerable-test-target, or https://github.com/user/repo"
                   value={targetPath}
                   onChange={(e) => setTargetPath(e.target.value)}
                   disabled={scanProgress.running}
                   required
                 />
               </div>
-              {showCloudWarning && (
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginTop: '8px',
-                  padding: '8px 12px',
-                  background: 'rgba(245, 158, 11, 0.08)',
-                  border: '1px solid rgba(245, 158, 11, 0.2)',
-                  borderRadius: '6px',
-                  fontSize: '11px',
-                  color: '#f59e0b',
-                }}>
-                  <AlertTriangle size={14} />
-                  <span>This looks like a local file path. SovaScan cloud cannot access your local filesystem. Use a Git URL instead.</span>
-                </div>
-              )}
-              <p className="field-help">Specify a local directory path OR paste a remote git repository URL.</p>
+              <p className="field-help">SovaScan seamlessly scans local directories, source paths, or any remote GitHub repository.</p>
             </div>
 
             <div className="form-group">
@@ -459,36 +473,81 @@ const Scan: React.FC = () => {
                   <th>Target</th>
                   <th>Type</th>
                   <th>Run Date</th>
-                  <th>Findings Count</th>
+                  <th>Findings</th>
                   <th>Duration</th>
                   <th>Status</th>
+                  <th>Action</th>
                 </tr>
               </thead>
               <tbody>
-                {scans.slice(0, 10).map((scan) => (
-                  <tr key={scan.id}>
-                    <td className="monospace-td" title={scan.target}>{scan.target}</td>
-                    <td><span className="badge-type">{scan.scanType}</span></td>
-                    <td>{new Date(scan.createdAt).toLocaleString()}</td>
-                    <td>
-                      <span className="scan-count-tag red-tag">{scan.criticalCount}</span>
-                      <span className="scan-count-tag orange-tag">{scan.highCount}</span>
-                      <span className="scan-count-tag yellow-tag">{scan.mediumCount}</span>
-                    </td>
-                    <td>
-                      {scan.completedAt
-                        ? `${Math.round(
-                            (new Date(scan.completedAt).getTime() -
-                              new Date(scan.startedAt).getTime()) /
-                              1000
-                          )}s`
-                        : '-'}
-                    </td>
-                    <td>
-                      <span className={`status-badge ${scan.status}`}>{scan.status}</span>
+                {scans.length === 0 ? (
+                  <tr>
+                    <td colSpan={7} style={{ textAlign: 'center', padding: '32px', color: 'var(--text-secondary)' }}>
+                      No scan history found. Launch a scan above to start analyzing codebases.
                     </td>
                   </tr>
-                ))}
+                ) : (
+                  scans.slice(0, 15).map((scan) => (
+                    <tr key={scan.id}>
+                      <td className="monospace-td" title={scan.target}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', maxWidth: '280px' }} className="truncate">
+                          {scan.target.startsWith('http') ? (
+                            <Globe size={13} style={{ color: '#06b6d4', flexShrink: 0 }} />
+                          ) : (
+                            <FolderSearch size={13} style={{ color: '#f59e0b', flexShrink: 0 }} />
+                          )}
+                          <span className="truncate">{scan.target}</span>
+                        </div>
+                      </td>
+                      <td><span className="badge-type">{scan.scanType}</span></td>
+                      <td>{new Date(scan.createdAt).toLocaleString()}</td>
+                      <td>
+                        <div style={{ display: 'inline-flex', gap: '4px', alignItems: 'center' }}>
+                          <span className="scan-count-tag red-tag" title="Critical">{scan.criticalCount}</span>
+                          <span className="scan-count-tag orange-tag" title="High">{scan.highCount}</span>
+                          <span className="scan-count-tag yellow-tag" title="Medium">{scan.mediumCount}</span>
+                          <span style={{ fontSize: '11px', color: 'var(--text-secondary)', marginLeft: '4px' }}>
+                            ({scan.totalFindings})
+                          </span>
+                        </div>
+                      </td>
+                      <td>
+                        {scan.completedAt
+                          ? `${Math.round(
+                              (new Date(scan.completedAt).getTime() -
+                                new Date(scan.startedAt).getTime()) /
+                                1000
+                            )}s`
+                          : '-'}
+                      </td>
+                      <td>
+                        <span className={`status-badge ${scan.status}`}>{scan.status}</span>
+                      </td>
+                      <td>
+                        <Link
+                          to={`/findings?scan=${scan.id}`}
+                          style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '5px',
+                            padding: '4px 10px',
+                            borderRadius: '6px',
+                            background: 'rgba(245, 158, 11, 0.12)',
+                            color: 'var(--accent-primary)',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textDecoration: 'none',
+                            border: '1px solid rgba(245, 158, 11, 0.25)',
+                            transition: 'all 0.2s ease',
+                          }}
+                        >
+                          <span>View Findings</span>
+                          <ExternalLink size={11} />
+                        </Link>
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

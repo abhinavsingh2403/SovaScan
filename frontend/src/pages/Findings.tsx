@@ -609,8 +609,9 @@ const Findings: React.FC = () => {
 
     const matchesSeverity = severityFilter === 'all' || f.severity === severityFilter;
     const matchesCategory = categoryFilter === 'all' || f.category === categoryFilter;
+    const matchesScan = scanFilter === 'all' || f.scanId === scanFilter;
 
-    return matchesSearch && matchesSeverity && matchesCategory;
+    return matchesSearch && matchesSeverity && matchesCategory && matchesScan;
   });
 
   return (

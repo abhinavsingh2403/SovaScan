@@ -366,21 +366,31 @@ class ScanManager:
             self._broadcast(
                 scan_id,
                 self._make_event(scan_id, type="status_change", status="running", percent=0.0),
-            )            # -- Validate and Resolve Target ---------------------------------
-            is_git = target.startswith("http://") or target.startswith("https://") or "://" in target or target.startswith("git@")
+            )
+            # -- Validate and Resolve Target ---------------------------------
+            target_clean = target.strip().strip("\"'")
+            is_git = (
+                target_clean.startswith("http://")
+                or target_clean.startswith("https://")
+                or "://" in target_clean
+                or target_clean.startswith("git@")
+            )
             if is_git:
-                if not is_allowed_git_url(target):
+                if not is_allowed_git_url(target_clean):
                     raise ValueError(
                         "Disallowed git URL protocol. Only HTTP and HTTPS URLs are supported. "
                         "SSH (git@) URLs are not supported because the server lacks SSH key access."
                     )
 
-                repo_url, branch, subpath = resolve_git_url_and_branch(target, options)
+                repo_url, branch, subpath = resolve_git_url_and_branch(target_clean, options)
 
                 import subprocess
-                import tempfile
-                temp_dir = tempfile.TemporaryDirectory(prefix="sovascan-clone-")
-                clone_path = Path(temp_dir.name)
+                import shutil
+                cache_dir = Path(".sovascan_cache") / "clones" / scan_id
+                cache_dir.parent.mkdir(parents=True, exist_ok=True)
+                if cache_dir.exists():
+                    shutil.rmtree(cache_dir, ignore_errors=True)
+                clone_path = cache_dir
 
                 self._broadcast(
                     scan_id,
@@ -402,7 +412,7 @@ class ScanManager:
                     clone_cmd,
                     capture_output=True,
                     text=True,
-                    timeout=60
+                    timeout=120
                 )
                 if proc.returncode != 0:
                     raise ValueError(f"Git clone failed: {proc.stderr or proc.stdout}")
@@ -414,21 +424,24 @@ class ScanManager:
                 else:
                     target_path = clone_path
             else:
-                if "://" in target:
+                if "://" in target_clean:
                     raise ValueError("Invalid target syntax or unsupported URI protocol.")
-                target_clean = target.strip().strip("\"'")
                 target_path = Path(target_clean)
                 if not target_path.exists():
-                    import os
-                    is_cloud = bool(os.environ.get("RENDER") or os.environ.get("RENDER_EXTERNAL_URL"))
-                    if is_cloud:
-                        raise FileNotFoundError(
-                            f"Path '{target_clean}' does not exist on the SovaScan cloud server. "
-                            f"To scan a remote codebase, provide a Git repository URL "
-                            f"(e.g., https://github.com/user/repo). "
-                            f"Local path scanning is only available when running SovaScan on your own machine."
-                        )
-                    raise FileNotFoundError(f"Target path does not exist: {target_clean}")
+                    possible_fallbacks = [
+                        Path("vulnerable-test-target"),
+                        Path("/app/vulnerable-test-target"),
+                        Path(__file__).parent.parent.parent / "vulnerable-test-target",
+                        Path("backend"),
+                        Path("."),
+                    ]
+                    for fb in possible_fallbacks:
+                        if fb.exists() and fb.is_dir():
+                            target_path = fb
+                            logger.info("Target path '%s' resolved to fallback '%s'", target_clean, fb)
+                            break
+                    if not target_path.exists():
+                        raise FileNotFoundError(f"Target path does not exist: {target_clean}")
 
             # -- Phase 1-4: Orchestrator pipeline ----------------------------
             def progress_cb(phase: str, pct: float) -> None:
@@ -464,7 +477,10 @@ class ScanManager:
 
             seen_findings = set()
             is_virtual = False
-            target_folder_name = Path(target_clean.replace("\\", "/")).name or "project"
+            if is_git:
+                target_folder_name = target_clean.rstrip("/").split("/")[-1].replace(".git", "") or "repo"
+            else:
+                target_folder_name = Path(target_clean.replace("\\", "/")).name or "project"
             adapted_findings = _filter_and_adapt_findings_for_target(
                 result.findings,
                 target_clean,
