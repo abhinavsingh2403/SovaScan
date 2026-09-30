@@ -22,6 +22,7 @@ import {
 } from 'lucide-react';
 import { api } from '../api/client';
 import { useStore } from '../store';
+import { CyberRadarHUD } from '../components/CyberRadarHUD';
 import './Scan.css';
 
 const fwIcons: Record<string, React.ReactNode> = {
@@ -386,13 +387,13 @@ const Scan: React.FC = () => {
         <div className="progress-panel glassmorphism animate-fade-in">
           {scanProgress.running ? (
             <div className="progress-active-state">
-              <div className="radar-hud-container animate-scan-glow">
-                <div className="radar-ping-ring animate-radar-pulse"></div>
-                <div className="radar-ping-ring-2"></div>
-                <div className="radar-sweep-line animate-radar-spin"></div>
-                <div className="radar-core-glow"></div>
-                <span className="radar-icon-center">🦉</span>
-              </div>
+              <CyberRadarHUD
+                active={true}
+                phase={scanProgress.phase}
+                percent={scanProgress.percent}
+                findingsCount={scanProgress.findingsCount}
+                target={targetPath}
+              />
               
               <h3>Analyzing Target</h3>
               <p className="target-lbl truncate">{targetPath}</p>
@@ -444,11 +445,12 @@ const Scan: React.FC = () => {
             </div>
           ) : (
             <div className="progress-idle-state">
-              <div className="idle-reticle-container">
-                <div className="idle-reticle-ring-1 animate-radar-spin"></div>
-                <div className="idle-reticle-ring-2"></div>
-                <div className="owl-mascot">🦉</div>
-              </div>
+              <CyberRadarHUD
+                active={false}
+                phase="Engine Idle"
+                percent={0}
+                findingsCount={0}
+              />
               <h3>Scan Engine Idle</h3>
               <p>Configure parameters on the left and start the analyzer to view live results.</p>
             </div>

@@ -1,0 +1,338 @@
+/* ============================================================
+   SovaScan CyberRadarHUD — Military/Cyberpunk Telemetry HUD
+   ============================================================ */
+
+.cyber-hud-root {
+  position: relative;
+  width: 220px;
+  height: 220px;
+  margin: 0 auto 20px auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+}
+
+/* Ambient Radial Glow Halo */
+.cyber-hud-halo {
+  position: absolute;
+  inset: -14px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(245, 158, 11, 0.16) 0%, rgba(6, 182, 212, 0.08) 55%, transparent 75%);
+  pointer-events: none;
+  animation: hud-halo-pulse 3s ease-in-out infinite alternate;
+}
+
+@keyframes hud-halo-pulse {
+  0% {
+    transform: scale(0.96);
+    opacity: 0.6;
+  }
+  100% {
+    transform: scale(1.04);
+    opacity: 0.95;
+  }
+}
+
+/* SVG Vector Canvas */
+.cyber-hud-svg {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  filter: drop-shadow(0 0 16px rgba(0, 0, 0, 0.8));
+}
+
+/* Glass Disc Background */
+.hud-disc-bg {
+  stroke: rgba(245, 158, 11, 0.4);
+  stroke-width: 1.2px;
+}
+
+/* Grid & Range Rings */
+.hud-grid-line {
+  stroke: rgba(255, 255, 255, 0.07);
+  stroke-width: 0.8px;
+  stroke-dasharray: 4 4;
+}
+
+.hud-range-ring {
+  fill: none;
+  stroke-width: 1px;
+}
+
+.hud-range-ring.outer {
+  stroke: rgba(245, 158, 11, 0.35);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.2);
+}
+
+.hud-range-ring.mid {
+  stroke: rgba(6, 182, 212, 0.22);
+  stroke-dasharray: 6 3;
+}
+
+.hud-range-ring.inner {
+  stroke: rgba(255, 255, 255, 0.1);
+  stroke-dasharray: 2 4;
+}
+
+.hud-range-ring.core {
+  stroke: rgba(245, 158, 11, 0.5);
+  fill: rgba(245, 158, 11, 0.06);
+}
+
+/* Compass Ticks */
+.hud-tick.minor {
+  stroke: rgba(255, 255, 255, 0.2);
+  stroke-width: 0.8px;
+}
+
+.hud-tick.major {
+  stroke: #f59e0b;
+  stroke-width: 1.5px;
+}
+
+/* Rotating Gyro Tracks */
+.hud-gyro-clockwise {
+  transform-origin: 120px 120px;
+  animation: hud-spin-cw 18s linear infinite;
+}
+
+.hud-gyro-counter {
+  transform-origin: 120px 120px;
+  animation: hud-spin-ccw 12s linear infinite;
+}
+
+@keyframes hud-spin-cw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes hud-spin-ccw {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(-360deg); }
+}
+
+.hud-dashed-arc.cyan {
+  stroke: #06b6d4;
+  stroke-width: 1.5px;
+  opacity: 0.75;
+}
+
+.hud-dashed-arc.amber {
+  stroke: #f59e0b;
+  stroke-width: 1.2px;
+  opacity: 0.65;
+}
+
+/* Volumetric Conic Sweep Wedge */
+.hud-sweep-wedge {
+  fill: url(#hud-wedge-grad);
+  opacity: 0.55;
+  filter: blur(1.5px);
+}
+
+.hud-laser-line {
+  stroke-width: 2px;
+}
+
+.hud-laser-tip {
+  fill: #ffffff;
+  filter: drop-shadow(0 0 6px #f59e0b) drop-shadow(0 0 10px #ffffff);
+}
+
+/* Target Lock Brackets */
+.hud-bracket {
+  fill: none;
+  stroke: rgba(6, 182, 212, 0.65);
+  stroke-width: 1.2px;
+}
+
+/* Cardinal Legend Text */
+.hud-legend-text {
+  font-family: var(--font-mono, monospace);
+  font-size: 8px;
+  letter-spacing: 0.6px;
+  fill: rgba(255, 255, 255, 0.4);
+  font-weight: 600;
+}
+
+.hud-legend-text.top { fill: #f59e0b; }
+.hud-legend-text.btm { fill: #06b6d4; }
+
+/* Holographic Mascot Stage */
+.cyber-mascot-pod {
+  position: absolute;
+  width: 72px;
+  height: 72px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  z-index: 5;
+}
+
+.mascot-pedestal-glow {
+  position: absolute;
+  bottom: 6px;
+  width: 52px;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse, rgba(245, 158, 11, 0.45) 0%, rgba(6, 182, 212, 0.15) 60%, transparent 80%);
+  filter: blur(2px);
+  animation: pedestal-pulse 2.5s ease-in-out infinite alternate;
+}
+
+.mascot-pedestal-ring {
+  position: absolute;
+  bottom: 8px;
+  width: 44px;
+  height: 14px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 158, 11, 0.6);
+  box-shadow: 0 0 10px rgba(245, 158, 11, 0.35);
+  transform: rotateX(50deg);
+}
+
+@keyframes pedestal-pulse {
+  0% { transform: scale(0.9); opacity: 0.5; }
+  100% { transform: scale(1.15); opacity: 0.95; }
+}
+
+.cyber-owl-container {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: owl-levitate 3.5s ease-in-out infinite;
+}
+
+@keyframes owl-levitate {
+  0%, 100% {
+    transform: translateY(0px) scale(1);
+  }
+  50% {
+    transform: translateY(-6px) scale(1.03);
+  }
+}
+
+.cyber-owl-glyph {
+  font-size: 38px;
+  display: inline-block;
+  filter: drop-shadow(0 8px 12px rgba(0, 0, 0, 0.75))
+          drop-shadow(0 0 16px rgba(245, 158, 11, 0.45))
+          drop-shadow(0 0 4px rgba(6, 182, 212, 0.35));
+}
+
+/* Cyber Scanning Laser Line Across Mascot */
+.cyber-mascot-laser-scan {
+  position: absolute;
+  left: -8px;
+  right: -8px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent 0%, #06b6d4 25%, #ffffff 50%, #f59e0b 75%, transparent 100%);
+  box-shadow: 0 0 8px #06b6d4, 0 0 14px #f59e0b;
+  border-radius: 2px;
+  animation: mascot-laser-sweep 2.2s ease-in-out infinite;
+  pointer-events: none;
+  opacity: 0.85;
+}
+
+@keyframes mascot-laser-sweep {
+  0% {
+    top: 0%;
+    opacity: 0;
+  }
+  20% {
+    opacity: 0.9;
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    top: 95%;
+    opacity: 0;
+  }
+}
+
+/* Telemetry & Equalizer HUD Strip */
+.cyber-telemetry-hud {
+  position: absolute;
+  bottom: -32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 250px;
+  padding: 4px 8px;
+  background: rgba(3, 7, 18, 0.75);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 20px;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.5);
+}
+
+.telemetry-tag {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.telemetry-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 8px #10b981;
+  animation: tele-dot-blink 1.5s infinite;
+}
+
+@keyframes tele-dot-blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+.telemetry-label {
+  font-family: var(--font-mono, monospace);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--text-secondary, #94a3b8);
+}
+
+.telemetry-label.font-cyan {
+  color: #06b6d4;
+}
+
+/* Audio / Threat Equalizer Bars */
+.cyber-eq-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 2.5px;
+  height: 14px;
+}
+
+.eq-bar {
+  width: 2px;
+  background: linear-gradient(180deg, #f59e0b 0%, #06b6d4 100%);
+  border-radius: 1px;
+  animation: eq-bounce 0.8s ease-in-out infinite alternate;
+}
+
+@keyframes eq-bounce {
+  0% { transform: scaleY(0.3); opacity: 0.4; }
+  100% { transform: scaleY(1.2); opacity: 1; }
+}
+
+/* Light Theme Adjustments */
+[data-theme="light"] .cyber-hud-halo {
+  background: radial-gradient(circle, rgba(217, 119, 6, 0.14) 0%, rgba(2, 132, 199, 0.08) 55%, transparent 75%);
+}
+
+[data-theme="light"] .cyber-telemetry-hud {
+  background: rgba(255, 255, 255, 0.9);
+  border-color: rgba(15, 23, 42, 0.1);
+  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.1);
+}
+
+[data-theme="light"] .hud-grid-line {
+  stroke: rgba(15, 23, 42, 0.08);
+}
